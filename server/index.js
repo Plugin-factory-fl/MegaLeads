@@ -45,7 +45,10 @@ function requireBearer(req, res, next) {
   const want = LEADFLOW_API_KEY;
   if (!want) {
     logWarn('LEADFLOW_API_KEY is not set');
-    return res.status(503).json({ error: 'server_misconfigured', message: 'API key not configured' });
+    const message = OPENAI_API_KEY
+      ? 'LEADFLOW_API_KEY is missing. It is not the same as OPENAI_API_KEY: add LEADFLOW_API_KEY (any long random string) for extension Bearer auth; OPENAI_API_KEY is only for OpenAI on the server.'
+      : 'Set LEADFLOW_API_KEY (any long random string). The Chrome extension sends Authorization: Bearer with that value; it must match scripts/leadflow-remote-config.js apiKey.';
+    return res.status(503).json({ error: 'server_misconfigured', message });
   }
   const hdr = req.headers.authorization || '';
   const m = /^Bearer\s+(.+)$/i.exec(hdr);

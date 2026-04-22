@@ -13,12 +13,14 @@ This service lives in `server/`. It exposes a small JSON API used by the Chrome 
 
 ## 2. Environment variables
 
+You need **two different secrets** on Render (do not replace one with the other):
+
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `PORT` | Set by Render | Listen port (defaults to `3000` locally). |
 | `NODE_ENV` | Recommended | `production` on Render. |
-| `LEADFLOW_API_KEY` | **Yes** | Bearer token; must match `apiKey` in the extension `scripts/leadflow-remote-config.js`. |
-| `OPENAI_API_KEY` | Yes if LLM on | Used when the extension sends `options.llm !== false`. |
+| `LEADFLOW_API_KEY` | **Yes** | **Your own** random string (e.g. 32+ chars). The extension sends `Authorization: Bearer <this>`. Must match `apiKey` in `scripts/leadflow-remote-config.js`. **Not** the OpenAI key. |
+| `OPENAI_API_KEY` | Yes if LLM on | OpenAI’s key (`sk-…` / `sk-proj-…`). Used **only** inside this service to call OpenAI. Never put this value in the extension. |
 | `OPENAI_MODEL` | Optional | Default `gpt-4o-mini`. |
 | `EMAIL_VERIFICATION_API_KEY` | Optional | Used when `options.verify === true`. |
 | `EMAIL_VERIFICATION_PROVIDER` | Optional | `zerobounce` enables a basic ZeroBounce `v2/validate` integration; other values are ignored until wired. |
