@@ -5,8 +5,10 @@
  *   cp scripts/leadflow-remote-config.example.js scripts/leadflow-remote-config.js
  */
 
-/** @example https://your-service.onrender.com */
+/** @example https://megaleads.onrender.com */
 export const apiBaseUrl = '';
 
-/** Same secret as Render env `LEADFLOW_API_KEY` */
+/**
+ * Same value as Render env `LEADFLOW_API_KEY` (a secret you chose — not OpenAI).
+ */
 export const apiKey = '';

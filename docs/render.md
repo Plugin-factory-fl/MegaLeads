@@ -27,12 +27,12 @@ This service lives in `server/`. It exposes a small JSON API used by the Chrome 
 
 ## 3. Extension configuration
 
-1. Copy `scripts/leadflow-remote-config.example.js` to `scripts/leadflow-remote-config.js`.
-2. Set `apiBaseUrl` to your Render URL (no trailing slash), e.g. `https://leadflow-xxxx.onrender.com`.
-3. Set `apiKey` to the same value as `LEADFLOW_API_KEY` on Render.
-4. Reload the unpacked extension in Chrome.
+1. Open `scripts/leadflow-remote-config.js` in the extension tree.
+2. Set `apiBaseUrl` to your Render URL (no trailing slash), e.g. `https://megaleads.onrender.com`.
+3. Set `apiKey` to the **same value** as `LEADFLOW_API_KEY` on Render (this is your shared Bearer secret, not the OpenAI key).
+4. Reload the extension on `chrome://extensions` (**Reload**) so the service worker picks up changes.
 
-The real `leadflow-remote-config.js` file is listed in `.gitignore` so keys are not committed.
+The background worker loads this module with `chrome.runtime.getURL(...)`. If enrich fails with a load error, reload the extension after editing the file.
 
 ## 4. Smoke test
 

@@ -243,12 +243,14 @@ async function handleLeadsRemoteEnrich(message, sendResponse) {
   try {
     let mod;
     try {
-      mod = await import('./scripts/leadflow-remote-config.js');
-    } catch {
+      // Relative import() is unreliable in MV3 service workers; use extension URL.
+      const configUrl = chrome.runtime.getURL('scripts/leadflow-remote-config.js');
+      mod = await import(configUrl);
+    } catch (e) {
+      const detail = e && /** @type {Error} */ (e).message ? ` (${/** @type {Error} */ (e).message})` : '';
       sendResponse({
         ok: false,
-        error:
-          'Missing leadflow-remote-config.js. Copy scripts/leadflow-remote-config.example.js to scripts/leadflow-remote-config.js and set apiBaseUrl + apiKey.',
+        error: `Could not load leadflow-remote-config.js${detail}. Ensure the file exists under scripts/ and reload the extension (chrome://extensions → Reload). Copy from leadflow-remote-config.example.js if needed, then set apiBaseUrl + apiKey.`,
       });
       return;
     }
