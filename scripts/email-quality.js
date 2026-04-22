@@ -5,7 +5,8 @@
 
 export const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 
-const EMAIL_TRAIL_RE = /[),.;:!?]+$/;
+/** Trailing punctuation trimmed from email/phone candidates — also used by phone normalization. */
+export const EMAIL_TRAIL_RE = /[),.;:!?]+$/;
 
 export const EMAIL_BAD_TLDS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'css', 'js', 'json']);
 

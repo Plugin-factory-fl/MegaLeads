@@ -34,7 +34,7 @@ You need **two different secrets** on Render (do not replace one with the other)
 3. Set `apiKey` to the **same value** as `MEGALEADS_API_KEY` on Render (this is your shared Bearer secret, not the OpenAI key).
 4. Reload the extension on `chrome://extensions` (**Reload**) so the service worker picks up changes.
 
-The background worker loads this module with `chrome.runtime.getURL(...)`. If enrich fails with a load error, reload the extension after editing the file.
+The background service worker is an **ES module** and **statically imports** `scripts/leadflow-remote-config.js` (dynamic `import()` is not allowed in workers). After editing that file, use **Reload** on `chrome://extensions` so the worker picks up changes.
 
 ## 4. Smoke test
 

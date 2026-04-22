@@ -1,4 +1,4 @@
-import { EMAIL_RE, pickBestEmail } from './email-quality.js';
+import { EMAIL_RE, EMAIL_TRAIL_RE, pickBestEmail } from './email-quality.js';
 
 /**
  * Instagram DOM helpers — centralized fallbacks for scroll roots, links, and text parsing.

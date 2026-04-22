@@ -4,7 +4,11 @@
  * Growman-style Instagram API access: session DeclarativeNetRequest rules inject
  * x-ig-app-id, x-asbd-id, and x-ig-www-claim on i.instagram.com/api/* and graphql,
  * matching the pattern extracted from Growman's dash bundle.
+ *
+ * ES module so we can statically import remote API config (dynamic import() is disallowed in workers).
  */
+
+import { apiBaseUrl as storedApiBaseUrl, apiKey as storedApiKey } from './scripts/leadflow-remote-config.js';
 
 const DNR_RULE_IDS = [1, 2, 3, 4, 5];
 const DASHBOARD_TAB_STORAGE_KEY = 'leadflow_dashboard_tab_id';
@@ -241,23 +245,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  */
 async function handleLeadsRemoteEnrich(message, sendResponse) {
   try {
-    let mod;
-    try {
-      // Relative import() is unreliable in MV3 service workers; use extension URL.
-      const configUrl = chrome.runtime.getURL('scripts/leadflow-remote-config.js');
-      mod = await import(configUrl);
-    } catch (e) {
-      const detail = e && /** @type {Error} */ (e).message ? ` (${/** @type {Error} */ (e).message})` : '';
-      sendResponse({
-        ok: false,
-        error: `Could not load leadflow-remote-config.js${detail}. Ensure the file exists under scripts/ and reload the extension (chrome://extensions → Reload). Copy from leadflow-remote-config.example.js if needed, then set apiBaseUrl + apiKey.`,
-      });
-      return;
-    }
-    const apiBaseUrl = String(mod.apiBaseUrl || '')
+    const apiBaseUrl = String(storedApiBaseUrl || '')
       .trim()
       .replace(/\/$/, '');
-    const apiKey = String(mod.apiKey || '').trim();
+    const apiKey = String(storedApiKey || '').trim();
     if (!apiBaseUrl || !apiKey) {
       sendResponse({
         ok: false,

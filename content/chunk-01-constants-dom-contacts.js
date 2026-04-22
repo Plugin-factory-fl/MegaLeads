@@ -476,6 +476,8 @@ async function scrollListStepBackground(doc, scrollRoot, collectionRoot) {
 }
 
 const PHONE_RE = /(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,9}\b/g;
+/** Mirror `scripts/email-quality.js` — used by `normalizePhoneCandidate` below. */
+const EMAIL_TRAIL_RE = /[),.;:!?]+$/;
 
 function looksLikeDate(raw) {
   const m = String(raw || '').trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
