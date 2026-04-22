@@ -1,5 +1,5 @@
 /**
- * LeadFlow — background service worker (MV3).
+ * MegaLeads - background service worker (MV3).
  *
  * Growman-style Instagram API access: session DeclarativeNetRequest rules inject
  * x-ig-app-id, x-asbd-id, and x-ig-www-claim on i.instagram.com/api/* and graphql,

@@ -1,4 +1,4 @@
-# Deploy LeadFlow enrich API on Render
+# Deploy MegaLeads enrich API on Render
 
 This service lives in `server/`. It exposes a small JSON API used by the Chrome extension dashboard (via the MV3 background worker) to rescore emails deterministically, optionally call OpenAI for signal-based segments, and optionally verify addresses.
 

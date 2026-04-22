@@ -1,5 +1,5 @@
 /**
- * LeadFlow — toolbar popup: scrape controls + open/focus dashboard tab.
+ * MegaLeads - toolbar popup: scrape controls + open/focus dashboard tab.
  */
 
 import {
@@ -18,10 +18,10 @@ import {
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { t, tf, uiLocaleFromUiPrefs } from './i18n.js';
 
-/** @typedef {'en' | 'it'} Locale */
+/** @typedef {'en'} Locale */
 
 /** @type {Locale} */
-let uiLocale = 'it';
+let uiLocale = 'en';
 
 const $ = (id) => {
   const el = document.getElementById(id);
@@ -93,7 +93,7 @@ function bindEls() {
   els.start = $('lfStart');
   els.stop = $('lfStop');
   els.themeToggle = $('lfThemeToggle');
-  els.langToggle = $('lfLangToggle');
+  els.langToggle = document.getElementById('lfLangToggle');
   els.status = document.getElementById('lfPopupStatus');
 }
 
@@ -107,17 +107,11 @@ function isDelayEffectivelyCustomized(p) {
 
 function applyPopupLocale() {
   const L = uiLocale;
-  document.documentElement.lang = L === 'it' ? 'it' : 'en';
+  document.documentElement.lang = 'en';
   if (els.langToggle) {
     els.langToggle.textContent = t(L, 'popup.langSwitch');
-    els.langToggle.setAttribute(
-      'title',
-      L === 'en' ? t(L, 'popup.langSwitchToIt') : t(L, 'popup.langSwitchToEn'),
-    );
-    els.langToggle.setAttribute(
-      'aria-label',
-      L === 'en' ? t(L, 'popup.langSwitchToIt') : t(L, 'popup.langSwitchToEn'),
-    );
+    els.langToggle.setAttribute('title', t(L, 'popup.langSwitchToEn'));
+    els.langToggle.setAttribute('aria-label', t(L, 'popup.langSwitchToEn'));
   }
   const modeLabel = document.getElementById('lfModeLabel');
   if (modeLabel) modeLabel.textContent = t(L, 'popup.modeLabel');
@@ -161,12 +155,6 @@ function applyPopupLocale() {
   const iProf = document.getElementById('lfInfoProfileLimit');
   if (iProf) iProf.setAttribute('title', t(L, 'popup.infoProfileLimit'));
   syncThemeToggleUi();
-}
-
-function toggleUiLocale() {
-  uiLocale = uiLocale === 'it' ? 'en' : 'it';
-  applyPopupLocale();
-  void savePrefs();
 }
 
 function applyTheme(dark) {
@@ -333,7 +321,7 @@ async function savePrefs() {
     [STORAGE_KEYS.UI_PREFS]: {
       ...base,
       locale: uiLocale,
-      preferEnglish: uiLocale === 'en',
+      preferEnglish: true,
       mode: getSelectedMode(),
       query: els.query.value,
       minFollowers: els.minFollowers.value,
@@ -596,7 +584,10 @@ function wireEvents() {
   els.start.addEventListener('click', () => void startExtractionPipeline());
   els.stop.addEventListener('click', () => void stopExtraction());
 
-  els.langToggle.addEventListener('click', () => toggleUiLocale());
+  if (els.langToggle) {
+    els.langToggle.hidden = true;
+    els.langToggle.setAttribute('aria-hidden', 'true');
+  }
 
   els.themeToggle.addEventListener('click', () => {
     document.documentElement.classList.toggle('lf-dark');

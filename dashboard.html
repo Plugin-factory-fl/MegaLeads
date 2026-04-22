@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="it" class="lf-extension-doc" id="lfRoot">
+<html lang="en" class="lf-extension-doc" id="lfRoot">
   <head>
     <meta charset="UTF-8" />
-    <title>LeadFlow — Dashboard</title>
+    <title>MegaLeads - Dashboard</title>
     <link rel="stylesheet" href="styles/ui.css" />
     <!-- SheetJS (SheetJS CE) — .xlsx export; see https://sheetjs.com -->
     <script src="libs/xlsx.full.min.js"></script>
@@ -16,21 +16,18 @@
             src="Assets/logo2.png"
             data-logo-light="Assets/logo2.png"
             data-logo-dark="Assets/logo3.png"
-            alt="LeadFlow"
+            alt="MegaLeads"
             width="202"
             height="46"
           />
         </div>
-        <div class="lf-header-actions" role="toolbar" aria-label="Aspetto e lingua">
-          <button type="button" class="lf-btn lf-btn-ghost lf-lang-toggle" id="lfLangToggle">
-            English
-          </button>
+        <div class="lf-header-actions" role="toolbar" aria-label="Appearance">
           <button
             type="button"
             class="lf-btn lf-btn-ghost lf-theme-toggle"
             id="lfThemeToggle"
-            aria-label="Passa alla modalità scura"
-            title="Modalità scura"
+            aria-label="Switch to dark mode"
+            title="Dark mode"
           >
             <span class="lf-theme-toggle-icon" aria-hidden="true">☾</span>
           </button>
@@ -38,7 +35,7 @@
       </header>
 
       <p class="lf-dashboard-hint">
-        Avanzamento e risultati dell’esecuzione corrente. Modalità, hashtag e ritardi sono nel popup della barra.
+        Progress and results for the current run. Mode, hashtag, and delays are in the toolbar popup.
       </p>
 
       <section class="lf-ai-panel" aria-labelledby="lfAiPanelTitle">
@@ -59,6 +56,10 @@
             <input type="checkbox" id="lfAiFetchUrl" checked />
             <span id="lfAiFetchUrlLabel"></span>
           </label>
+          <label class="lf-check">
+            <input type="checkbox" id="lfAiExcludeFake" checked />
+            <span id="lfAiExcludeFakeLabel"></span>
+          </label>
           <button type="button" class="lf-btn lf-btn-primary" id="lfAiEnrich"></button>
         </div>
         <p class="lf-ai-panel-status" id="lfAiStatus" aria-live="polite"></p>
@@ -67,7 +68,7 @@
 
       <div class="lf-session-bar" id="lfSessionBar">
         <div class="lf-session-main">
-          <div class="lf-session-title">Estrazione in corso</div>
+          <div class="lf-session-title">Current extraction</div>
           <div class="lf-session-line">
             <span class="lf-session-target" id="lfSessionTarget">—</span>
             <span class="lf-session-mode" id="lfSessionMode"></span>
@@ -80,10 +81,10 @@
             target="_blank"
             rel="noreferrer"
             hidden
-            >Apri pagina sorgente su Instagram</a>
+            >Open source page on Instagram</a>
         </div>
         <button type="button" class="lf-btn lf-btn-primary lf-session-stop" id="lfDashboardStop">
-          Avvia estrazione
+          Start extraction
         </button>
       </div>
 
@@ -103,41 +104,41 @@
           aria-expanded="false"
           aria-controls="lfHistoryBody"
         >
-          <span class="lf-history-toggle-label" id="lfHistoryLabel">Cronologia estrazioni</span>
+          <span class="lf-history-toggle-label" id="lfHistoryLabel">Extraction history</span>
           <span class="lf-history-chevron" aria-hidden="true">▸</span>
         </button>
         <div class="lf-history-body" id="lfHistoryBody" hidden>
           <div class="lf-history-head">
             <button type="button" class="lf-btn lf-btn-ghost lf-history-clear" id="lfHistoryClear">
-              Cancella cronologia
+              Clear history
             </button>
           </div>
-          <div class="lf-history-list" id="lfHistoryList" role="listbox" aria-label="Cronologia estrazioni"></div>
+          <div class="lf-history-list" id="lfHistoryList" role="listbox" aria-label="Extraction history"></div>
         </div>
       </div>
 
-      <p class="lf-section-title">Risultati</p>
+      <p class="lf-section-title">Results</p>
       <div class="lf-toolbar">
-        <input type="search" id="lfFilter" placeholder="Filtra per nome utente, bio, email, telefono o sito…" />
-        <button type="button" class="lf-btn lf-btn-ghost" id="lfCopy">Copia selezionati</button>
-        <button type="button" class="lf-btn lf-btn-ghost" id="lfExportProfiles">Esporta profili in Excel</button>
-        <button type="button" class="lf-btn lf-btn-ghost" id="lfExportEmails">Esporta email in Excel</button>
+        <input type="search" id="lfFilter" placeholder="Filter by username, bio, email, phone, or website…" />
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfCopy">Copy selected</button>
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfExportProfiles">Export profiles to Excel</button>
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfExportEmails">Export emails to Excel</button>
         <button type="button" class="lf-btn lf-btn-ghost" id="lfOpenSheets">Google Sheets</button>
-        <button type="button" class="lf-btn lf-btn-ghost" id="lfClear">Svuota elenco</button>
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfClear">Clear list</button>
       </div>
 
       <div class="lf-table-wrap">
         <table class="lf-table" id="lfTable">
           <thead>
             <tr>
-              <th class="lf-col-check"><input type="checkbox" id="lfSelectAll" title="Seleziona tutto" /></th>
-              <th data-sort="username">Utente</th>
+              <th class="lf-col-check"><input type="checkbox" id="lfSelectAll" title="Select all" /></th>
+              <th data-sort="username">Username</th>
               <th data-sort="followerCount">Follower</th>
               <th data-sort="bio">Bio</th>
               <th data-sort="email">Email</th>
-              <th data-sort="phone">Telefono</th>
-              <th data-sort="websiteUrl">Sito web</th>
-              <th data-sort="segment_primary">Segmento</th>
+              <th data-sort="phone">Phone</th>
+              <th data-sort="websiteUrl">Website</th>
+              <th data-sort="segment_primary">Segment</th>
               <th data-sort="email_deliverability">Email QA</th>
             </tr>
           </thead>
@@ -145,7 +146,7 @@
         </table>
       </div>
 
-      <footer class="lf-footer">Realizzato da Tommaso Parisi</footer>
+      <footer class="lf-footer">Built by Tommaso Parisi</footer>
     </div>
 
     <script type="module" src="scripts/dashboard.js"></script>

@@ -1,5 +1,5 @@
 /**
- * LeadFlow enrich API — Render-friendly Express service.
+ * MegaLeads enrich API — Render-friendly Express service.
  * Auth: Authorization: Bearer <MEGALEADS_API_KEY>
  */
 
@@ -144,6 +144,35 @@ function compactLeadsForLlm(leads) {
   }));
 }
 
+/**
+ * Conservative filter for obvious placeholder/test addresses.
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isLikelyPlaceholderEmail(email) {
+  const n = normalizeEmailCandidate(email);
+  if (!n) return false;
+  const at = n.indexOf('@');
+  if (at <= 0) return false;
+  const local = n.slice(0, at);
+  const host = n.slice(at + 1);
+
+  const placeholderHosts = new Set([
+    'example.com',
+    'example.org',
+    'example.net',
+    'test.com',
+    'domain.com',
+    'yourdomain.com',
+    'mailinator.com',
+  ]);
+  if (placeholderHosts.has(host)) return true;
+  if (/\.(example|invalid|test|local)$/i.test(host)) return true;
+  if (/^(test|example|sample|demo|fake|noemail|nobody)([._-]?\d+)?$/i.test(local)) return true;
+  if (/^(yourname|firstname|lastname|fullname|username|email|user)([._-]?\d+)?$/i.test(local)) return true;
+  return false;
+}
+
 /** @param {string} text */
 function extractJsonObjectWithItems(text) {
   const t = String(text || '').trim();
@@ -273,9 +302,27 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
       if (!parsed) throw new Error('openai_final_parse_failed');
       const llmByUser = itemsArrayToLlmMap(parsed.items);
       const doVerify = options.verify === true;
+      /** @type {Set<string>} */
+      const fetchedEvidenceEmails = new Set();
+      for (const msg of messages) {
+        if (!msg || msg.role !== 'tool') continue;
+        const found = emailsFromText(String(msg.content || ''));
+        for (const raw of found) {
+          const normalized = normalizeEmailCandidate(raw);
+          if (!normalized) continue;
+          fetchedEvidenceEmails.add(normalized);
+          if (fetchedEvidenceEmails.size >= 600) break;
+        }
+        if (fetchedEvidenceEmails.size >= 600) break;
+      }
       const leadsOut = [];
       for (const row of leadsIn) {
-        leadsOut.push(await enrichOne(row, llmByUser, doVerify));
+        leadsOut.push(
+          await enrichOne(row, llmByUser, doVerify, {
+            extraEvidenceEmails: fetchedEvidenceEmails,
+            excludeFakeEmails: options.excludeFakeEmails !== false,
+          }),
+        );
       }
       return { kind: 'done', leadsOut };
     }
@@ -452,11 +499,15 @@ async function runLlmBatch(leads, options) {
  * @param {object} row
  * @param {Map<string, object>} llmByUser
  * @param {boolean} doVerify
+ * @param {{ extraEvidenceEmails?: Set<string>, excludeFakeEmails?: boolean }} [extras]
  */
-async function enrichOne(row, llmByUser, doVerify) {
+async function enrichOne(row, llmByUser, doVerify, extras) {
   const username = String(row.username || '').trim();
   const key = username.toLowerCase();
   const candidates = emailCandidatesForRow(row);
+  if (extras?.extraEvidenceEmails && extras.extraEvidenceEmails.size) {
+    for (const em of extras.extraEvidenceEmails) candidates.push(em);
+  }
   const rescored = pickBestEmail(candidates) || '';
   const evidenceEmails = new Set(candidates.map((x) => normalizeEmailCandidate(String(x || ''))).filter(Boolean));
 
@@ -504,6 +555,17 @@ async function enrichOne(row, llmByUser, doVerify) {
     out.segment_primary = out.segment_primary || '';
     out.segment_tags = Array.isArray(out.segment_tags) ? out.segment_tags : [];
     out.email_action = out.email_action || 'keep';
+  }
+
+  if (extras?.excludeFakeEmails !== false && out.email) {
+    const normalizedFinal = normalizeEmailCandidate(String(out.email || ''));
+    if (!normalizedFinal || isLikelyPlaceholderEmail(normalizedFinal)) {
+      out.email = '';
+      out.email_action = 'clear';
+      out.email_quality_codes = [...(out.email_quality_codes || []), 'placeholder_email_filtered'];
+    } else {
+      out.email = normalizedFinal;
+    }
   }
 
   if (doVerify && out.email) {
@@ -596,7 +658,11 @@ async function handleEnrich(req, res) {
   const doVerify = options.verify === true;
   const leadsOut = [];
   for (const row of leadsIn) {
-    leadsOut.push(await enrichOne(row, llmByUser, doVerify));
+    leadsOut.push(
+      await enrichOne(row, llmByUser, doVerify, {
+        excludeFakeEmails: options.excludeFakeEmails !== false,
+      }),
+    );
   }
 
   logInfo('enrich_ok', {

@@ -1,5 +1,5 @@
 /**
- * Shared message types and storage keys for LeadFlow.
+ * Shared message types and storage keys for MegaLeads.
  */
 
 export const MSG = {
@@ -26,7 +26,7 @@ export const STORAGE_KEYS = {
   LEADS: 'leadflow_leads',
   RUN_STATE: 'leadflow_runState',
   UI_PREFS: 'leadflow_ui_prefs',
-  /** Last opened LeadFlow dashboard tab (reuse on Start). */
+  /** Last opened MegaLeads dashboard tab (reuse on Start). */
   DASHBOARD_TAB_ID: 'leadflow_dashboard_tab_id',
   /** Instagram tab that received Start (so Stop works while dashboard is focused). */
   SCRAPE_SOURCE_TAB: 'leadflow_scrape_source_tab',

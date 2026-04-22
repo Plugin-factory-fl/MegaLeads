@@ -1,5 +1,5 @@
 /**
- * LeadFlow — full-tab dashboard: progress, log, results (controls in popup).
+ * MegaLeads - full-tab dashboard: progress, log, results (controls in popup).
  */
 
 import { MSG, STORAGE_KEYS } from './constants.js';
@@ -40,10 +40,10 @@ function mergeLeadFromEnrich(cur, incoming) {
   return next;
 }
 
-/** @typedef {'en' | 'it'} Locale */
+/** @typedef {'en'} Locale */
 
 /** @type {Locale} */
-let uiLocale = 'it';
+let uiLocale = 'en';
 
 /** Last RUN_STATE passed to syncSessionBar (for locale refresh). */
 let lastSessionRs = undefined;
@@ -89,6 +89,8 @@ const els = {
   aiVerifyLabel: null,
   aiFetchUrl: null,
   aiFetchUrlLabel: null,
+  aiExcludeFake: null,
+  aiExcludeFakeLabel: null,
   sheetsHint: null,
   openSheets: null,
 };
@@ -138,6 +140,8 @@ function bindEls() {
   els.aiVerifyLabel = document.getElementById('lfAiVerifyLabel');
   els.aiFetchUrl = document.getElementById('lfAiFetchUrl');
   els.aiFetchUrlLabel = document.getElementById('lfAiFetchUrlLabel');
+  els.aiExcludeFake = document.getElementById('lfAiExcludeFake');
+  els.aiExcludeFakeLabel = document.getElementById('lfAiExcludeFakeLabel');
   els.sheetsHint = document.getElementById('lfSheetsHint');
   els.openSheets = document.getElementById('lfOpenSheets');
 }
@@ -163,7 +167,7 @@ function setSessionRunToggleButton(which) {
 function syncSessionBar(rs) {
   lastSessionRs = rs;
   const L = uiLocale;
-  const locStr = L === 'it' ? 'it-IT' : 'en-US';
+  const locStr = 'en-US';
   const sessionTitleEl = document.querySelector('.lf-session-title');
   if (sessionTitleEl) sessionTitleEl.textContent = t(L, 'dashboard.sessionTitle');
   if (els.sessionLink) els.sessionLink.textContent = t(L, 'dashboard.sessionLink');
@@ -361,8 +365,8 @@ async function savePrefsUi() {
   await chrome.storage.local.set({
     [STORAGE_KEYS.UI_PREFS]: {
       ...base,
-      locale: uiLocale,
-      preferEnglish: uiLocale === 'en',
+      locale: 'en',
+      preferEnglish: true,
       theme: document.documentElement.classList.contains('lf-dark') ? 'dark' : 'light',
     },
   });
@@ -370,20 +374,14 @@ async function savePrefsUi() {
 
 function applyDashboardLocale() {
   const L = uiLocale;
-  document.documentElement.lang = L === 'it' ? 'it' : 'en';
+  document.documentElement.lang = 'en';
   document.title = t(L, 'dashboard.title');
   const ver = document.querySelector('.lf-version');
   if (ver) ver.textContent = t(L, 'dashboard.version');
   if (els.langToggle) {
     els.langToggle.textContent = t(L, 'dashboard.langSwitch');
-    els.langToggle.setAttribute(
-      'title',
-      L === 'en' ? t(L, 'dashboard.langSwitchToIt') : t(L, 'dashboard.langSwitchToEn'),
-    );
-    els.langToggle.setAttribute(
-      'aria-label',
-      L === 'en' ? t(L, 'dashboard.langSwitchToIt') : t(L, 'dashboard.langSwitchToEn'),
-    );
+    els.langToggle.setAttribute('title', t(L, 'dashboard.langSwitchToEn'));
+    els.langToggle.setAttribute('aria-label', t(L, 'dashboard.langSwitchToEn'));
   }
   syncThemeToggleUi();
   const hint = document.querySelector('.lf-dashboard-hint');
@@ -402,6 +400,7 @@ function applyDashboardLocale() {
   if (els.aiLlmLabel) els.aiLlmLabel.textContent = t(L, 'dashboard.aiLlmToggle');
   if (els.aiVerifyLabel) els.aiVerifyLabel.textContent = t(L, 'dashboard.aiVerifyToggle');
   if (els.aiFetchUrlLabel) els.aiFetchUrlLabel.textContent = t(L, 'dashboard.aiFetchUrlToggle');
+  if (els.aiExcludeFakeLabel) els.aiExcludeFakeLabel.textContent = t(L, 'dashboard.aiExcludeFakeToggle');
   if (els.aiEnrich) els.aiEnrich.textContent = t(L, 'dashboard.aiEnrichRun');
   if (els.openSheets) els.openSheets.textContent = t(L, 'dashboard.openSheets');
 
@@ -427,12 +426,6 @@ function applyDashboardLocale() {
   renderHistory();
   renderTable();
   if (running) setRunningUi(true);
-}
-
-function toggleDashboardLocale() {
-  uiLocale = uiLocale === 'it' ? 'en' : 'it';
-  applyDashboardLocale();
-  void savePrefsUi();
 }
 
 async function loadPrefsUi() {
@@ -465,7 +458,7 @@ function setRunningUi(on) {
 function applyProgressFromMessage(msg) {
   if (!running) return;
   const L = uiLocale;
-  const locStr = L === 'it' ? 'it-IT' : 'en-US';
+  const locStr = 'en-US';
   if (msg.phase === 'enrich' && msg.enrichTotal > 0) {
     const cur = Math.max(0, Number(msg.enrichCurrent) || 0);
     const tot = Number(msg.enrichTotal) || 1;
@@ -728,7 +721,7 @@ function renderHistory() {
     )}</div>`;
     return;
   }
-  const locStr = uiLocale === 'it' ? 'it-IT' : 'en-US';
+  const locStr = 'en-US';
   const rows = sessions
     .map((s) => {
       const selected = s.id === selectedSessionId;
@@ -990,7 +983,8 @@ async function runRemoteEnrichPipeline() {
   const useLlm = els.aiLlm ? els.aiLlm.checked : true;
   const useVerify = els.aiVerify ? els.aiVerify.checked : false;
   const useFetchUrl = els.aiFetchUrl ? els.aiFetchUrl.checked : false;
-  const options = { llm: useLlm, verify: useVerify, fetchUrlTool: useFetchUrl };
+  const excludeFakeEmails = els.aiExcludeFake ? els.aiExcludeFake.checked : true;
+  const options = { llm: useLlm, verify: useVerify, fetchUrlTool: useFetchUrl, excludeFakeEmails };
   const batches = chunkArray(list, ENRICH_BATCH_SIZE);
   const byKey = new Map(list.map((r) => [r.username.toLowerCase(), { ...normalizeStoredLead(r) }]));
   try {
@@ -1287,7 +1281,8 @@ function wireEvents() {
   });
 
   if (els.langToggle) {
-    els.langToggle.addEventListener('click', () => toggleDashboardLocale());
+    els.langToggle.hidden = true;
+    els.langToggle.setAttribute('aria-hidden', 'true');
   }
 
   els.themeToggle.addEventListener('click', () => {

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="it" class="lf-extension-doc" id="lfRoot">
+<html lang="en" class="lf-extension-doc" id="lfRoot">
   <head>
     <meta charset="UTF-8" />
-    <title>LeadFlow</title>
+    <title>MegaLeads</title>
     <link rel="stylesheet" href="styles/ui.css" />
   </head>
   <body class="lf-ui lf-popup">
@@ -14,21 +14,18 @@
             src="Assets/logo2.png"
             data-logo-light="Assets/logo2.png"
             data-logo-dark="Assets/logo3.png"
-            alt="LeadFlow"
+            alt="MegaLeads"
             width="180"
             height="41"
           />
         </div>
-        <div class="lf-header-actions" role="toolbar" aria-label="Aspetto e lingua">
-          <button type="button" class="lf-btn lf-btn-ghost lf-lang-toggle" id="lfLangToggle">
-            English
-          </button>
+        <div class="lf-header-actions" role="toolbar" aria-label="Appearance">
           <button
             type="button"
             class="lf-btn lf-btn-ghost lf-theme-toggle"
             id="lfThemeToggle"
-            aria-label="Passa alla modalità scura"
-            title="Modalità scura"
+            aria-label="Switch to dark mode"
+            title="Dark mode"
           >
             <span class="lf-theme-toggle-icon" aria-hidden="true">☾</span>
           </button>
@@ -36,7 +33,7 @@
       </div>
 
       <div class="lf-field">
-        <span class="lf-field-label" id="lfModeLabel">Modalità</span>
+        <span class="lf-field-label" id="lfModeLabel">Mode</span>
         <div
           class="lf-mode-icons"
           role="group"
@@ -48,7 +45,7 @@
             id="lfModeFollowers"
             data-mode="followers"
             aria-pressed="true"
-            title="Follower"
+            title="Followers"
           >
             <svg
               class="lf-mode-icon lf-mode-icon-stroke"
@@ -61,7 +58,7 @@
               <circle cx="18.5" cy="8" r="2.5" />
               <path d="M12 20.5v-2a6 6 0 0 1 12 0v2" />
             </svg>
-            <span class="lf-mode-text">Follower</span>
+            <span class="lf-mode-text">Followers</span>
           </button>
           <button
             type="button"
@@ -69,7 +66,7 @@
             id="lfModeFollowing"
             data-mode="following"
             aria-pressed="false"
-            title="Seguiti"
+            title="Following"
           >
             <svg
               class="lf-mode-icon lf-mode-icon-stroke"
@@ -82,7 +79,7 @@
               <path d="M0 20.5v-2a6 6 0 0 1 12 0v2" />
               <path d="M14.5 12h4.5M19 8.5L23 12 19 15.5" />
             </svg>
-            <span class="lf-mode-text">Seguiti</span>
+            <span class="lf-mode-text">Following</span>
           </button>
           <button
             type="button"
@@ -107,13 +104,13 @@
       </div>
 
       <div class="lf-field">
-        <label for="lfQuery" id="lfQueryLabel">Nome utente</label>
-        <input type="text" id="lfQuery" placeholder="es. utente o @utente" autocomplete="off" />
+        <label for="lfQuery" id="lfQueryLabel">Username</label>
+        <input type="text" id="lfQuery" placeholder="e.g. exampleuser or @exampleuser" autocomplete="off" />
       </div>
 
       <div class="lf-field">
         <div class="lf-field-label-row">
-          <label for="lfMinFollowers" id="lfMinFollowersLabel">Follower minimi</label>
+          <label for="lfMinFollowers" id="lfMinFollowersLabel">Minimum followers</label>
           <button
             type="button"
             class="lf-info-btn"
@@ -130,7 +127,7 @@
 
       <div class="lf-field lf-profile-limit-field">
         <div class="lf-field-label-row">
-          <label for="lfProfileLimitSlider" id="lfProfileLimitLabel">Limite max estrazione n.</label>
+          <label for="lfProfileLimitSlider" id="lfProfileLimitLabel">Limit max extract No.</label>
           <button
             type="button"
             class="lf-info-btn"
@@ -144,7 +141,7 @@
         <p class="lf-field-help" id="lfHelpProfileLimit" hidden role="region"></p>
         <label class="lf-limit-toggle-row" for="lfProfileLimitEnabled">
           <input type="checkbox" id="lfProfileLimitEnabled" checked />
-          <span id="lfProfileLimitEnabledLabel">Usa limite massimo estrazione</span>
+          <span id="lfProfileLimitEnabledLabel">Use max extraction limit</span>
         </label>
         <div class="lf-profile-limit-row">
           <input
@@ -164,7 +161,7 @@
 
       <div class="lf-field lf-delay-field">
         <label for="lfDelaySlider" id="lfDelayLabel"
-          >Ritardo tra richieste (pagine raccolta e arricchimento profili)</label
+          >Delay between requests (gather pages and profile enrich)</label
         >
         <div class="lf-delay-slider-row">
           <input
@@ -183,8 +180,7 @@
       </div>
 
       <p class="lf-popup-hint">
-        Tieni aperta la scheda Instagram in questa finestra, poi premi Avvia. Si apre la dashboard con avanzamento e
-        risultati.
+        Keep an Instagram tab open in this window, then tap Start. A dashboard tab opens with progress and results.
       </p>
 
       <div id="lfRiskToast" class="lf-toast-wrap" hidden>
@@ -197,8 +193,8 @@
       <p class="lf-popup-status" id="lfPopupStatus" aria-live="polite" hidden></p>
 
       <div class="lf-actions-top">
-        <button type="button" class="lf-btn lf-btn-primary lf-btn-start" id="lfStart">Avvia estrazione</button>
-        <button type="button" class="lf-btn lf-btn-danger" id="lfStop" disabled>Interrompi</button>
+        <button type="button" class="lf-btn lf-btn-primary lf-btn-start" id="lfStart">Start extraction</button>
+        <button type="button" class="lf-btn lf-btn-danger" id="lfStop" disabled>Stop</button>
       </div>
     </div>
 

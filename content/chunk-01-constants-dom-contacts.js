@@ -1,5 +1,5 @@
 /**
- * LeadFlow content script — instagram.com only (chunk 1 of 5).
+ * MegaLeads content script - instagram.com only (chunk 1 of 5).
  * Loaded as classic scripts in order (see manifest.json); shared global scope, no `import`.
  * Chunks: (1) constants + DOM + contacts, (2) state + hashtag grid/API, (3) top_serp/graphql/friendships/queue,
  * (4) enrich + merge + session + waits, (5) runScrape + onMessage.
@@ -13,7 +13,7 @@ const LFEQ =
     ? globalThis.__LF_EMAIL_QUALITY__
     : null;
 if (!LFEQ) {
-  throw new Error('[LeadFlow] __LF_EMAIL_QUALITY__ missing — chunk-00b-email-quality-global.js must load first.');
+  throw new Error('[MegaLeads] __LF_EMAIL_QUALITY__ missing - chunk-00b-email-quality-global.js must load first.');
 }
 const EMAIL_RE = LFEQ.EMAIL_RE;
 function normalizeEmailCandidate(raw) {
@@ -49,19 +49,19 @@ const STORAGE_KEYS = {
   SESSION_HISTORY: 'leadflow_session_history',
 };
 
-/** Set to `false` to silence DevTools `[LeadFlow]` logs. */
+/** Set to `false` to silence DevTools `[MegaLeads]` logs. */
 const LEADFLOW_DEBUG = true;
 
 function lfDebug(...args) {
-  if (LEADFLOW_DEBUG) console.info('[LeadFlow]', ...args);
+  if (LEADFLOW_DEBUG) console.info('[MegaLeads]', ...args);
 }
 
 function lfWarn(...args) {
-  console.warn('[LeadFlow]', ...args);
+  console.warn('[MegaLeads]', ...args);
 }
 
 function lfError(...args) {
-  console.error('[LeadFlow]', ...args);
+  console.error('[MegaLeads]', ...args);
 }
 
 const MAX_PROFILES_PER_SESSION = 600;

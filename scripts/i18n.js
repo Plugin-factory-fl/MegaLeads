@@ -1,31 +1,26 @@
 /**
- * LeadFlow UI strings — Italian (default) and English.
- * @typedef {'en' | 'it'} Locale
+ * MegaLeads UI strings - English only.
+ * @typedef {'en'} Locale
  */
 
-/** @param {unknown} v */
-export function normalizeLocale(v) {
-  return v === 'en' ? 'en' : 'it';
+/** @param {unknown} _v */
+export function normalizeLocale(_v) {
+  return 'en';
 }
 
 /**
- * Italian is the default UI language. English only after the user explicitly opts in
- * (`preferEnglish: true` in `leadflow_ui_prefs`). Stale `locale: 'en'` without that flag
- * still opens in Italian (e.g. after extension reload).
- * @param {unknown} p `leadflow_ui_prefs` blob from storage
+ * @param {unknown} _p `leadflow_ui_prefs` blob from storage
  * @returns {Locale}
  */
-export function uiLocaleFromUiPrefs(p) {
-  if (!p || typeof p !== 'object') return 'it';
-  if (/** @type {Record<string, unknown>} */ (p).preferEnglish === true) return 'en';
-  return 'it';
+export function uiLocaleFromUiPrefs(_p) {
+  return 'en';
 }
 
 /** @type {Record<Locale, Record<string, unknown>>} */
 export const I18N = {
   en: {
     popup: {
-      langSwitch: 'Italiano',
+      langSwitch: 'English',
       themeLight: 'Light mode',
       themeDark: 'Dark mode',
       ariaThemeToLight: 'Switch to light mode',
@@ -60,12 +55,12 @@ export const I18N = {
       statusRejected: 'Start rejected.',
       statusReload:
         'Could not start: reload the Instagram page (F5) so the extension can attach, then retry.',
-      langSwitchToIt: 'Switch interface to Italian',
-      langSwitchToEn: 'Switch interface to English',
+      langSwitchToIt: 'English only',
+      langSwitchToEn: 'English only',
     },
     dashboard: {
-      langSwitch: 'Italiano',
-      title: 'LeadFlow — Dashboard',
+      langSwitch: 'English',
+      title: 'MegaLeads - Dashboard',
       version: 'v1.0 · Dashboard',
       themeLight: 'Light mode',
       themeDark: 'Dark mode',
@@ -149,16 +144,17 @@ export const I18N = {
       modeFollowers: 'Followers',
       modeFollowing: 'Following',
       modeHashtag: 'Hashtag',
-      langSwitchToIt: 'Switch interface to Italian',
-      langSwitchToEn: 'Switch interface to English',
+      langSwitchToIt: 'English only',
+      langSwitchToEn: 'English only',
       excelSheetProfiles: 'Leads',
       excelSheetEmails: 'Emails',
       aiPanelTitle: 'AI: clean & segment',
       aiPanelDesc:
-        'Uses your LeadFlow API (Render) for deterministic email rescoring, optional LLM signal segments, and optional deliverability checks. Segments are heuristic — not demographics.',
+        'Uses your MegaLeads API (Render) for deterministic email rescoring, optional LLM signal segments, and optional deliverability checks. Segments are heuristic - not demographics.',
       aiLlmToggle: 'Use LLM (OpenAI on server)',
       aiVerifyToggle: 'Verify emails (if configured on server)',
       aiFetchUrlToggle: 'Allow FETCH_URL (extension fetches pages the model requests)',
+      aiExcludeFakeToggle: 'Exclude fake/placeholder emails',
       aiFetchRound: 'Fetching pages for AI… round {n}',
       aiEnrichRun: 'Run AI enrich',
       aiEnriching: 'Enriching… batch {cur}/{tot}',
@@ -175,162 +171,6 @@ export const I18N = {
       exportColDeliverability: 'Deliverability',
       exportColEmailAction: 'Email action',
       exportColEnrichNotes: 'AI notes',
-    },
-  },
-  it: {
-    popup: {
-      langSwitch: 'English',
-      themeLight: 'Modalità chiara',
-      themeDark: 'Modalità scura',
-      ariaThemeToLight: 'Passa alla modalità chiara',
-      ariaThemeToDark: 'Passa alla modalità scura',
-      modeLabel: 'Modalità',
-      modeFollowers: 'Follower',
-      modeFollowing: 'Seguiti',
-      modeHashtag: 'Hashtag',
-      queryHashtag: 'Hashtag',
-      queryUsername: 'Nome utente',
-      phHashtag: 'es. food o #food (tag Esplora o ricerca ?q=)',
-      phUser: 'es. utente o @utente',
-      minFollowers: 'Follower minimi',
-      minFollowersHelp:
-        'Dopo la raccolta e l’arricchimento via API, i profili con meno follower di questo valore vengono rimossi dall’elenco. Imposta 0 per non filtrare per numero di follower.',
-      profileLimit: 'Limite max estrazione n.',
-      profileLimitToggle: 'Usa limite massimo estrazione',
-      profileLimitHelp:
-        'Numero massimo di account da raccogliere in una sessione. L’estrazione si ferma al raggiungimento del limite (o a fine lista). Valori più bassi terminano prima; valori più alti raccolgono più profili prima dell’arricchimento.',
-      delayLabel: 'Ritardo tra richieste (pagine raccolta e arricchimento profili)',
-      delayRange: '{min}–{max} s',
-      hint:
-        'Tieni aperta la scheda Instagram in questa finestra, poi premi Avvia. Si apre la dashboard con avanzamento e risultati.',
-      start: 'Avvia estrazione',
-      stop: 'Interrompi',
-      riskToast:
-        'Intervalli più brevi tra le richieste aumentano il rischio che Instagram limiti l’account. Intervalli più lunghi sono più prudenti. Usa responsabilmente.',
-      riskOk: 'OK',
-      infoMinFollowers: 'Informazioni sui follower minimi',
-      infoProfileLimit: 'Informazioni sul limite di estrazione',
-      statusNoTab: 'Nessuna scheda attiva.',
-      statusNoIg: 'Seleziona una scheda Instagram in questa finestra e riprova.',
-      statusRejected: 'Avvio rifiutato.',
-      statusReload:
-        'Impossibile avviare: ricarica la pagina Instagram (F5) così l’estensione si collega, poi riprova.',
-      langSwitchToIt: 'Passa all’italiano',
-      langSwitchToEn: 'Passa all’inglese',
-    },
-    dashboard: {
-      langSwitch: 'English',
-      title: 'LeadFlow — Dashboard',
-      version: 'v1.0 · Dashboard',
-      themeLight: 'Modalità chiara',
-      themeDark: 'Modalità scura',
-      ariaThemeToLight: 'Passa alla modalità chiara',
-      ariaThemeToDark: 'Passa alla modalità scura',
-      hint:
-        'Avanzamento e risultati dell’esecuzione corrente. Modalità, hashtag e ritardi sono nel popup della barra.',
-      alreadyRunning: 'Un’estrazione è già in corso.',
-      sessionTitle: 'Estrazione in corso',
-      sessionStop: 'Interrompi estrazione',
-      sessionStart: 'Avvia estrazione',
-      sessionContinue: 'Continua estrazione',
-      sessionComplete: 'Estrazione completata!',
-      sessionLink: 'Apri pagina sorgente su Instagram',
-      sessionGoal: 'Obiettivo: max {n} profili',
-      progressGather: 'Raccolta account dalla pagina…',
-      progressGatherN: 'Raccolta account dalla pagina… ({n} trovati)',
-      progressGatherGoal: 'Raccolta profili… {cur} / {goal}',
-      progressEnrich: 'Analisi dettagli profilo ({cur}/{tot})',
-      historyLabel: 'Cronologia estrazioni',
-      historyToggleExpand: 'Mostra cronologia estrazioni',
-      historyToggleCollapse: 'Nascondi cronologia estrazioni',
-      historyClear: 'Cancella cronologia',
-      historyEmpty: 'Nessuna sessione.',
-      historyCurrent: 'Risultati correnti',
-      historyUntitled: 'Sessione',
-      historyRemoved: 'Sessione rimossa dalla cronologia.',
-      historyCleared: 'Cronologia estrazioni cancellata.',
-      historyStatusCompleted: 'completata',
-      historyStatusStopped: 'interrotta',
-      historyStatusRunning: 'in corso',
-      historyStatusUnknown: 'sconosciuto',
-      results: 'Risultati',
-      filterPh: 'Filtra per nome utente, bio, email, telefono o sito…',
-      copy: 'Copia selezionati',
-      exportProfiles: 'Esporta profili in Excel',
-      exportEmails: 'Esporta email in Excel',
-      exportProfilesCount: 'Esporta {n} profili in Excel',
-      exportEmailsCount: 'Esporta {n} email in Excel',
-      clear: 'Svuota elenco',
-      thUser: 'Utente',
-      thFollowers: 'Follower',
-      thBio: 'Bio',
-      thEmail: 'Email',
-      thPhone: 'Telefono',
-      thWebsite: 'Sito web',
-      thScraped: 'Estratto il',
-      selectAll: 'Seleziona tutto',
-      emptyMsg: 'Nessun lead. Avvia dal popup della barra o con Avvia estrazione qui.',
-      footer: 'Realizzato da Tommaso Parisi',
-      stopSent: 'Stop inviato (la scheda potrebbe dover essere aperta).',
-      stopNoTab: 'Nessuna scheda Instagram trovata per lo stop.',
-      nothingCopy: 'Niente da copiare.',
-      copied: 'Copiati {n} elementi negli appunti.',
-      clipboardFail: 'Copia negli appunti non riuscita.',
-      nothingExport: 'Niente da esportare.',
-      nothingExportEmails: 'Nessuna riga con email da esportare.',
-      exportedCsv: 'Esportati {n} elementi in CSV ({f}).',
-      excelFallback: 'Esportazione Excel non disponibile — salvo come CSV.',
-      exportedXlsx: 'Esportati {n} elementi in {f}.',
-      exportedXlsxEmails: 'Esportati {n} elementi con email in {f}.',
-      confirmClear: 'Cancellare tutti i lead salvati?',
-      confirmRemoveSession: 'Rimuovere la sessione selezionata dalla cronologia?',
-      confirmClearHistory: 'Cancellare tutta la cronologia estrazioni?',
-      listCleared: 'Elenco svuotato.',
-      errorPrefix: 'Errore:',
-      stopReasonCompleted: 'Estrazione completata.',
-      stopReasonUserStopped: 'Estrazione interrotta dall’utente.',
-      stopReasonTimeout: 'Raggiunto il limite di sessione.',
-      stopReasonCap: 'Raggiunto il limite profili.',
-      stopReasonSourceExhausted: 'Nessun nuovo profilo dalla sorgente.',
-      stopReasonTopSerpExhausted: 'top_serp esaurito.',
-      stopReasonTopSerpError: 'top_serp interrotto per errore API.',
-      stopReasonTopSerpRateLimited: 'top_serp limitato da rate limit.',
-      stopReasonTopSerpDuplicatePivot: 'Passaggio da top_serp per duplicati elevati.',
-      stopReasonGraphqlExhausted: 'GraphQL esaurito.',
-      stopReasonGraphqlError: 'GraphQL interrotto per errore API.',
-      stopReasonReservedForEnrichment: 'Raccolta fermata per riservare tempo all’arricchimento.',
-      stopReasonNavigationRequired: 'Apri la lista target e avvia di nuovo.',
-      stopReasonRuntimeError: 'Estrazione interrotta per errore di runtime.',
-      stopReasonValidationError: 'Impossibile avviare l’estrazione su questa pagina.',
-      modeFollowers: 'Follower',
-      modeFollowing: 'Seguiti',
-      modeHashtag: 'Hashtag',
-      langSwitchToIt: 'Passa all’italiano',
-      langSwitchToEn: 'Passa all’inglese',
-      excelSheetProfiles: 'Profili',
-      excelSheetEmails: 'Email',
-      aiPanelTitle: 'AI: pulizia e segmentazione',
-      aiPanelDesc:
-        'Usa la tua API LeadFlow (Render) per il rescoring email deterministico, segmenti opzionali via LLM e controlli opzionali di deliverability. I segmenti sono euristici, non demografia.',
-      aiLlmToggle: 'Usa LLM (OpenAI sul server)',
-      aiVerifyToggle: 'Verifica email (se configurato sul server)',
-      aiFetchUrlToggle: 'Consenti FETCH_URL (l’estensione scarica le pagine richieste dal modello)',
-      aiFetchRound: 'Scarico pagine per l’AI… round {n}',
-      aiEnrichRun: 'Avvia arricchimento AI',
-      aiEnriching: 'Arricchimento… batch {cur}/{tot}',
-      aiEnrichDone: 'Arricchimento AI completato ({n} righe).',
-      aiEnrichFail: 'Arricchimento AI non riuscito: {msg}',
-      aiEnrichNoLeads: 'Nessun lead da arricchire.',
-      aiEnrichNeedLive: 'Passa a «Risultati correnti» per arricchire — la cronologia è solo lettura qui.',
-      aiConfigMissing: 'Configura scripts/leadflow-remote-config.js (vedi file di esempio).',
-      openSheets: 'Apri Google Fogli',
-      sheetsHint:
-        'Suggerimento: nel nuovo foglio usa File → Importa → Carica e scegli il CSV appena scaricato.',
-      thSegment: 'Segmento',
-      thEmailQa: 'Email QA',
-      exportColDeliverability: 'Deliverability',
-      exportColEmailAction: 'Azione email',
-      exportColEnrichNotes: 'Note AI',
     },
   },
 };
@@ -386,21 +226,10 @@ export function tf(locale, path, vars) {
  */
 export function translateSessionMode(locale, modeLabel) {
   const s = String(modeLabel || '').trim();
-  const L = normalizeLocale(locale);
   const enF = t('en', 'dashboard.modeFollowers');
   const enG = t('en', 'dashboard.modeFollowing');
   const enH = t('en', 'dashboard.modeHashtag');
-  const itF = t('it', 'dashboard.modeFollowers');
-  const itG = t('it', 'dashboard.modeFollowing');
-  const itH = t('it', 'dashboard.modeHashtag');
-  if (L === 'it') {
-    if (s === enF || s === 'Followers') return itF;
-    if (s === enG || s === 'Following') return itG;
-    if (s === enH || s === 'Hashtag') return itH;
-    return s;
-  }
-  if (s === itF || s === 'Follower') return enF;
-  if (s === itG) return enG;
-  if (s === itH) return enH;
+  void locale;
+  if (s === 'Follower') return enF;
   return s;
 }
