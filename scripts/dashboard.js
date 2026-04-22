@@ -87,6 +87,8 @@ const els = {
   aiPanelTitle: null,
   aiLlmLabel: null,
   aiVerifyLabel: null,
+  aiFetchUrl: null,
+  aiFetchUrlLabel: null,
   sheetsHint: null,
   openSheets: null,
 };
@@ -134,6 +136,8 @@ function bindEls() {
   els.aiPanelTitle = document.getElementById('lfAiPanelTitle');
   els.aiLlmLabel = document.getElementById('lfAiLlmLabel');
   els.aiVerifyLabel = document.getElementById('lfAiVerifyLabel');
+  els.aiFetchUrl = document.getElementById('lfAiFetchUrl');
+  els.aiFetchUrlLabel = document.getElementById('lfAiFetchUrlLabel');
   els.sheetsHint = document.getElementById('lfSheetsHint');
   els.openSheets = document.getElementById('lfOpenSheets');
 }
@@ -397,6 +401,7 @@ function applyDashboardLocale() {
   if (els.aiPanelDesc) els.aiPanelDesc.textContent = t(L, 'dashboard.aiPanelDesc');
   if (els.aiLlmLabel) els.aiLlmLabel.textContent = t(L, 'dashboard.aiLlmToggle');
   if (els.aiVerifyLabel) els.aiVerifyLabel.textContent = t(L, 'dashboard.aiVerifyToggle');
+  if (els.aiFetchUrlLabel) els.aiFetchUrlLabel.textContent = t(L, 'dashboard.aiFetchUrlToggle');
   if (els.aiEnrich) els.aiEnrich.textContent = t(L, 'dashboard.aiEnrichRun');
   if (els.openSheets) els.openSheets.textContent = t(L, 'dashboard.openSheets');
 
@@ -904,6 +909,71 @@ function sendMessageAsync(payload) {
   });
 }
 
+/**
+ * One enrich batch: optional multi-round fetch_url tool (extension fetches HTML).
+ * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
+ * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean }} options
+ */
+async function processRemoteEnrichBatch(dtos, options) {
+  if (!options.fetchUrlTool) {
+    /** @type {{ ok?: boolean, error?: string, data?: { leads?: unknown[] } }} */
+    const resp = await sendMessageAsync({
+      type: MSG.LF_LEADS_REMOTE_ENRICH,
+      leads: dtos,
+      options,
+    });
+    if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
+    const returned = resp.data?.leads;
+    if (!Array.isArray(returned)) throw new Error('Invalid API response');
+    return returned;
+  }
+
+  /** @type {unknown[]|undefined} */
+  let messages;
+  /** @type {{ tool_call_id: string, content: string }[]|undefined} */
+  let toolResults;
+  let toolRound = 0;
+  while (true) {
+    /** @type {{ ok?: boolean, error?: string, data?: Record<string, unknown> }} */
+    const resp = await sendMessageAsync({
+      type: MSG.LF_LEADS_REMOTE_ENRICH,
+      leads: dtos,
+      options,
+      ...(messages != null ? { messages } : {}),
+      ...(toolResults != null ? { toolResults } : {}),
+      toolRound,
+    });
+    if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
+    const data = resp.data || {};
+    if (data.status === 'needs_fetch') {
+      messages = /** @type {unknown[]} */ (data.messages);
+      const merged = [
+        ...(Array.isArray(data.prefilledToolResults) ? data.prefilledToolResults : []),
+      ];
+      for (const job of data.fetchJobs || []) {
+        if (!job || typeof job !== 'object') continue;
+        const url = String(job.url || '');
+        const toolCallId = String(job.toolCallId || '');
+        /** @type {{ bridgeOk?: boolean, text?: string, error?: string }} */
+        const r = await sendMessageAsync({ type: MSG.HTTP_TEXT_FETCH, url });
+        const text =
+          r?.bridgeOk && typeof r.text === 'string'
+            ? r.text.slice(0, 80000)
+            : `Fetch error: ${(r && r.error) || 'unknown'}`;
+        merged.push({ tool_call_id: toolCallId, content: text });
+      }
+      toolResults = merged;
+      toolRound += 1;
+      if (toolRound > 22) throw new Error('Too many fetch_url rounds');
+      setAiStatus(tf(uiLocale, 'dashboard.aiFetchRound', { n: toolRound }));
+      continue;
+    }
+    const returned = data.leads;
+    if (!Array.isArray(returned)) throw new Error('Invalid API response');
+    return returned;
+  }
+}
+
 async function runRemoteEnrichPipeline() {
   if (selectedSessionId) {
     const line = t(uiLocale, 'dashboard.aiEnrichNeedLive');
@@ -919,24 +989,15 @@ async function runRemoteEnrichPipeline() {
   if (els.aiEnrich) els.aiEnrich.disabled = true;
   const useLlm = els.aiLlm ? els.aiLlm.checked : true;
   const useVerify = els.aiVerify ? els.aiVerify.checked : false;
-  const options = { llm: useLlm, verify: useVerify };
+  const useFetchUrl = els.aiFetchUrl ? els.aiFetchUrl.checked : false;
+  const options = { llm: useLlm, verify: useVerify, fetchUrlTool: useFetchUrl };
   const batches = chunkArray(list, ENRICH_BATCH_SIZE);
   const byKey = new Map(list.map((r) => [r.username.toLowerCase(), { ...normalizeStoredLead(r) }]));
   try {
     for (let i = 0; i < batches.length; i++) {
       setAiStatus(tf(uiLocale, 'dashboard.aiEnriching', { cur: i + 1, tot: batches.length }));
       const dtos = batches[i].map(leadToEnrichDto);
-      /** @type {{ ok?: boolean, error?: string, data?: { leads?: unknown[] } }} */
-      const resp = await sendMessageAsync({
-        type: MSG.LF_LEADS_REMOTE_ENRICH,
-        leads: dtos,
-        options,
-      });
-      if (!resp?.ok) {
-        throw new Error(resp?.error || 'Request failed');
-      }
-      const returned = resp.data?.leads;
-      if (!Array.isArray(returned)) throw new Error('Invalid API response');
+      const returned = await processRemoteEnrichBatch(dtos, options);
       for (const row of returned) {
         if (!row || typeof row !== 'object') continue;
         const k = String(row.username || '').toLowerCase();

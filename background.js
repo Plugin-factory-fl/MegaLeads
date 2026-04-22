@@ -244,6 +244,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  * @param {(r: unknown) => void} sendResponse
  */
 async function handleLeadsRemoteEnrich(message, sendResponse) {
+  let longRun = false;
   try {
     const apiBaseUrl = String(storedApiBaseUrl || '')
       .trim()
@@ -267,14 +268,24 @@ async function handleLeadsRemoteEnrich(message, sendResponse) {
       leads,
       options: message.options && typeof message.options === 'object' ? message.options : {},
     };
+    if (Array.isArray(message.messages) && message.messages.length) {
+      bodyObj.messages = message.messages;
+    }
+    if (Array.isArray(message.toolResults) && message.toolResults.length) {
+      bodyObj.toolResults = message.toolResults;
+    }
+    if (message.toolRound != null && Number.isFinite(Number(message.toolRound))) {
+      bodyObj.toolRound = Number(message.toolRound);
+    }
     const body = JSON.stringify(bodyObj);
-    if (body.length > 750000) {
-      sendResponse({ ok: false, error: 'Batch payload too large; reduce batch size.' });
+    if (body.length > 2500000) {
+      sendResponse({ ok: false, error: 'Batch payload too large; reduce batch size or fetch rounds.' });
       return;
     }
 
     const ac = new AbortController();
-    const tid = setTimeout(() => ac.abort(), 60000);
+    longRun = bodyObj.options?.fetchUrlTool === true;
+    const tid = setTimeout(() => ac.abort(), longRun ? 120000 : 60000);
     const url = `${apiBaseUrl}/v1/leads/enrich`;
     const res = await fetch(url, {
       method: 'POST',
@@ -310,7 +321,7 @@ async function handleLeadsRemoteEnrich(message, sendResponse) {
     const name = e && /** @type {Error} */ (e).name;
     const msg =
       name === 'AbortError'
-        ? 'Request timed out (60s).'
+        ? `Request timed out (${longRun ? 120 : 60}s).`
         : String((e && /** @type {Error} */ (e).message) || e);
     sendResponse({
       ok: false,

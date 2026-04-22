@@ -18,6 +18,10 @@ const MAX_LEADS = Math.min(
 const LOG_LEVEL = (process.env.LEADFLOW_LOG_LEVEL || 'info').toLowerCase();
 const EMAIL_VERIFICATION_API_KEY = (process.env.EMAIL_VERIFICATION_API_KEY || '').trim();
 const EMAIL_VERIFICATION_PROVIDER = (process.env.EMAIL_VERIFICATION_PROVIDER || '').trim().toLowerCase();
+/** Max extension fetch_url rounds per batch (client increments toolRound). */
+const FETCH_TOOL_MAX_ROUNDS = Math.min(24, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_ROUNDS) || 10));
+/** Max URLs sent to the extension per needs_fetch response. */
+const FETCH_TOOL_MAX_URLS = Math.min(12, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND) || 5));
 
 function logInfo(msg, extra) {
   if (LOG_LEVEL === 'error' || LOG_LEVEL === 'warn') return;
@@ -114,6 +118,235 @@ async function verifyEmailOptional(email) {
   return { status: 'unknown', reason: 'provider_not_integrated' };
 }
 
+/** Same rules as extension `isAllowedThirdPartyTextFetchUrl` — extension performs the actual fetch. */
+function isFetchUrlAllowedForTool(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const h = u.hostname.toLowerCase();
+    if (h === 'localhost' || h.endsWith('.local')) return false;
+    if (h === '127.0.0.1' || h === '0.0.0.0' || h === '::1') return false;
+    if (h.endsWith('instagram.com') || h === 'instagr.am') return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function compactLeadsForLlm(leads) {
+  return leads.map((r) => ({
+    username: String(r.username || ''),
+    followerCount: r.followerCount ?? null,
+    bio: String(r.bio || '').slice(0, 1200),
+    websiteUrl: String(r.websiteUrl || '').slice(0, 500),
+    email: String(r.email || ''),
+    phone: String(r.phone || '').slice(0, 80),
+  }));
+}
+
+/** @param {string} text */
+function extractJsonObjectWithItems(text) {
+  const t = String(text || '').trim();
+  const start = t.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  for (let i = start; i < t.length; i++) {
+    if (t[i] === '{') depth++;
+    else if (t[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        try {
+          const parsed = JSON.parse(t.slice(start, i + 1));
+          if (parsed && Array.isArray(parsed.items)) return parsed;
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** @param {unknown[]} items */
+function itemsArrayToLlmMap(items) {
+  /** @type {Map<string, object>} */
+  const byUser = new Map();
+  for (const it of items) {
+    const u = String(it?.username || '').trim();
+    if (u) byUser.set(u.toLowerCase(), it);
+  }
+  return byUser;
+}
+
+const FETCH_URL_TOOL_SYSTEM = `You enrich Instagram lead rows for a CRM export. You may call fetch_url with absolute http(s) URLs to load public HTML (contact pages, link-in-bio sites, about pages). Never use instagram.com or instagr.am. Use fetch only when extra page text would materially improve email or segmentation. When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, segment_primary, segment_tags (array), email_suggested, email_action (keep|replace|clear), email_confidence_0_1, notes. Segments are signal-based heuristics, not census demographics.`;
+
+const FETCH_URL_FUNCTION = {
+  type: 'function',
+  function: {
+    name: 'fetch_url',
+    description:
+      'Load public page HTML as text via the user browser extension. Use https when possible. One URL per call.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        url: { type: 'string', description: 'Absolute URL, e.g. https://example.com/contact' },
+      },
+      required: ['url'],
+    },
+  },
+};
+
+/**
+ * @param {object[]} messages OpenAI chat messages
+ * @returns {Promise<object>} assistant message object (content and/or tool_calls)
+ */
+async function openAiChatWithFetchTool(messages) {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.2,
+      messages,
+      tools: [FETCH_URL_FUNCTION],
+      tool_choice: 'auto',
+      parallel_tool_calls: false,
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    logWarn('OpenAI fetch-tool error', { status: res.status, body: t.slice(0, 400) });
+    throw Object.assign(new Error('openai_http_error'), { status: res.status, body: t.slice(0, 500) });
+  }
+  const data = await res.json();
+  const msg = data?.choices?.[0]?.message;
+  if (!msg || typeof msg !== 'object') throw new Error('openai_empty_message');
+  return msg;
+}
+
+/**
+ * @param {object[]} leadsIn
+ * @param {object} options
+ * @param {object} body raw POST body
+ * @returns {Promise<{ kind: 'needs_fetch'; messages: object[]; fetchJobs: object[]; prefilledToolResults: object[] } | { kind: 'done'; leadsOut: object[] }>}
+ */
+async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
+  if (!OPENAI_API_KEY) {
+    throw Object.assign(new Error('OPENAI_API_KEY missing'), { code: 'openai_missing' });
+  }
+  const clientRound = Number(body.toolRound) || 0;
+  if (clientRound > FETCH_TOOL_MAX_ROUNDS) {
+    throw new Error(`fetch_url tool: exceeded max rounds (${FETCH_TOOL_MAX_ROUNDS})`);
+  }
+
+  let messages =
+    Array.isArray(body.messages) && body.messages.length > 0 ? [...body.messages] : null;
+  const toolResultsIn = Array.isArray(body.toolResults) ? body.toolResults : [];
+
+  if (!messages) {
+    const compact = compactLeadsForLlm(leadsIn);
+    messages = [
+      { role: 'system', content: FETCH_URL_TOOL_SYSTEM },
+      { role: 'user', content: `Leads JSON:\n${JSON.stringify(compact)}` },
+    ];
+  }
+
+  for (const tr of toolResultsIn) {
+    if (!tr || typeof tr !== 'object') continue;
+    const id = String(tr.tool_call_id || '').trim();
+    const content = String(tr.content != null ? tr.content : '').slice(0, 120000);
+    if (!id) continue;
+    messages.push({ role: 'tool', tool_call_id: id, content });
+  }
+
+  const INNER_MAX = 6;
+  for (let inner = 0; inner < INNER_MAX; inner++) {
+    const choice = await openAiChatWithFetchTool(messages);
+    const toolCalls = Array.isArray(choice.tool_calls) ? choice.tool_calls : [];
+
+    if (!toolCalls.length) {
+      const parsed = extractJsonObjectWithItems(choice.content || '');
+      if (!parsed) throw new Error('openai_final_parse_failed');
+      const llmByUser = itemsArrayToLlmMap(parsed.items);
+      const doVerify = options.verify === true;
+      const leadsOut = [];
+      for (const row of leadsIn) {
+        leadsOut.push(await enrichOne(row, llmByUser, doVerify));
+      }
+      return { kind: 'done', leadsOut };
+    }
+
+    const assistantMsg = {
+      role: 'assistant',
+      content: choice.content || null,
+      tool_calls: toolCalls,
+    };
+    const messagesWithAssistant = [...messages, assistantMsg];
+
+    /** @type {{ toolCallId: string, url: string }[]} */
+    const fetchJobs = [];
+    /** @type {{ tool_call_id: string, content: string }[]} */
+    const prefilledToolResults = [];
+
+    for (const tc of toolCalls) {
+      const tcId = String(tc.id || '').trim();
+      const fn = tc.function?.name;
+      if (!tcId) continue;
+      if (fn !== 'fetch_url') {
+        prefilledToolResults.push({ tool_call_id: tcId, content: 'Only fetch_url is supported.' });
+        continue;
+      }
+      let url = '';
+      try {
+        const args = JSON.parse(tc.function.arguments || '{}');
+        url = String(args.url || '').trim();
+      } catch {
+        prefilledToolResults.push({ tool_call_id: tcId, content: 'Invalid JSON in fetch_url arguments.' });
+        continue;
+      }
+      if (!isFetchUrlAllowedForTool(url)) {
+        prefilledToolResults.push({
+          tool_call_id: tcId,
+          content: `URL not allowed (must be http(s), not Instagram, not localhost): ${url}`,
+        });
+        continue;
+      }
+      if (fetchJobs.length < FETCH_TOOL_MAX_URLS) {
+        fetchJobs.push({ toolCallId: tcId, url });
+      } else {
+        prefilledToolResults.push({
+          tool_call_id: tcId,
+          content: 'Skipped: max fetch_url calls per round reached.',
+        });
+      }
+    }
+
+    if (fetchJobs.length) {
+      return {
+        kind: 'needs_fetch',
+        messages: messagesWithAssistant,
+        fetchJobs,
+        prefilledToolResults,
+      };
+    }
+
+    for (const p of prefilledToolResults) {
+      messagesWithAssistant.push({
+        role: 'tool',
+        tool_call_id: p.tool_call_id,
+        content: p.content,
+      });
+    }
+    messages = messagesWithAssistant;
+  }
+
+  throw new Error('fetch_url tool: inner loop exhausted without final JSON');
+}
+
 /**
  * @param {object[]} leads
  * @param {{ llm?: boolean, verify?: boolean }} options
@@ -126,14 +359,7 @@ async function runLlmBatch(leads, options) {
     throw Object.assign(new Error('OPENAI_API_KEY missing'), { code: 'openai_missing' });
   }
 
-  const compact = leads.map((r) => ({
-    username: String(r.username || ''),
-    followerCount: r.followerCount ?? null,
-    bio: String(r.bio || '').slice(0, 1200),
-    websiteUrl: String(r.websiteUrl || '').slice(0, 500),
-    email: String(r.email || ''),
-    phone: String(r.phone || '').slice(0, 80),
-  }));
+  const compact = compactLeadsForLlm(leads);
 
   const schema = {
     name: 'lead_enrich_batch',
@@ -307,6 +533,47 @@ async function handleEnrich(req, res) {
     }
   }
 
+  if (options.fetchUrlTool === true) {
+    if (options.llm === false) {
+      return res.status(400).json({
+        error: 'validation',
+        message: 'fetchUrlTool requires LLM to be enabled.',
+      });
+    }
+    try {
+      const out = await handleEnrichFetchUrlToolFlow(leadsIn, options, body);
+      if (out.kind === 'needs_fetch') {
+        return res.json({
+          status: 'needs_fetch',
+          messages: out.messages,
+          fetchJobs: out.fetchJobs,
+          prefilledToolResults: out.prefilledToolResults,
+          toolRound: Number(body.toolRound) || 0,
+          meta: { model: OPENAI_MODEL },
+        });
+      }
+      const leadsOut = out.leadsOut;
+      logInfo('enrich_ok', {
+        count: leadsOut.length,
+        llm: true,
+        verify: options.verify === true,
+        fetchUrlTool: true,
+        sampleUser: leadsOut[0]?.username,
+        sampleEmail: leadsOut[0]?.email ? redactEmail(leadsOut[0].email) : '(none)',
+      });
+      return res.json({
+        leads: leadsOut,
+        meta: { model: OPENAI_MODEL, count: leadsOut.length, fetchUrlTool: true },
+      });
+    } catch (e) {
+      logWarn('fetchUrlTool enrich failed', { err: String(e?.message || e) });
+      return res.status(502).json({
+        error: 'llm_failed',
+        message: String(e?.message || e),
+      });
+    }
+  }
+
   let llmByUser = new Map();
   if (options.llm !== false) {
     try {
@@ -340,7 +607,7 @@ async function handleEnrich(req, res) {
 function main() {
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '800kb' }));
+  app.use(express.json({ limit: '3mb' }));
 
   const healthJson = { ok: true, service: 'leadflow-enrich', env: NODE_ENV };
   /** Root + `/health` both return 200 so Render (and other probes) work with default `/` checks. */
