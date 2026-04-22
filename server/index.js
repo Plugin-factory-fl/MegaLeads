@@ -1,6 +1,6 @@
 /**
  * LeadFlow enrich API — Render-friendly Express service.
- * Auth: Authorization: Bearer <LEADFLOW_API_KEY>
+ * Auth: Authorization: Bearer <MEGALEADS_API_KEY>
  */
 
 import express from 'express';
@@ -8,7 +8,7 @@ import { pickBestEmail, normalizeEmailCandidate, EMAIL_RE } from '../scripts/ema
 
 const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const LEADFLOW_API_KEY = (process.env.LEADFLOW_API_KEY || '').trim();
+const MEGALEADS_API_KEY = (process.env.MEGALEADS_API_KEY || '').trim();
 const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').trim();
 const OPENAI_MODEL = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
 const MAX_LEADS = Math.min(
@@ -42,12 +42,12 @@ function redactEmail(email) {
 }
 
 function requireBearer(req, res, next) {
-  const want = LEADFLOW_API_KEY;
+  const want = MEGALEADS_API_KEY;
   if (!want) {
-    logWarn('LEADFLOW_API_KEY is not set');
+    logWarn('MEGALEADS_API_KEY is not set');
     const message = OPENAI_API_KEY
-      ? 'LEADFLOW_API_KEY is missing. It is not the same as OPENAI_API_KEY: add LEADFLOW_API_KEY (any long random string) for extension Bearer auth; OPENAI_API_KEY is only for OpenAI on the server.'
-      : 'Set LEADFLOW_API_KEY (any long random string). The Chrome extension sends Authorization: Bearer with that value; it must match scripts/leadflow-remote-config.js apiKey.';
+      ? 'MEGALEADS_API_KEY is missing. It is not the same as OPENAI_API_KEY: set MEGALEADS_API_KEY (any long random string) for extension Bearer auth; OPENAI_API_KEY is only for OpenAI on the server.'
+      : 'Set MEGALEADS_API_KEY (any long random string). The Chrome extension sends Authorization: Bearer with that value; it must match scripts/leadflow-remote-config.js apiKey.';
     return res.status(503).json({ error: 'server_misconfigured', message });
   }
   const hdr = req.headers.authorization || '';

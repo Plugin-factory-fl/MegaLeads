@@ -11,7 +11,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: LEADFLOW_API_KEY
+      - key: MEGALEADS_API_KEY
         sync: false
       - key: OPENAI_API_KEY
         sync: false

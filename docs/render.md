@@ -19,7 +19,7 @@ You need **two different secrets** on Render (do not replace one with the other)
 |----------|----------|---------|
 | `PORT` | Set by Render | Listen port (defaults to `3000` locally). |
 | `NODE_ENV` | Recommended | `production` on Render. |
-| `LEADFLOW_API_KEY` | **Yes** | **Your own** random string (e.g. 32+ chars). The extension sends `Authorization: Bearer <this>`. Must match `apiKey` in `scripts/leadflow-remote-config.js`. **Not** the OpenAI key. |
+| `MEGALEADS_API_KEY` | **Yes** | **Your own** random string (e.g. 32+ chars). The extension sends `Authorization: Bearer <this>`. Must match `apiKey` in `scripts/leadflow-remote-config.js`. **Not** the OpenAI key. |
 | `OPENAI_API_KEY` | Yes if LLM on | OpenAI’s key (`sk-…` / `sk-proj-…`). Used **only** inside this service to call OpenAI. Never put this value in the extension. |
 | `OPENAI_MODEL` | Optional | Default `gpt-4o-mini`. |
 | `EMAIL_VERIFICATION_API_KEY` | Optional | Used when `options.verify === true`. |
@@ -31,7 +31,7 @@ You need **two different secrets** on Render (do not replace one with the other)
 
 1. Open `scripts/leadflow-remote-config.js` in the extension tree.
 2. Set `apiBaseUrl` to your Render URL (no trailing slash), e.g. `https://megaleads.onrender.com`.
-3. Set `apiKey` to the **same value** as `LEADFLOW_API_KEY` on Render (this is your shared Bearer secret, not the OpenAI key).
+3. Set `apiKey` to the **same value** as `MEGALEADS_API_KEY` on Render (this is your shared Bearer secret, not the OpenAI key).
 4. Reload the extension on `chrome://extensions` (**Reload**) so the service worker picks up changes.
 
 The background worker loads this module with `chrome.runtime.getURL(...)`. If enrich fails with a load error, reload the extension after editing the file.
@@ -41,7 +41,7 @@ The background worker loads this module with `chrome.runtime.getURL(...)`. If en
 ```bash
 curl -sS "$RENDER_URL/health"
 curl -sS -X POST "$RENDER_URL/v1/leads/enrich" \
-  -H "Authorization: Bearer $LEADFLOW_API_KEY" \
+  -H "Authorization: Bearer $MEGALEADS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"leads":[{"username":"demo","bio":"contact@example.com","email":"","websiteUrl":"","phone":""}],"options":{"llm":false}}'
 ```

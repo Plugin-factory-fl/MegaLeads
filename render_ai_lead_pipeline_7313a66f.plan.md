@@ -1,6 +1,6 @@
 ---
 name: Render AI lead pipeline
-overview: Add a small Render-hosted API that scores/cleans emails and assigns signal-based segments via an LLM, wire the Chrome extension dashboard (via the MV3 background worker) to call it in batches, merge results into `chrome.storage.local` leads, and add a Sheets-oriented export affordance. Use a single shared `LEADFLOW_API_KEY` validated on the server plus a gitignored local config template for the extension build.
+overview: Add a small Render-hosted API that scores/cleans emails and assigns signal-based segments via an LLM, wire the Chrome extension dashboard (via the MV3 background worker) to call it in batches, merge results into `chrome.storage.local` leads, and add a Sheets-oriented export affordance. Use a single shared `MEGALEADS_API_KEY` validated on the server plus a gitignored local config template for the extension build.
 todos:
   - id: server-skeleton
     content: "Add `server/` Node service: health, POST /v1/leads/enrich, Bearer auth, batch limits, OpenAI structured JSON pipeline + optional verifier hook."
@@ -55,14 +55,14 @@ sequenceDiagram
 ```
 
 - **Why use [`background.js`](background.js) as proxy**: avoids CORS pain for `chrome-extension://` pages calling your Render origin; centralizes outbound fetch and timeouts; keeps dashboard JS simpler.
-- **Auth model (your choice)**: single **`LEADFLOW_API_KEY`** on Render; same key ships with the extension via **gitignored** config (see below)—acceptable for an MVP private build; rotate if leaked.
+- **Auth model (your choice)**: single **`MEGALEADS_API_KEY`** on Render; same key ships with the extension via **gitignored** config (see below)—acceptable for an MVP private build; rotate if leaked.
 
 ## Render service (new code in repo)
 
 - Add a **`server/`** Node service (Express or Fastify) with:
   - `GET /health` for Render health checks.
   - `POST /v1/leads/enrich` (name can vary): accepts JSON `{ leads: LeadDTO[], options?: { verify?: boolean, llm?: boolean } }`, returns `{ leads: LeadDTO[] }` with **additive fields** only (do not drop usernames).
-  - **Middleware**: `Authorization: Bearer <LEADFLOW_API_KEY>` required; reject missing/invalid with 401.
+  - **Middleware**: `Authorization: Bearer <MEGALEADS_API_KEY>` required; reject missing/invalid with 401.
   - **Limits**: body size cap, max rows per request (e.g. 50–100), simple in-memory rate limit optional.
   - **Logging**: avoid logging full emails at info level; redact or hash if needed.
 - **Processing pipeline (server)**:
@@ -104,7 +104,7 @@ sequenceDiagram
 
 - Commit **`scripts/leadflow-remote-config.example.js`** with placeholders.
 - Add **`scripts/leadflow-remote-config.js`** to `.gitignore`.
-- Document: “Copy example → `leadflow-remote-config.js` before loading unpacked / building zip; value must match Render `LEADFLOW_API_KEY`.”
+- Document: “Copy example → `leadflow-remote-config.js` before loading unpacked / building zip; value must match Render `MEGALEADS_API_KEY`.”
 
 ## Testing checklist (you run after deploy)
 
@@ -123,7 +123,7 @@ sequenceDiagram
 |----------|----------|---------|
 | `PORT` | Auto-set by Render | Listen port (use `process.env.PORT \|\| 3000`). |
 | `NODE_ENV` | Recommended | `production`. |
-| `LEADFLOW_API_KEY` | **Yes** | Bearer token the extension must send. |
+| `MEGALEADS_API_KEY` | **Yes** | Bearer token the extension must send. |
 | `OPENAI_API_KEY` | **Yes** (if LLM enabled) | Model calls for segmentation + email rescue JSON. |
 | `OPENAI_MODEL` | Optional | Default e.g. `gpt-4o-mini` (cost/latency knob). |
 | `EMAIL_VERIFICATION_API_KEY` | Optional | If you integrate a verifier vendor. |
@@ -136,6 +136,6 @@ sequenceDiagram
 | Variable / export | Required | Purpose |
 |-------------------|----------|---------|
 | `apiBaseUrl` | **Yes** | `https://your-service.onrender.com` |
-| `apiKey` | **Yes** | Must match Render `LEADFLOW_API_KEY` |
+| `apiKey` | **Yes** | Must match Render `MEGALEADS_API_KEY` |
 
 **Optional later (Phase 2 Google Sheets API):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` or service account JSON—only if you implement server-side sheet creation.
