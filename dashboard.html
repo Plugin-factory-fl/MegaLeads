@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it" class="lf-extension-doc" id="lfRoot">
+  <head>
+    <meta charset="UTF-8" />
+    <title>LeadFlow — Dashboard</title>
+    <link rel="stylesheet" href="styles/ui.css" />
+    <!-- SheetJS (SheetJS CE) — .xlsx export; see https://sheetjs.com -->
+    <script src="libs/xlsx.full.min.js"></script>
+  </head>
+  <body class="lf-ui lf-dashboard">
+    <div class="lf-app">
+      <header class="lf-header">
+        <div class="lf-header-main">
+          <img
+            class="lf-logo lf-logo-theme"
+            src="Assets/logo2.png"
+            data-logo-light="Assets/logo2.png"
+            data-logo-dark="Assets/logo3.png"
+            alt="LeadFlow"
+            width="202"
+            height="46"
+          />
+        </div>
+        <div class="lf-header-actions" role="toolbar" aria-label="Aspetto e lingua">
+          <button type="button" class="lf-btn lf-btn-ghost lf-lang-toggle" id="lfLangToggle">
+            English
+          </button>
+          <button
+            type="button"
+            class="lf-btn lf-btn-ghost lf-theme-toggle"
+            id="lfThemeToggle"
+            aria-label="Passa alla modalità scura"
+            title="Modalità scura"
+          >
+            <span class="lf-theme-toggle-icon" aria-hidden="true">☾</span>
+          </button>
+        </div>
+      </header>
+
+      <p class="lf-dashboard-hint">
+        Avanzamento e risultati dell’esecuzione corrente. Modalità, hashtag e ritardi sono nel popup della barra.
+      </p>
+
+      <section class="lf-ai-panel" aria-labelledby="lfAiPanelTitle">
+        <div class="lf-ai-panel-head">
+          <h2 class="lf-ai-panel-title" id="lfAiPanelTitle">AI</h2>
+          <p class="lf-ai-panel-desc" id="lfAiPanelDesc"></p>
+        </div>
+        <div class="lf-ai-panel-row">
+          <label class="lf-check">
+            <input type="checkbox" id="lfAiLlm" checked />
+            <span id="lfAiLlmLabel"></span>
+          </label>
+          <label class="lf-check">
+            <input type="checkbox" id="lfAiVerify" />
+            <span id="lfAiVerifyLabel"></span>
+          </label>
+          <button type="button" class="lf-btn lf-btn-primary" id="lfAiEnrich"></button>
+        </div>
+        <p class="lf-ai-panel-status" id="lfAiStatus" aria-live="polite"></p>
+        <p class="lf-ai-panel-hint" id="lfSheetsHint" hidden></p>
+      </section>
+
+      <div class="lf-session-bar" id="lfSessionBar">
+        <div class="lf-session-main">
+          <div class="lf-session-title">Estrazione in corso</div>
+          <div class="lf-session-line">
+            <span class="lf-session-target" id="lfSessionTarget">—</span>
+            <span class="lf-session-mode" id="lfSessionMode"></span>
+          </div>
+          <div class="lf-session-goal" id="lfSessionGoal" hidden></div>
+          <a
+            class="lf-session-link"
+            id="lfSessionLink"
+            href="#"
+            target="_blank"
+            rel="noreferrer"
+            hidden
+            >Apri pagina sorgente su Instagram</a>
+        </div>
+        <button type="button" class="lf-btn lf-btn-primary lf-session-stop" id="lfDashboardStop">
+          Avvia estrazione
+        </button>
+      </div>
+
+      <div class="lf-progress-wrap">
+        <div class="lf-progress-bar" id="lfProgressBar">
+          <span class="lf-progress-fill" id="lfProgressFill"></span>
+        </div>
+        <div class="lf-progress-label" id="lfProgressLabel"></div>
+        <div class="lf-progress-status" id="lfProgressStatus"></div>
+      </div>
+
+      <div class="lf-history-shell" id="lfHistoryShell">
+        <button
+          type="button"
+          class="lf-history-toggle"
+          id="lfHistoryToggle"
+          aria-expanded="false"
+          aria-controls="lfHistoryBody"
+        >
+          <span class="lf-history-toggle-label" id="lfHistoryLabel">Cronologia estrazioni</span>
+          <span class="lf-history-chevron" aria-hidden="true">▸</span>
+        </button>
+        <div class="lf-history-body" id="lfHistoryBody" hidden>
+          <div class="lf-history-head">
+            <button type="button" class="lf-btn lf-btn-ghost lf-history-clear" id="lfHistoryClear">
+              Cancella cronologia
+            </button>
+          </div>
+          <div class="lf-history-list" id="lfHistoryList" role="listbox" aria-label="Cronologia estrazioni"></div>
+        </div>
+      </div>
+
+      <p class="lf-section-title">Risultati</p>
+      <div class="lf-toolbar">
+        <input type="search" id="lfFilter" placeholder="Filtra per nome utente, bio, email, telefono o sito…" />
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfCopy">Copia selezionati</button>
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfExportProfiles">Esporta profili in Excel</button>
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfExportEmails">Esporta email in Excel</button>
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfOpenSheets">Google Sheets</button>
+        <button type="button" class="lf-btn lf-btn-ghost" id="lfClear">Svuota elenco</button>
+      </div>
+
+      <div class="lf-table-wrap">
+        <table class="lf-table" id="lfTable">
+          <thead>
+            <tr>
+              <th class="lf-col-check"><input type="checkbox" id="lfSelectAll" title="Seleziona tutto" /></th>
+              <th data-sort="username">Utente</th>
+              <th data-sort="followerCount">Follower</th>
+              <th data-sort="bio">Bio</th>
+              <th data-sort="email">Email</th>
+              <th data-sort="phone">Telefono</th>
+              <th data-sort="websiteUrl">Sito web</th>
+              <th data-sort="segment_primary">Segmento</th>
+              <th data-sort="email_deliverability">Email QA</th>
+            </tr>
+          </thead>
+          <tbody id="lfTableBody"></tbody>
+        </table>
+      </div>
+
+      <footer class="lf-footer">Realizzato da Tommaso Parisi</footer>
+    </div>
+
+    <script type="module" src="scripts/dashboard.js"></script>
+  </body>
+</html>

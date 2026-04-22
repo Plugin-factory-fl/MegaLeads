@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "LeadFlow",
+  "version": "1.0.0",
+  "description": "Estrai e organizza lead Instagram dalle pagine Instagram. Controlli nel popup e dashboard dedicata.",
+  "minimum_chrome_version": "114",
+  "permissions": ["storage", "scripting", "tabs", "activeTab", "declarativeNetRequest"],
+  "host_permissions": [
+    "https://www.instagram.com/*",
+    "https://instagram.com/*",
+    "https://i.instagram.com/*",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "icons": {
+    "16": "Assets/icons/icon-16.png",
+    "48": "Assets/icons/icon-48.png",
+    "128": "Assets/icons/icon-128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "Assets/icons/icon-16.png",
+      "48": "Assets/icons/icon-48.png",
+      "128": "Assets/icons/icon-128.png"
+    },
+    "default_title": "LeadFlow",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.instagram.com/*", "https://instagram.com/*"],
+      "js": ["content/bootstrap.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.instagram.com/*", "https://instagram.com/*"],
+      "js": [
+        "content/chunk-00-scrape-i18n.js",
+        "content/chunk-00b-email-quality-global.js",
+        "content/chunk-01-constants-dom-contacts.js",
+        "content/chunk-02-state-hashtag-grid-api.js",
+        "content/chunk-03-topserp-graphql-friendships-queue.js",
+        "content/chunk-04-enrich-merge-session-wait.js",
+        "content/chunk-05-runscrape-message-listener.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/inject-fetch-hook.js"],
+      "matches": ["https://www.instagram.com/*", "https://instagram.com/*"]
+    }
+  ]
+}

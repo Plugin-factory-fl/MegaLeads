@@ -1,0 +1,19 @@
+# Optional Render Blueprint — adjust repo URL / branch before use.
+services:
+  - type: web
+    name: leadflow-enrich
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LEADFLOW_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini

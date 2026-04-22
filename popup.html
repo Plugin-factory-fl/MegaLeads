@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="it" class="lf-extension-doc" id="lfRoot">
+  <head>
+    <meta charset="UTF-8" />
+    <title>LeadFlow</title>
+    <link rel="stylesheet" href="styles/ui.css" />
+  </head>
+  <body class="lf-ui lf-popup">
+    <div class="lf-popup-inner">
+      <div class="lf-header lf-popup-header">
+        <div class="lf-header-main">
+          <img
+            class="lf-logo lf-logo-theme"
+            src="Assets/logo2.png"
+            data-logo-light="Assets/logo2.png"
+            data-logo-dark="Assets/logo3.png"
+            alt="LeadFlow"
+            width="180"
+            height="41"
+          />
+        </div>
+        <div class="lf-header-actions" role="toolbar" aria-label="Aspetto e lingua">
+          <button type="button" class="lf-btn lf-btn-ghost lf-lang-toggle" id="lfLangToggle">
+            English
+          </button>
+          <button
+            type="button"
+            class="lf-btn lf-btn-ghost lf-theme-toggle"
+            id="lfThemeToggle"
+            aria-label="Passa alla modalità scura"
+            title="Modalità scura"
+          >
+            <span class="lf-theme-toggle-icon" aria-hidden="true">☾</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lf-field">
+        <span class="lf-field-label" id="lfModeLabel">Modalità</span>
+        <div
+          class="lf-mode-icons"
+          role="group"
+          aria-labelledby="lfModeLabel"
+        >
+          <button
+            type="button"
+            class="lf-mode-btn lf-mode-btn-active"
+            id="lfModeFollowers"
+            data-mode="followers"
+            aria-pressed="true"
+            title="Follower"
+          >
+            <svg
+              class="lf-mode-icon lf-mode-icon-stroke"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <!-- Arrow toward profile (incoming followers) + person — gap between arrow tip and figure -->
+              <path d="M2 12h3M5 8.5L9.5 12 5 15.5" />
+              <circle cx="18.5" cy="8" r="2.5" />
+              <path d="M12 20.5v-2a6 6 0 0 1 12 0v2" />
+            </svg>
+            <span class="lf-mode-text">Follower</span>
+          </button>
+          <button
+            type="button"
+            class="lf-mode-btn"
+            id="lfModeFollowing"
+            data-mode="following"
+            aria-pressed="false"
+            title="Seguiti"
+          >
+            <svg
+              class="lf-mode-icon lf-mode-icon-stroke"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <!-- Person + arrow away — gap between figure and arrow -->
+              <circle cx="6" cy="8" r="2.5" />
+              <path d="M0 20.5v-2a6 6 0 0 1 12 0v2" />
+              <path d="M14.5 12h4.5M19 8.5L23 12 19 15.5" />
+            </svg>
+            <span class="lf-mode-text">Seguiti</span>
+          </button>
+          <button
+            type="button"
+            class="lf-mode-btn"
+            id="lfModeHashtag"
+            data-mode="hashtag"
+            aria-pressed="false"
+            title="Hashtag"
+          >
+            <svg
+              class="lf-mode-icon lf-mode-icon-stroke"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <!-- Hashtag # -->
+              <path d="M4 9h16M4 15h16M9 4l-2 16M15 4l-2 16" />
+            </svg>
+            <span class="lf-mode-text">Hashtag</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lf-field">
+        <label for="lfQuery" id="lfQueryLabel">Nome utente</label>
+        <input type="text" id="lfQuery" placeholder="es. utente o @utente" autocomplete="off" />
+      </div>
+
+      <div class="lf-field">
+        <div class="lf-field-label-row">
+          <label for="lfMinFollowers" id="lfMinFollowersLabel">Follower minimi</label>
+          <button
+            type="button"
+            class="lf-info-btn"
+            id="lfInfoMinFollowers"
+            aria-expanded="false"
+            aria-controls="lfHelpMinFollowers"
+          >
+            i
+          </button>
+        </div>
+        <p class="lf-field-help" id="lfHelpMinFollowers" hidden role="region"></p>
+        <input type="number" id="lfMinFollowers" min="0" step="1" value="1000" />
+      </div>
+
+      <div class="lf-field lf-profile-limit-field">
+        <div class="lf-field-label-row">
+          <label for="lfProfileLimitSlider" id="lfProfileLimitLabel">Limite max estrazione n.</label>
+          <button
+            type="button"
+            class="lf-info-btn"
+            id="lfInfoProfileLimit"
+            aria-expanded="false"
+            aria-controls="lfHelpProfileLimit"
+          >
+            i
+          </button>
+        </div>
+        <p class="lf-field-help" id="lfHelpProfileLimit" hidden role="region"></p>
+        <label class="lf-limit-toggle-row" for="lfProfileLimitEnabled">
+          <input type="checkbox" id="lfProfileLimitEnabled" checked />
+          <span id="lfProfileLimitEnabledLabel">Usa limite massimo estrazione</span>
+        </label>
+        <div class="lf-profile-limit-row">
+          <input
+            type="range"
+            id="lfProfileLimitSlider"
+            min="10"
+            max="600"
+            step="5"
+            value="50"
+            aria-valuemin="10"
+            aria-valuemax="600"
+            aria-describedby="lfProfileLimitReadout"
+          />
+          <span class="lf-profile-limit-readout" id="lfProfileLimitReadout" aria-live="polite">50</span>
+        </div>
+      </div>
+
+      <div class="lf-field lf-delay-field">
+        <label for="lfDelaySlider" id="lfDelayLabel"
+          >Ritardo tra richieste (pagine raccolta e arricchimento profili)</label
+        >
+        <div class="lf-delay-slider-row">
+          <input
+            type="range"
+            id="lfDelaySlider"
+            min="3"
+            max="30"
+            step="1"
+            value="15"
+            aria-valuemin="3"
+            aria-valuemax="30"
+            aria-describedby="lfDelayReadout"
+          />
+          <span class="lf-delay-readout" id="lfDelayReadout" aria-live="polite">15–17 s</span>
+        </div>
+      </div>
+
+      <p class="lf-popup-hint">
+        Tieni aperta la scheda Instagram in questa finestra, poi premi Avvia. Si apre la dashboard con avanzamento e
+        risultati.
+      </p>
+
+      <div id="lfRiskToast" class="lf-toast-wrap" hidden>
+        <div class="lf-toast-panel" role="dialog" aria-modal="false" aria-labelledby="lfRiskToastText">
+          <p class="lf-toast-text" id="lfRiskToastText"></p>
+          <button type="button" class="lf-btn lf-btn-primary lf-toast-ok" id="lfRiskToastOk">OK</button>
+        </div>
+      </div>
+
+      <p class="lf-popup-status" id="lfPopupStatus" aria-live="polite" hidden></p>
+
+      <div class="lf-actions-top">
+        <button type="button" class="lf-btn lf-btn-primary lf-btn-start" id="lfStart">Avvia estrazione</button>
+        <button type="button" class="lf-btn lf-btn-danger" id="lfStop" disabled>Interrompi</button>
+      </div>
+    </div>
+
+    <script type="module" src="scripts/popup.js"></script>
+  </body>
+</html>
