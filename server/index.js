@@ -339,8 +339,13 @@ function main() {
   app.disable('x-powered-by');
   app.use(express.json({ limit: '800kb' }));
 
+  const healthJson = { ok: true, service: 'leadflow-enrich', env: NODE_ENV };
+  /** Root + `/health` both return 200 so Render (and other probes) work with default `/` checks. */
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, service: 'leadflow-enrich', env: NODE_ENV });
+    res.json(healthJson);
+  });
+  app.get('/', (_req, res) => {
+    res.json(healthJson);
   });
 
   app.post('/v1/leads/enrich', requireBearer, (req, res, next) => {
@@ -353,7 +358,7 @@ function main() {
   });
 
   app.listen(PORT, () => {
-    logInfo(`listening on ${PORT}`, { health: '/health', enrich: 'POST /v1/leads/enrich' });
+    logInfo(`listening on ${PORT}`, { health: ['/', '/health'], enrich: 'POST /v1/leads/enrich' });
   });
 }
 

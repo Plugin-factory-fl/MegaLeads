@@ -9,7 +9,7 @@ This service lives in `server/`. It exposes a small JSON API used by the Chrome 
 3. **Runtime**: Node 20+
 4. **Build command**: `npm install`
 5. **Start command**: `npm start` (runs `node index.js`)
-6. **Health check path**: `/health`
+6. **Health check path**: `/health` (or `/` — both return the same JSON `200`)
 
 ## 2. Environment variables
 
