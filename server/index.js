@@ -458,6 +458,7 @@ async function enrichOne(row, llmByUser, doVerify) {
   const key = username.toLowerCase();
   const candidates = emailCandidatesForRow(row);
   const rescored = pickBestEmail(candidates) || '';
+  const evidenceEmails = new Set(candidates.map((x) => normalizeEmailCandidate(String(x || ''))).filter(Boolean));
 
   const out = {
     ...row,
@@ -478,10 +479,15 @@ async function enrichOne(row, llmByUser, doVerify) {
 
     const action = String(llm.email_action || 'keep');
     const suggested = normalizeEmailCandidate(String(llm.email_suggested || ''));
+    const suggestedInEvidence = suggested ? evidenceEmails.has(suggested) : false;
 
     if (action === 'clear') {
       out.email = '';
       out.email_action = 'clear';
+    } else if (action === 'replace' && suggested && !suggestedInEvidence) {
+      out.email = rescored || row.email || '';
+      out.email_action = 'keep';
+      out.email_quality_codes = [...(out.email_quality_codes || []), 'llm_replace_not_in_evidence'];
     } else if (action === 'replace' && suggested && out.email_confidence_0_1 >= 0.45) {
       out.email = suggested;
       out.email_action = 'replace';
