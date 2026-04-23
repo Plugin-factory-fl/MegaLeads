@@ -603,6 +603,9 @@ fetch_url call rules:
 
 When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, email_suggested, email_action (keep|replace|clear), email_confidence_0_1, phone_suggested, phone_action (keep|replace|clear), phone_confidence_0_1.`;
 
+const FETCH_URL_FINALIZE_USER = `The server will not run any more fetch_url loads for this batch. Do not call fetch_url.
+Reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} with one item per lead username from the original list. Each item: username, email_suggested, email_action (keep|replace|clear), email_confidence_0_1, phone_suggested, phone_action (keep|replace|clear), phone_confidence_0_1. Use only evidence from the conversation and the initial lead JSON.`;
+
 const FETCH_URL_FUNCTION = {
   type: 'function',
   function: {
@@ -750,6 +753,84 @@ async function openAiChatWithFetchTool(messages) {
 }
 
 /**
+ * One chat completion without tools — used when fetch rounds are exhausted or the tool loop stalls.
+ * @param {object[]} messages
+ * @returns {Promise<object>} assistant message (content string)
+ */
+async function openAiChatFetchFinalJsonOnly(messages) {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.2,
+      messages: [...cloneMessagesForOpenAiFetchTool(messages), { role: 'user', content: FETCH_URL_FINALIZE_USER }],
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    logWarn('OpenAI fetch-tool finalize error', { status: res.status, body: t.slice(0, 400) });
+    let friendly = 'openai_http_error';
+    try {
+      const j = JSON.parse(t);
+      const code = j?.error?.code;
+      const m = String(j?.error?.message || '').trim();
+      if (code === 'context_length_exceeded') {
+        friendly = `openai_context_length_exceeded (${OPENAI_MODEL}): use fewer/lighter fetch rounds or a larger-context model.`;
+      } else if (m) {
+        friendly = `openai_http_error: ${m.slice(0, 400)}`;
+      }
+    } catch {
+      /* leave generic */
+    }
+    throw Object.assign(new Error(friendly), { status: res.status, body: t.slice(0, 500) });
+  }
+  const data = await res.json();
+  const msg = data?.choices?.[0]?.message;
+  if (!msg || typeof msg !== 'object') throw new Error('openai_empty_message');
+  return msg;
+}
+
+/**
+ * @param {string} content
+ * @param {object[]} leadsIn
+ * @param {object[]} messages conversation (for evidence extraction)
+ * @param {object} options
+ * @returns {Promise<object[]|null>}
+ */
+async function leadsOutFromFetchChoiceContent(content, leadsIn, messages, options) {
+  const parsed = extractJsonObjectWithItems(content || '');
+  if (!parsed) return null;
+  const llmByUser = itemsArrayToLlmMap(parsed.items);
+  const doVerify = false;
+  const fetchedByHost = fetchedEmailsByHostFromMessages(messages);
+  const fetchedByUsername = fetchedEmailsByUsernameFromMessages(messages);
+  const fetchedPhonesByHost = fetchedPhonesByHostFromMessages(messages);
+  const fetchedPhonesByUsername = fetchedPhonesByUsernameFromMessages(messages);
+  const leadsOut = [];
+  for (const row of leadsIn) {
+    const rowUser = String(row?.username || '').trim().toLowerCase();
+    const fromUser = fetchedByUsername.get(rowUser) || new Set();
+    const fromHost = extraEvidenceEmailsForLead(row, fetchedByHost);
+    const combined = new Set([...fromUser, ...fromHost]);
+    const phonesFromUser = fetchedPhonesByUsername.get(rowUser) || new Set();
+    const phonesFromHost = extraEvidencePhonesForLead(row, fetchedPhonesByHost);
+    const combinedPhones = new Set([...phonesFromUser, ...phonesFromHost]);
+    leadsOut.push(
+      await enrichOne(row, llmByUser, doVerify, {
+        extraEvidenceEmails: combined,
+        extraEvidencePhones: combinedPhones,
+        excludeFakeEmails: options.excludeFakeEmails !== false,
+      }),
+    );
+  }
+  return leadsOut;
+}
+
+/**
  * @param {object[]} leadsIn
  * @param {object} options
  * @param {object} body raw POST body
@@ -760,11 +841,8 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
     throw Object.assign(new Error('OPENAI_API_KEY missing'), { code: 'openai_missing' });
   }
   const clientRound = Number(body.toolRound) || 0;
-  if (clientRound > FETCH_TOOL_MAX_ROUNDS) {
-    throw new Error(
-      `fetch_url tool: toolRound ${clientRound} exceeds MEGALEADS_FETCH_TOOL_MAX_ROUNDS (${FETCH_TOOL_MAX_ROUNDS}; max 24).`,
-    );
-  }
+  /** New browser fetches are issued only while toolRound stays below this cap (then we prefill skips and/or finalize). */
+  const allowNewFetchJobs = clientRound < FETCH_TOOL_MAX_ROUNDS;
 
   let messages =
     Array.isArray(body.messages) && body.messages.length > 0 ? [...body.messages] : null;
@@ -795,31 +873,8 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
     const toolCalls = Array.isArray(choice.tool_calls) ? choice.tool_calls : [];
 
     if (!toolCalls.length) {
-      const parsed = extractJsonObjectWithItems(choice.content || '');
-      if (!parsed) throw new Error('openai_final_parse_failed');
-      const llmByUser = itemsArrayToLlmMap(parsed.items);
-      const doVerify = false;
-      const fetchedByHost = fetchedEmailsByHostFromMessages(messages);
-      const fetchedByUsername = fetchedEmailsByUsernameFromMessages(messages);
-      const fetchedPhonesByHost = fetchedPhonesByHostFromMessages(messages);
-      const fetchedPhonesByUsername = fetchedPhonesByUsernameFromMessages(messages);
-      const leadsOut = [];
-      for (const row of leadsIn) {
-        const rowUser = String(row?.username || '').trim().toLowerCase();
-        const fromUser = fetchedByUsername.get(rowUser) || new Set();
-        const fromHost = extraEvidenceEmailsForLead(row, fetchedByHost);
-        const combined = new Set([...fromUser, ...fromHost]);
-        const phonesFromUser = fetchedPhonesByUsername.get(rowUser) || new Set();
-        const phonesFromHost = extraEvidencePhonesForLead(row, fetchedPhonesByHost);
-        const combinedPhones = new Set([...phonesFromUser, ...phonesFromHost]);
-        leadsOut.push(
-          await enrichOne(row, llmByUser, doVerify, {
-            extraEvidenceEmails: combined,
-            extraEvidencePhones: combinedPhones,
-            excludeFakeEmails: options.excludeFakeEmails !== false,
-          }),
-        );
-      }
+      const leadsOut = await leadsOutFromFetchChoiceContent(choice.content, leadsIn, messages, options);
+      if (!leadsOut) throw new Error('openai_final_parse_failed');
       return { kind: 'done', leadsOut };
     }
 
@@ -870,6 +925,22 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
       validFetchCandidates.push({ toolCallId: tcId, url, username });
     }
 
+    if (!allowNewFetchJobs && validFetchCandidates.length) {
+      logWarn('fetch_url round budget reached; not issuing new browser fetches', {
+        toolRound: clientRound,
+        maxRounds: FETCH_TOOL_MAX_ROUNDS,
+        skippedCalls: validFetchCandidates.length,
+      });
+      for (const vc of validFetchCandidates) {
+        prefilledToolResults.push({
+          tool_call_id: vc.toolCallId,
+          content:
+            'Skipped: fetch round budget exhausted for this batch (no more browser loads). Use existing tool text and the lead JSON only.',
+        });
+      }
+      validFetchCandidates.length = 0;
+    }
+
     const orderedCandidates = breadthFirstByUsername(validFetchCandidates);
     /** @type {typeof orderedCandidates} */
     const fetchJobs = [];
@@ -916,7 +987,11 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
     messages = messagesWithAssistant;
   }
 
-  throw new Error('fetch_url tool: inner loop exhausted without final JSON');
+  logWarn('fetch_url inner loop exhausted; forcing final JSON (no tools)', { toolRound: clientRound });
+  const finalMsg = await openAiChatFetchFinalJsonOnly(messages);
+  const forcedOut = await leadsOutFromFetchChoiceContent(finalMsg.content || '', leadsIn, messages, options);
+  if (!forcedOut) throw new Error('openai_final_parse_failed_after_forced_finalize');
+  return { kind: 'done', leadsOut: forcedOut };
 }
 
 /**
