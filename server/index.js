@@ -32,6 +32,16 @@ const FETCH_TOOL_MAX_FETCHES_PER_LEAD = Math.min(
   8,
   Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_PER_LEAD) || 2),
 );
+/** Max chars per fetch tool body sent to OpenAI after HTML stripping (API copy only; full HTML stays in `messages` for evidence). */
+const FETCH_TOOL_MAX_OPENAI_TOOL_CHARS = Math.min(
+  100000,
+  Math.max(6000, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_OPENAI_TOOL_CHARS) || 26000),
+);
+/** Most recent N tool results use the full OpenAI char budget; older tool rounds are condensed for the API. */
+const FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS = Math.min(
+  8,
+  Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS) || 2),
+);
 
 function logInfo(msg, extra) {
   if (LOG_LEVEL === 'error' || LOG_LEVEL === 'warn') return;
@@ -612,6 +622,90 @@ const FETCH_URL_FUNCTION = {
 };
 
 /**
+ * Strip HTML/CSS/JS noise to shrink token count before sending to OpenAI.
+ * @param {string} text
+ * @param {number} [maxRawLen]
+ * @returns {string}
+ */
+function shrinkFetchHtmlForLlm(text, maxRawLen = 120000) {
+  let s = String(text || '');
+  if (s.length > maxRawLen) s = s.slice(0, maxRawLen);
+  s = s.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ');
+  s = s.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
+  s = s.replace(/<!--[\s\S]*?-->/g, ' ');
+  s = s.replace(/<[^>]+>/g, ' ');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+/**
+ * @param {string} content Full tool message (USERNAME + page text)
+ * @param {number} maxChars
+ * @returns {string}
+ */
+function shrinkToolMessageContentForLlm(content, maxChars) {
+  const raw = String(content || '');
+  const um = raw.match(/^(\s*USERNAME:\s*[^\n\r]+\n)/i);
+  const header = um ? um[1] : '';
+  const rest = um ? raw.slice(um[0].length) : raw;
+  const shrunk = shrinkFetchHtmlForLlm(rest, 100000);
+  const cap = Math.max(2000, maxChars - header.length - 120);
+  let body = shrunk;
+  if (body.length > cap) body = `${shrunk.slice(0, cap)}\n...[truncated for LLM context]`;
+  return header + body;
+}
+
+/**
+ * Condense older fetch tool messages to a short fingerprint + text window.
+ * @param {string} content
+ * @returns {string}
+ */
+function collapseOldFetchToolContentForLlm(content) {
+  const raw = String(content || '');
+  const um = raw.match(/^\s*USERNAME:\s*([^\n\r]+)/im);
+  const user = um ? um[1].trim() : '';
+  const urlLine = raw.match(/^\s*URL:\s*(\S+)/im);
+  const url = urlLine ? urlLine[1].trim() : '';
+  const tailSrc = raw.slice(0, 90000);
+  const shrunk = shrinkFetchHtmlForLlm(tailSrc, 90000);
+  const tail = shrunk.slice(0, 1800);
+  return (
+    `USERNAME: ${user}\n` +
+    (url ? `URL: ${url}\n` : '') +
+    '[Earlier fetch condensed for model context; full HTML is still used server-side for evidence.]\n' +
+    tail
+  );
+}
+
+/**
+ * Shallow-clone messages and shrink `role: tool` payloads for OpenAI only.
+ * @param {object[]} messages
+ * @returns {object[]}
+ */
+function cloneMessagesForOpenAiFetchTool(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  const toolIdx = [];
+  for (let i = 0; i < list.length; i++) {
+    if (list[i]?.role === 'tool') toolIdx.push(i);
+  }
+  const fullDetailStart = Math.max(0, toolIdx.length - FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS);
+  /** @type {Map<number, 'old'|'full'>} */
+  const mode = new Map();
+  for (let j = 0; j < toolIdx.length; j++) {
+    mode.set(toolIdx[j], j < fullDetailStart ? 'old' : 'full');
+  }
+  return list.map((m, idx) => {
+    if (!m || typeof m !== 'object') return m;
+    const mo = mode.get(idx);
+    if (!mo) return { ...m };
+    const c = String(m.content != null ? m.content : '');
+    const content =
+      mo === 'old' ? collapseOldFetchToolContentForLlm(c) : shrinkToolMessageContentForLlm(c, FETCH_TOOL_MAX_OPENAI_TOOL_CHARS);
+    return { ...m, content };
+  });
+}
+
+/**
  * @param {object[]} messages OpenAI chat messages
  * @returns {Promise<object>} assistant message object (content and/or tool_calls)
  */
@@ -634,7 +728,20 @@ async function openAiChatWithFetchTool(messages) {
   if (!res.ok) {
     const t = await res.text();
     logWarn('OpenAI fetch-tool error', { status: res.status, body: t.slice(0, 400) });
-    throw Object.assign(new Error('openai_http_error'), { status: res.status, body: t.slice(0, 500) });
+    let friendly = 'openai_http_error';
+    try {
+      const j = JSON.parse(t);
+      const code = j?.error?.code;
+      const m = String(j?.error?.message || '').trim();
+      if (code === 'context_length_exceeded') {
+        friendly = `openai_context_length_exceeded (${OPENAI_MODEL}): use fewer/lighter fetch rounds or a larger-context model.`;
+      } else if (m) {
+        friendly = `openai_http_error: ${m.slice(0, 400)}`;
+      }
+    } catch {
+      /* leave generic */
+    }
+    throw Object.assign(new Error(friendly), { status: res.status, body: t.slice(0, 500) });
   }
   const data = await res.json();
   const msg = data?.choices?.[0]?.message;
@@ -682,7 +789,7 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
 
   const INNER_MAX = 6;
   for (let inner = 0; inner < INNER_MAX; inner++) {
-    const choice = await openAiChatWithFetchTool(messages);
+    const choice = await openAiChatWithFetchTool(cloneMessagesForOpenAiFetchTool(messages));
     const toolCalls = Array.isArray(choice.tool_calls) ? choice.tool_calls : [];
 
     if (!toolCalls.length) {

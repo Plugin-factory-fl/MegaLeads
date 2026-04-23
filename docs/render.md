@@ -29,6 +29,8 @@ You need **two different secrets** on Render (do not replace one with the other)
 | `MEGALEADS_FETCH_TOOL_MAX_ROUNDS` | Optional | When the dashboard enables **FETCH_URL**, max server↔extension round-trips per enrich request (default `10`, cap `24`). |
 | `MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND` | Optional | Max URLs the model may request per round before the rest are answered with “skipped” (default `5`, cap `12`). |
 | `MEGALEADS_FETCH_TOOL_MAX_PER_LEAD` | Optional | Max browser fetches **per username** per enrich batch across all rounds (default `2`, cap `8`). Extra `fetch_url` calls are prefilled as skipped. |
+| `MEGALEADS_FETCH_TOOL_MAX_OPENAI_TOOL_CHARS` | Optional | For **FETCH_URL**, max characters per **recent** tool result sent to OpenAI after HTML stripping (default `26000`, cap `100000`). Older tool rounds are condensed further. |
+| `MEGALEADS_FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS` | Optional | How many **most recent** `fetch_url` tool messages use the full OpenAI char budget (default `2`, cap `8`). |
 
 ### Stripe (subscription checkout from the extension)
 
