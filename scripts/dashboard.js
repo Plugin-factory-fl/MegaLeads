@@ -118,10 +118,8 @@ let running = false;
 /** @type {number|null} */
 let sessionGoalMax = null;
 let joshSending = false;
-let joshBubblePhase = 'blank';
-let joshBubbleAt = Date.now();
-const JOSH_BLANK_MS = 10000;
-const JOSH_MESSAGE_MS = 6000;
+let joshBubbleIndex = -1;
+const JOSH_BUBBLE_ROTATE_MS = 5000;
 
 function bindEls() {
   els.progressBar = $('lfProgressBar');
@@ -978,6 +976,84 @@ function sendMessageAsync(payload) {
   });
 }
 
+const CONTACT_LINK_HINT_RE = /(contact|about|team|support|help|customer|impressum|legal|privacy|terms|reach|connect)/i;
+const BAD_ASSET_EXT_RE = /\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|json|pdf|zip|mp4|webm|woff2?|ttf)(\?.*)?$/i;
+
+/** @param {string} url */
+async function fetchHtmlViaBridge(url) {
+  /** @type {{ bridgeOk?: boolean, text?: string, error?: string }} */
+  const r = await sendMessageAsync({ type: MSG.HTTP_TEXT_FETCH, url });
+  const ok = r?.bridgeOk === true && typeof r.text === 'string';
+  return {
+    ok,
+    text: ok ? String(r.text || '') : `Fetch error: ${(r && r.error) || 'unknown'}`,
+  };
+}
+
+/**
+ * @param {string} baseUrl
+ * @param {string} html
+ * @returns {string[]}
+ */
+function extractLikelyContactUrls(baseUrl, html) {
+  const out = [];
+  const seen = new Set();
+  let base;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    return out;
+  }
+  const add = (raw) => {
+    if (!raw || typeof raw !== 'string') return;
+    const s = raw.trim();
+    if (!s || s.startsWith('#') || s.startsWith('mailto:') || s.startsWith('tel:') || s.startsWith('javascript:'))
+      return;
+    let u;
+    try {
+      u = new URL(s, base.href);
+    } catch {
+      return;
+    }
+    if (!/^https?:$/i.test(u.protocol)) return;
+    if (u.hostname !== base.hostname) return;
+    if (BAD_ASSET_EXT_RE.test(u.pathname)) return;
+    const k = `${u.origin}${u.pathname}`.replace(/\/$/, '').toLowerCase();
+    if (seen.has(k)) return;
+    const hint = `${u.pathname} ${u.search}`.toLowerCase();
+    if (!CONTACT_LINK_HINT_RE.test(hint)) return;
+    seen.add(k);
+    out.push(u.href);
+  };
+
+  const sample = String(html || '').slice(0, 250000);
+  const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+  let m;
+  while ((m = hrefRe.exec(sample))) add(m[1] || '');
+
+  const fallbackPaths = ['/contact', '/contact-us', '/about', '/about-us', '/support', '/impressum', '/team'];
+  for (const p of fallbackPaths) add(p);
+  return out.slice(0, 4);
+}
+
+/**
+ * Fetch primary page and likely contact/about pages on same host.
+ * @param {string} url
+ */
+async function fetchExpandedContactText(url) {
+  const first = await fetchHtmlViaBridge(url);
+  const blocks = [`URL: ${url}\n${first.text.slice(0, 100000)}`];
+  if (!first.ok) return { ok: false, mergedText: blocks.join('\n\n'), fetchedUrls: [url] };
+  const extraUrls = extractLikelyContactUrls(url, first.text);
+  const fetchedUrls = [url];
+  for (const extra of extraUrls.slice(0, 3)) {
+    const r = await fetchHtmlViaBridge(extra);
+    fetchedUrls.push(extra);
+    blocks.push(`URL: ${extra}\n${r.text.slice(0, 70000)}`);
+  }
+  return { ok: true, mergedText: blocks.join('\n\n'), fetchedUrls };
+}
+
 /**
  * One enrich batch: optional multi-round fetch_url tool (extension fetches HTML).
  * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
@@ -1042,19 +1118,16 @@ async function processRemoteEnrichBatch(dtos, options) {
         const username = String(job.username || '');
         const toolCallId = String(job.toolCallId || '');
         aiTrace('fetch_job_start', { toolRound, username, url, toolCallId });
-        /** @type {{ bridgeOk?: boolean, text?: string, error?: string }} */
-        const r = await sendMessageAsync({ type: MSG.HTTP_TEXT_FETCH, url });
-        const pageText =
-          r?.bridgeOk && typeof r.text === 'string'
-            ? r.text.slice(0, 80000)
-            : `Fetch error: ${(r && r.error) || 'unknown'}`;
-        const content = `USERNAME: ${username}\nURL: ${url}\n\n${pageText}`;
+        const expanded = await fetchExpandedContactText(url);
+        const pageText = expanded.mergedText.slice(0, 180000);
+        const content = `USERNAME: ${username}\n${pageText}`;
         merged.push({ tool_call_id: toolCallId, content, url, username });
         aiTrace('fetch_job_done', {
           toolRound,
           username,
           url,
-          ok: r?.bridgeOk === true,
+          ok: expanded.ok,
+          fetchedUrls: expanded.fetchedUrls.length,
           chars: pageText.length,
           preview: pageText.slice(0, 120),
         });
@@ -1500,24 +1573,17 @@ function showJoshChat() {
 function updateJoshBubbleHint() {
   if (!els.joshAvatarThought || !els.joshThoughtWrap || !els.joshThoughtChat) return;
   if (!els.joshThoughtChat.classList.contains('hidden')) return;
-  const now = Date.now();
-  if (joshBubblePhase === 'blank') {
-    if (now - joshBubbleAt >= JOSH_BLANK_MS) {
-      joshBubblePhase = 'message';
-      joshBubbleAt = now;
-      const opts = [t(uiLocale, 'dashboard.joshBubbleHintA'), t(uiLocale, 'dashboard.joshBubbleHintB')];
-      els.joshAvatarThought.textContent = opts[Math.floor(Math.random() * opts.length)];
-      els.joshThoughtWrap.classList.remove('lf-josh-bubble-empty');
-    } else {
-      els.joshAvatarThought.textContent = '';
-      els.joshThoughtWrap.classList.add('lf-josh-bubble-empty');
-    }
-  } else if (now - joshBubbleAt >= JOSH_MESSAGE_MS) {
-    joshBubblePhase = 'blank';
-    joshBubbleAt = now;
-    els.joshAvatarThought.textContent = '';
-    els.joshThoughtWrap.classList.add('lf-josh-bubble-empty');
-  }
+  const lines = [
+    t(uiLocale, 'dashboard.joshBubbleLineDrag'),
+    t(uiLocale, 'dashboard.joshBubbleLineSheets'),
+    t(uiLocale, 'dashboard.joshBubbleLineAskAnything'),
+    t(uiLocale, 'dashboard.joshBubbleLineFilter'),
+    t(uiLocale, 'dashboard.joshBubbleLineSort'),
+  ].filter(Boolean);
+  if (!lines.length) return;
+  joshBubbleIndex = (joshBubbleIndex + 1) % lines.length;
+  els.joshAvatarThought.textContent = lines[joshBubbleIndex];
+  els.joshThoughtWrap.classList.remove('lf-josh-bubble-empty');
 }
 
 function spawnJoshSparkle(x, y) {
@@ -1771,8 +1837,8 @@ async function init() {
       els.joshAvatar?.classList.add('lf-josh-visible');
     }, 3000);
   }
-  setInterval(updateJoshBubbleHint, 500);
   updateJoshBubbleHint();
+  setInterval(updateJoshBubbleHint, JOSH_BUBBLE_ROTATE_MS);
   showJoshSimple();
   appendJoshMessage('bot', t(uiLocale, 'dashboard.joshWelcome'));
 

@@ -107,11 +107,35 @@ function looksLikeDateLikePhone(raw) {
 }
 
 /** @param {string} raw */
+function looksLikeDatePlusDecimalNoise(raw) {
+  const t = String(raw || '').trim();
+  return /\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b/.test(t) && /\b\d+\.\d+\b/.test(t);
+}
+
+/** @param {string} raw */
+function looksLikeCoordinateNoise(raw) {
+  const t = String(raw || '').trim();
+  return /^[-+]?\d{1,3}\.\d{3,}\s+[-+]?\d{1,3}\.\d{3,}(?:\s+[-+]?\d+(?:\.\d+)?)?$/.test(t);
+}
+
+/** @param {string} raw */
+function looksLikeDottedNumericNoise(raw) {
+  const t = String(raw || '').trim().replace(/\s+/g, '');
+  if (!/^[+\d.]+$/.test(t)) return false;
+  const dots = (t.match(/\./g) || []).length;
+  if (dots < 2) return false;
+  return t.length >= 10;
+}
+
+/** @param {string} raw */
 function normalizePhoneCandidate(raw) {
   if (!raw || typeof raw !== 'string') return '';
   const base = String(raw).trim().replace(PHONE_TRAIL_RE, '');
   if (!base || base.includes('@')) return '';
   if (looksLikeDateLikePhone(base)) return '';
+  if (looksLikeDatePlusDecimalNoise(base)) return '';
+  if (looksLikeCoordinateNoise(base)) return '';
+  if (looksLikeDottedNumericNoise(base)) return '';
   const digits = base.replace(/\D/g, '');
   if (digits.length < 8 || digits.length > 15) return '';
   if (/^\+?\d+$/.test(base.replace(/\s+/g, ''))) {
@@ -496,6 +520,8 @@ Critical phone accuracy rules:
 fetch_url call rules:
 - Always include BOTH username and url arguments.
 - username must exactly match one username from the input leads list.
+- Browser-agent style: after fetching a homepage, follow likely internal contact paths (contact/about/team/support/impressum/privacy/terms) before deciding.
+- Prefer pages that include mailto:, tel:, "contact", "reach us", "get in touch", "support", or "call us".
 
 When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, email_suggested, email_action (keep|replace|clear), email_confidence_0_1, phone_suggested, phone_action (keep|replace|clear), phone_confidence_0_1.`;
 
