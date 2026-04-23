@@ -22,6 +22,11 @@ const EMAIL_VERIFICATION_PROVIDER = (process.env.EMAIL_VERIFICATION_PROVIDER || 
 const FETCH_TOOL_MAX_ROUNDS = Math.min(24, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_ROUNDS) || 10));
 /** Max URLs sent to the extension per needs_fetch response. */
 const FETCH_TOOL_MAX_URLS = Math.min(12, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND) || 5));
+/** Max completed browser fetches per lead (username) per enrich request, across all tool rounds. */
+const FETCH_TOOL_MAX_FETCHES_PER_LEAD = Math.min(
+  8,
+  Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_PER_LEAD) || 2),
+);
 
 function logInfo(msg, extra) {
   if (LOG_LEVEL === 'error' || LOG_LEVEL === 'warn') return;
@@ -507,6 +512,58 @@ function itemsArrayToLlmMap(items) {
   return byUser;
 }
 
+/**
+ * Count prior extension HTML results in the conversation (USERNAME: prefix).
+ * @param {object[]} messages
+ * @returns {Map<string, number>}
+ */
+function completedFetchUrlCountByUsername(messages) {
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  for (const msg of messages || []) {
+    if (!msg || msg.role !== 'tool') continue;
+    const text = String(msg.content || '');
+    const m = text.match(/^\s*USERNAME:\s*([^\n\r]+)/i);
+    const username = String(m?.[1] || '').trim().toLowerCase();
+    if (!username) continue;
+    counts.set(username, (counts.get(username) || 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Interleave fetch jobs so different usernames are mixed (breadth-first).
+ * Preserves relative order within each username from the model output.
+ * @param {{ toolCallId: string, url: string, username: string }[]} jobs
+ */
+function breadthFirstByUsername(jobs) {
+  /** @type {Map<string, { toolCallId: string, url: string, username: string }[]>} */
+  const byUser = new Map();
+  /** @type {string[]} */
+  const order = [];
+  for (const j of jobs) {
+    const u = String(j.username || '').trim().toLowerCase();
+    if (!byUser.has(u)) {
+      byUser.set(u, []);
+      order.push(u);
+    }
+    byUser.get(u).push(j);
+  }
+  /** @type {typeof jobs} */
+  const out = [];
+  for (;;) {
+    let progressed = false;
+    for (const u of order) {
+      const q = byUser.get(u);
+      if (!q || !q.length) continue;
+      out.push(q.shift());
+      progressed = true;
+    }
+    if (!progressed) break;
+  }
+  return out;
+}
+
 const FETCH_URL_TOOL_SYSTEM = `You enrich Instagram lead rows for a CRM export. You may call fetch_url with absolute http(s) URLs to load public HTML (contact pages, link-in-bio sites, about pages). Never use instagram.com or instagr.am. Use fetch only when extra page text would materially improve contact accuracy.
 
 Critical email accuracy rules:
@@ -524,6 +581,8 @@ Critical phone accuracy rules:
 fetch_url call rules:
 - Always include BOTH username and url arguments.
 - username must exactly match one username from the input leads list.
+- Spread fetches across many different usernames in each round when several leads still lack good contact signals; avoid spending the whole round on one celebrity or brand homepage unless others are already covered.
+- The server may cap how many URLs it runs per lead per request; prioritize one high-value URL per weak-contact lead before deep multi-page exploration on a single lead.
 - Browser-agent style: after fetching a homepage, follow likely internal contact paths (contact/about/team/support/impressum/privacy/terms) before deciding.
 - Prefer pages that include mailto:, tel:, "contact", "reach us", "get in touch", "support", or "call us".
 
@@ -614,6 +673,8 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
     messages.push({ role: 'tool', tool_call_id: id, content });
   }
 
+  const priorFetchCounts = completedFetchUrlCountByUsername(messages);
+
   const INNER_MAX = 6;
   for (let inner = 0; inner < INNER_MAX; inner++) {
     const choice = await openAiChatWithFetchTool(messages);
@@ -655,8 +716,8 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
     };
     const messagesWithAssistant = [...messages, assistantMsg];
 
-    /** @type {{ toolCallId: string, url: string }[]} */
-    const fetchJobs = [];
+    /** @type {{ toolCallId: string, url: string, username: string }[]} */
+    const validFetchCandidates = [];
     /** @type {{ tool_call_id: string, content: string }[]} */
     const prefilledToolResults = [];
 
@@ -692,14 +753,34 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
         });
         continue;
       }
-      if (fetchJobs.length < FETCH_TOOL_MAX_URLS) {
-        fetchJobs.push({ toolCallId: tcId, url, username });
-      } else {
+      validFetchCandidates.push({ toolCallId: tcId, url, username });
+    }
+
+    const orderedCandidates = breadthFirstByUsername(validFetchCandidates);
+    /** @type {typeof orderedCandidates} */
+    const fetchJobs = [];
+    /** @type {Map<string, number>} */
+    const scheduledThisRound = new Map();
+    for (const job of orderedCandidates) {
+      const u = String(job.username || '').trim().toLowerCase();
+      const prior = priorFetchCounts.get(u) || 0;
+      const inThisRound = scheduledThisRound.get(u) || 0;
+      if (prior + inThisRound >= FETCH_TOOL_MAX_FETCHES_PER_LEAD) {
         prefilledToolResults.push({
-          tool_call_id: tcId,
+          tool_call_id: job.toolCallId,
+          content: `Skipped: per-lead fetch budget reached (${FETCH_TOOL_MAX_FETCHES_PER_LEAD} URL(s) per username for this batch).`,
+        });
+        continue;
+      }
+      if (fetchJobs.length >= FETCH_TOOL_MAX_URLS) {
+        prefilledToolResults.push({
+          tool_call_id: job.toolCallId,
           content: 'Skipped: max fetch_url calls per round reached.',
         });
+        continue;
       }
+      fetchJobs.push(job);
+      scheduledThisRound.set(u, inThisRound + 1);
     }
 
     if (fetchJobs.length) {

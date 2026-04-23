@@ -28,6 +28,7 @@ You need **two different secrets** on Render (do not replace one with the other)
 | `LEADFLOW_LOG_LEVEL` | Optional | `info`, `warn`, or `error` (reduces console noise). |
 | `MEGALEADS_FETCH_TOOL_MAX_ROUNDS` | Optional | When the dashboard enables **FETCH_URL**, max server↔extension round-trips per enrich request (default `10`, cap `24`). |
 | `MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND` | Optional | Max URLs the model may request per round before the rest are answered with “skipped” (default `5`, cap `12`). |
+| `MEGALEADS_FETCH_TOOL_MAX_PER_LEAD` | Optional | Max browser fetches **per username** per enrich batch across all rounds (default `2`, cap `8`). Extra `fetch_url` calls are prefilled as skipped. |
 
 With **FETCH_URL**, the OpenAI path can return `status: "needs_fetch"`; the extension fetches those URLs in the browser context and POSTs tool results back until the model returns final `leads`.
 
