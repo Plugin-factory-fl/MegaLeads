@@ -888,10 +888,12 @@ function setAiStatus(line) {
  */
 function aiTrace(stage, data) {
   const ts = new Date().toISOString();
-  if (data && Object.keys(data).length) {
-    console.info('[MegaLeads][AI Enrich]', stage, { ts, ...data });
-  } else {
-    console.info('[MegaLeads][AI Enrich]', stage, { ts });
+  const payload = data && Object.keys(data).length ? { ts, ...data } : { ts };
+  console.info('[MegaLeads][AI Enrich]', stage, payload);
+  try {
+    console.info(`[MegaLeads][AI Enrich][json] ${stage} ${JSON.stringify(payload)}`);
+  } catch {
+    /* no-op */
   }
 }
 
@@ -1055,6 +1057,42 @@ async function fetchExpandedContactText(url) {
 }
 
 /**
+ * Deterministic contact prefetch from lead website URLs.
+ * This runs before LLM tool-calls so contact extraction does not depend solely on model fetch decisions.
+ * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
+ */
+async function prefetchContactsIntoDtos(dtos) {
+  let visited = 0;
+  let emailAdds = 0;
+  let phoneAdds = 0;
+  for (const dto of dtos) {
+    const url = String(dto?.websiteUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) continue;
+    if (/instagram\.com|instagr\.am/i.test(url)) continue;
+    visited += 1;
+    const expanded = await fetchExpandedContactText(url);
+    const parsed = extractEmailPhoneFromParts([dto.email || '', dto.phone || '', expanded.mergedText || '']);
+    if (parsed.email && parsed.email !== String(dto.email || '').trim()) {
+      dto.email = parsed.email;
+      emailAdds += 1;
+    }
+    if (parsed.phone && parsed.phone !== String(dto.phone || '').trim()) {
+      dto.phone = parsed.phone;
+      phoneAdds += 1;
+    }
+    aiTrace('prefetch_contact_done', {
+      username: dto.username,
+      url,
+      ok: expanded.ok,
+      fetchedUrls: expanded.fetchedUrls.length,
+      email: parsed.email || '',
+      phone: parsed.phone || '',
+    });
+  }
+  aiTrace('prefetch_contact_summary', { visited, emailAdds, phoneAdds });
+}
+
+/**
  * One enrich batch: optional multi-round fetch_url tool (extension fetches HTML).
  * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
  * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean }} options
@@ -1079,6 +1117,8 @@ async function processRemoteEnrichBatch(dtos, options) {
     aiTrace('batch_done_no_fetch', { returned: returned.length });
     return returned;
   }
+
+  await prefetchContactsIntoDtos(dtos);
 
   /** @type {unknown[]|undefined} */
   let messages;

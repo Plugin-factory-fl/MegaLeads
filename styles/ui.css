@@ -1127,8 +1127,8 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 /* --- Josh floating helper (dashboard) --- */
 .lf-josh-wrap {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  right: 44px;
+  bottom: 72px;
   z-index: 55;
   cursor: grab;
   user-select: none;
