@@ -779,6 +779,139 @@ async function handleEnrich(req, res) {
   return res.json({ leads: leadsOut, meta: { model: OPENAI_MODEL, count: leadsOut.length } });
 }
 
+function compactLeadsForJosh(leads) {
+  return leads.slice(0, 200).map((r) => ({
+    username: String(r.username || ''),
+    followerCount: r.followerCount ?? null,
+    bio: String(r.bio || '').slice(0, 500),
+    email: String(r.email || ''),
+    phone: String(r.phone || ''),
+    websiteUrl: String(r.websiteUrl || '').slice(0, 200),
+    segment_primary: String(r.segment_primary || ''),
+    email_deliverability: String(r.email_deliverability || ''),
+  }));
+}
+
+const JOSH_CHAT_SCHEMA = {
+  name: 'megaleads_josh_chat',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      reply: { type: 'string' },
+      actions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['set_filter', 'sort', 'select', 'delete_selected', 'delete_filtered', 'clear_all', 'export'],
+            },
+            query: { type: 'string' },
+            key: { type: 'string' },
+            direction: { type: 'string', enum: ['asc', 'desc'] },
+            mode: { type: 'string', enum: ['none', 'all', 'with_email', 'top_n'] },
+            count: { type: 'number' },
+            kind: { type: 'string', enum: ['profiles', 'emails'] },
+          },
+          required: ['type'],
+        },
+      },
+    },
+    required: ['reply', 'actions'],
+  },
+};
+
+async function runJoshChatWithActions(userMessage, leads, uiState) {
+  if (!OPENAI_API_KEY) {
+    throw Object.assign(new Error('OPENAI_API_KEY missing'), { code: 'openai_missing' });
+  }
+  const system = `You are Josh, the MegaLeadsAI in-app assistant for Instagram lead extraction users.
+
+What MegaLeadsAI does:
+- Extracts leads from Instagram followers/following/hashtags.
+- Shows results in dashboard columns: username, followerCount, bio, email, phone, websiteUrl, segment_primary, email_deliverability.
+- Can filter, sort, select rows, export profiles/emails, and clear rows.
+- AI enrich can improve emails and add segments.
+
+Your job:
+1) Answer user questions about MegaLeadsAI clearly and briefly.
+2) If user explicitly asks you to perform a lead-list operation, include actions.
+3) Never claim an action happened unless you include it in actions.
+4) Keep reply concise (1-3 sentences), helpful, and practical.
+
+Action policy:
+- Only produce actions when user intent is specific and actionable.
+- Allowed actions:
+  - set_filter { query }
+  - sort { key, direction }
+  - select { mode, count } mode one of none|all|with_email|top_n
+  - delete_selected
+  - delete_filtered
+  - clear_all (destructive; only when user clearly asks to clear everything)
+  - export { kind } kind one of profiles|emails
+- If user asks something ambiguous or destructive without clarity, ask for confirmation in reply and actions must be [].
+
+Return strict JSON for schema: reply string + actions array.`;
+
+  const payload = {
+    userMessage: String(userMessage || ''),
+    uiState: uiState && typeof uiState === 'object' ? uiState : {},
+    leadsPreview: compactLeadsForJosh(Array.isArray(leads) ? leads : []),
+  };
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: JSON.stringify(payload) },
+      ],
+      response_format: { type: 'json_schema', json_schema: JOSH_CHAT_SCHEMA },
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw Object.assign(new Error(`openai_http_${res.status}`), { body: t.slice(0, 500) });
+  }
+  const data = await res.json();
+  const txt = data?.choices?.[0]?.message?.content;
+  if (!txt || typeof txt !== 'string') throw new Error('openai_empty_content');
+  const parsed = JSON.parse(txt);
+  const reply = String(parsed?.reply || '').slice(0, 1200);
+  const actions = Array.isArray(parsed?.actions) ? parsed.actions : [];
+  return { reply, actions };
+}
+
+async function handleJoshChat(req, res) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const userMessage = String(body.userMessage || '').trim();
+  const leads = Array.isArray(body.leads) ? body.leads : [];
+  const uiState = body.uiState && typeof body.uiState === 'object' ? body.uiState : {};
+  if (!userMessage) {
+    return res.status(400).json({ error: 'validation', message: 'userMessage is required' });
+  }
+  try {
+    const out = await runJoshChatWithActions(userMessage, leads, uiState);
+    return res.json(out);
+  } catch (e) {
+    logWarn('josh_chat_failed', { err: String(e?.message || e) });
+    return res.status(502).json({
+      error: 'josh_failed',
+      message: 'Josh is temporarily unavailable.',
+    });
+  }
+}
+
 function main() {
   const app = express();
   app.disable('x-powered-by');
@@ -795,6 +928,9 @@ function main() {
 
   app.post('/v1/leads/enrich', requireBearer, (req, res, next) => {
     handleEnrich(req, res).catch(next);
+  });
+  app.post('/v1/josh/chat', requireBearer, (req, res, next) => {
+    handleJoshChat(req, res).catch(next);
   });
 
   app.use((err, _req, res, _next) => {

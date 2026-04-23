@@ -2,7 +2,7 @@
 <html lang="en" class="lf-extension-doc" id="lfRoot">
   <head>
     <meta charset="UTF-8" />
-    <title>MegaLeads - Dashboard</title>
+    <title>MegaLeadsAI - Dashboard</title>
     <link rel="stylesheet" href="styles/ui.css" />
     <!-- SheetJS (SheetJS CE) — .xlsx export; see https://sheetjs.com -->
     <script src="libs/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
             src="Assets/logo2.png"
             data-logo-light="Assets/logo2.png"
             data-logo-dark="Assets/logo3.png"
-            alt="MegaLeads"
+            alt="MegaLeadsAI"
             width="202"
             height="46"
           />
@@ -157,6 +157,40 @@
         <p class="lf-ai-summary-improved" id="lfAiSummaryImproved"></p>
         <button type="button" class="lf-btn lf-btn-primary lf-ai-summary-ok" id="lfAiSummaryOk">OK</button>
       </div>
+    </div>
+
+    <div class="lf-josh-wrap" id="lfJoshAvatar" aria-hidden="false">
+      <div class="lf-josh-thought-wrap" id="lfJoshThoughtWrap">
+        <div class="lf-josh-thought-simple" id="lfJoshThoughtSimple">
+          <span
+            class="lf-josh-avatar-thought"
+            id="lfJoshAvatarThought"
+            tabindex="0"
+            role="button"
+            aria-label="Click to chat with Josh"
+          ></span>
+        </div>
+        <div class="lf-josh-thought-chat hidden" id="lfJoshThoughtChat">
+          <button type="button" class="lf-josh-thought-close" id="lfJoshThoughtClose" aria-label="Close">×</button>
+          <div class="lf-josh-thought-messages" id="lfJoshThoughtMessages"></div>
+          <div class="lf-josh-thought-chat-input-row">
+            <input
+              type="text"
+              class="lf-josh-thought-chat-input"
+              id="lfJoshThoughtChatInput"
+              placeholder="Ask Josh to help with your leads..."
+              autocomplete="off"
+            />
+            <button type="button" class="lf-josh-thought-chat-send" id="lfJoshThoughtChatSend" aria-label="Send">
+              →
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="lf-josh-avatar-bubble">
+        <img src="Megamix_AI_source/assets/Joshpropic.png" alt="Josh" class="lf-josh-avatar-img" />
+      </div>
+      <button type="button" class="lf-josh-avatar-help" id="lfJoshAvatarHelp" aria-label="Ask Josh a question">?</button>
     </div>
 
     <script type="module" src="scripts/dashboard.js"></script>

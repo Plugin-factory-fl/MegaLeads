@@ -98,6 +98,16 @@ const els = {
   aiSummaryOk: null,
   sheetsHint: null,
   openSheets: null,
+  joshAvatar: null,
+  joshThoughtWrap: null,
+  joshThoughtSimple: null,
+  joshAvatarThought: null,
+  joshThoughtChat: null,
+  joshThoughtClose: null,
+  joshThoughtMessages: null,
+  joshThoughtChatInput: null,
+  joshThoughtChatSend: null,
+  joshAvatarHelp: null,
 };
 
 /** @type {Lead[]} */
@@ -109,6 +119,11 @@ let sortDir = 1;
 let running = false;
 /** @type {number|null} */
 let sessionGoalMax = null;
+let joshSending = false;
+let joshBubblePhase = 'blank';
+let joshBubbleAt = Date.now();
+const JOSH_BLANK_MS = 10000;
+const JOSH_MESSAGE_MS = 6000;
 
 function bindEls() {
   els.progressBar = $('lfProgressBar');
@@ -154,6 +169,16 @@ function bindEls() {
   els.aiSummaryOk = document.getElementById('lfAiSummaryOk');
   els.sheetsHint = document.getElementById('lfSheetsHint');
   els.openSheets = document.getElementById('lfOpenSheets');
+  els.joshAvatar = document.getElementById('lfJoshAvatar');
+  els.joshThoughtWrap = document.getElementById('lfJoshThoughtWrap');
+  els.joshThoughtSimple = document.getElementById('lfJoshThoughtSimple');
+  els.joshAvatarThought = document.getElementById('lfJoshAvatarThought');
+  els.joshThoughtChat = document.getElementById('lfJoshThoughtChat');
+  els.joshThoughtClose = document.getElementById('lfJoshThoughtClose');
+  els.joshThoughtMessages = document.getElementById('lfJoshThoughtMessages');
+  els.joshThoughtChatInput = document.getElementById('lfJoshThoughtChatInput');
+  els.joshThoughtChatSend = document.getElementById('lfJoshThoughtChatSend');
+  els.joshAvatarHelp = document.getElementById('lfJoshAvatarHelp');
 }
 
 /** @param {'start' | 'continue' | 'stop'} which */
@@ -882,6 +907,47 @@ function setAiStatus(line) {
   if (els.aiStatus) els.aiStatus.textContent = line || '';
 }
 
+/**
+ * Console trace for AI enrich pipeline (dashboard side).
+ * @param {string} stage
+ * @param {Record<string, unknown>} [data]
+ */
+function aiTrace(stage, data) {
+  const ts = new Date().toISOString();
+  if (data && Object.keys(data).length) {
+    console.info('[MegaLeads][AI Enrich]', stage, { ts, ...data });
+  } else {
+    console.info('[MegaLeads][AI Enrich]', stage, { ts });
+  }
+}
+
+function getVisibleUsernames() {
+  /** @type {string[]} */
+  const out = [];
+  els.tableBody.querySelectorAll('tr[data-user]').forEach((tr) => {
+    const u = String(tr.getAttribute('data-user') || '').trim();
+    if (u) out.push(u);
+  });
+  return out;
+}
+
+/** @param {string[]} usernames */
+function setSelectedRowsByUsernames(usernames) {
+  const set = new Set((usernames || []).map((x) => String(x || '').toLowerCase()));
+  els.tableBody.querySelectorAll('tr[data-user]').forEach((tr) => {
+    const cb = tr.querySelector('.lf-row-check');
+    if (!(cb instanceof HTMLInputElement)) return;
+    const u = String(tr.getAttribute('data-user') || '').toLowerCase();
+    cb.checked = set.has(u);
+  });
+}
+
+async function persistLeadsAndRender(nextLeads) {
+  leads = nextLeads.map(normalizeStoredLead);
+  await chrome.storage.local.set({ [STORAGE_KEYS.LEADS]: leads });
+  renderTable();
+}
+
 /** @param {Lead[]} rows */
 function countRowsWithEmail(rows) {
   if (!Array.isArray(rows)) return 0;
@@ -942,6 +1008,12 @@ function sendMessageAsync(payload) {
  * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean }} options
  */
 async function processRemoteEnrichBatch(dtos, options) {
+  aiTrace('batch_start', {
+    batchSize: dtos.length,
+    llm: options.llm !== false,
+    verify: options.verify === true,
+    fetchUrlTool: options.fetchUrlTool === true,
+  });
   if (!options.fetchUrlTool) {
     /** @type {{ ok?: boolean, error?: string, data?: { leads?: unknown[] } }} */
     const resp = await sendMessageAsync({
@@ -952,6 +1024,7 @@ async function processRemoteEnrichBatch(dtos, options) {
     if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
     const returned = resp.data?.leads;
     if (!Array.isArray(returned)) throw new Error('Invalid API response');
+    aiTrace('batch_done_no_fetch', { returned: returned.length });
     return returned;
   }
 
@@ -961,6 +1034,11 @@ async function processRemoteEnrichBatch(dtos, options) {
   let toolResults;
   let toolRound = 0;
   while (true) {
+    aiTrace('fetch_round_request', {
+      toolRound,
+      hasMessages: Array.isArray(messages),
+      toolResultsCount: Array.isArray(toolResults) ? toolResults.length : 0,
+    });
     /** @type {{ ok?: boolean, error?: string, data?: Record<string, unknown> }} */
     const resp = await sendMessageAsync({
       type: MSG.LF_LEADS_REMOTE_ENRICH,
@@ -973,6 +1051,11 @@ async function processRemoteEnrichBatch(dtos, options) {
     if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
     const data = resp.data || {};
     if (data.status === 'needs_fetch') {
+      aiTrace('fetch_round_needs_fetch', {
+        toolRound,
+        fetchJobs: Array.isArray(data.fetchJobs) ? data.fetchJobs.length : 0,
+        prefilledToolResults: Array.isArray(data.prefilledToolResults) ? data.prefilledToolResults.length : 0,
+      });
       messages = /** @type {unknown[]} */ (data.messages);
       const merged = [
         ...(Array.isArray(data.prefilledToolResults) ? data.prefilledToolResults : []),
@@ -981,6 +1064,7 @@ async function processRemoteEnrichBatch(dtos, options) {
         if (!job || typeof job !== 'object') continue;
         const url = String(job.url || '');
         const toolCallId = String(job.toolCallId || '');
+        aiTrace('fetch_job_start', { toolRound, url, toolCallId });
         /** @type {{ bridgeOk?: boolean, text?: string, error?: string }} */
         const r = await sendMessageAsync({ type: MSG.HTTP_TEXT_FETCH, url });
         const pageText =
@@ -989,6 +1073,13 @@ async function processRemoteEnrichBatch(dtos, options) {
             : `Fetch error: ${(r && r.error) || 'unknown'}`;
         const content = `URL: ${url}\n\n${pageText}`;
         merged.push({ tool_call_id: toolCallId, content, url });
+        aiTrace('fetch_job_done', {
+          toolRound,
+          url,
+          ok: r?.bridgeOk === true,
+          chars: pageText.length,
+          preview: pageText.slice(0, 120),
+        });
       }
       toolResults = merged;
       toolRound += 1;
@@ -998,20 +1089,159 @@ async function processRemoteEnrichBatch(dtos, options) {
     }
     const returned = data.leads;
     if (!Array.isArray(returned)) throw new Error('Invalid API response');
+    aiTrace('batch_done_with_fetch', {
+      returned: returned.length,
+      roundsUsed: toolRound,
+    });
     return returned;
   }
 }
 
+/**
+ * @param {string} raw
+ * @returns {keyof Lead | '' }
+ */
+function mapJoshSortKey(raw) {
+  const k = String(raw || '').trim();
+  const allowed = new Set([
+    'username',
+    'followerCount',
+    'bio',
+    'email',
+    'phone',
+    'websiteUrl',
+    'segment_primary',
+    'email_deliverability',
+  ]);
+  return allowed.has(k) ? /** @type {keyof Lead} */ (k) : '';
+}
+
+/**
+ * @param {unknown[]} actions
+ * @returns {Promise<string[]>}
+ */
+async function applyJoshActions(actions) {
+  /** @type {string[]} */
+  const notes = [];
+  for (const a of actions || []) {
+    if (!a || typeof a !== 'object') continue;
+    const type = String(a.type || '').trim();
+    if (!type) continue;
+    if (type === 'set_filter') {
+      const query = String(a.query || '');
+      if (els.filter) els.filter.value = query;
+      renderTable();
+      notes.push(`filter set to "${query}"`);
+      continue;
+    }
+    if (type === 'sort') {
+      const mapped = mapJoshSortKey(a.key);
+      const dirRaw = String(a.direction || '').toLowerCase();
+      if (mapped) {
+        sortKey = mapped;
+        sortDir = dirRaw === 'desc' ? -1 : 1;
+        renderTable();
+        notes.push(`sorted by ${mapped} (${sortDir === 1 ? 'asc' : 'desc'})`);
+      }
+      continue;
+    }
+    if (type === 'select') {
+      renderTable();
+      const mode = String(a.mode || 'none');
+      const count = Math.max(1, Number(a.count) || 1);
+      if (mode === 'none') {
+        setSelectedRowsByUsernames([]);
+        notes.push('selection cleared');
+      } else if (mode === 'all') {
+        setSelectedRowsByUsernames(getVisibleUsernames());
+        notes.push('selected all visible rows');
+      } else if (mode === 'with_email') {
+        const map = new Map(getActiveLeads().map((r) => [String(r.username || '').toLowerCase(), r]));
+        const picks = getVisibleUsernames().filter((u) => {
+          const row = map.get(u.toLowerCase());
+          return String(row?.email || '').includes('@');
+        });
+        setSelectedRowsByUsernames(picks);
+        notes.push(`selected ${picks.length} rows with email`);
+      } else if (mode === 'top_n') {
+        setSelectedRowsByUsernames(getVisibleUsernames().slice(0, count));
+        notes.push(`selected top ${count} visible rows`);
+      }
+      continue;
+    }
+    if (type === 'delete_selected') {
+      const rows = getSelectedRows();
+      const drop = new Set(rows.map((r) => String(r.username || '').toLowerCase()));
+      if (drop.size) {
+        await persistLeadsAndRender(leads.filter((r) => !drop.has(String(r.username || '').toLowerCase())));
+        notes.push(`deleted ${drop.size} selected rows`);
+      }
+      continue;
+    }
+    if (type === 'delete_filtered') {
+      const visible = new Set(getVisibleUsernames().map((u) => u.toLowerCase()));
+      if (visible.size) {
+        await persistLeadsAndRender(leads.filter((r) => !visible.has(String(r.username || '').toLowerCase())));
+        notes.push(`deleted ${visible.size} filtered rows`);
+      }
+      continue;
+    }
+    if (type === 'clear_all') {
+      await persistLeadsAndRender([]);
+      notes.push('cleared all leads');
+      continue;
+    }
+    if (type === 'export') {
+      const kind = String(a.kind || '').toLowerCase();
+      if (kind === 'emails') {
+        await exportExcelEmails();
+        notes.push('exported emails');
+      } else {
+        await exportExcelProfiles();
+        notes.push('exported profiles');
+      }
+    }
+  }
+  return notes;
+}
+
+async function sendJoshChat(userMessage) {
+  const active = getActiveLeads();
+  const payload = {
+    type: MSG.LF_JOSH_CHAT,
+    userMessage,
+    leads: active.map(leadToEnrichDto),
+    uiState: {
+      filter: String(els.filter?.value || ''),
+      sortKey,
+      sortDir,
+      selectedCount: getSelectedRows().length,
+      visibleCount: getVisibleUsernames().length,
+      totalCount: active.length,
+    },
+  };
+  /** @type {{ ok?: boolean, error?: string, data?: { reply?: string, actions?: unknown[] } }} */
+  const resp = await sendMessageAsync(payload);
+  if (!resp?.ok) throw new Error(resp?.error || 'Josh request failed');
+  const reply = String(resp?.data?.reply || '').trim();
+  const actions = Array.isArray(resp?.data?.actions) ? resp.data.actions : [];
+  const notes = await applyJoshActions(actions);
+  return { reply, notes };
+}
+
 async function runRemoteEnrichPipeline() {
+  aiTrace('pipeline_start_clicked');
   if (selectedSessionId) {
     const line = t(uiLocale, 'dashboard.aiEnrichNeedLive');
     setAiStatus(line);
     appendStatusLine(line);
+    aiTrace('pipeline_abort_history_selected');
     return;
   }
   const list = getActiveLeads();
   if (!list.length) {
     setAiStatus(t(uiLocale, 'dashboard.aiEnrichNoLeads'));
+    aiTrace('pipeline_abort_no_leads');
     return;
   }
   const scrapedEmailCount = countRowsWithEmail(list);
@@ -1022,12 +1252,20 @@ async function runRemoteEnrichPipeline() {
   const excludeFakeEmails = els.aiExcludeFake ? els.aiExcludeFake.checked : true;
   const options = { llm: useLlm, verify: useVerify, fetchUrlTool: useFetchUrl, excludeFakeEmails };
   const batches = chunkArray(list, ENRICH_BATCH_SIZE);
+  aiTrace('pipeline_config', {
+    leads: list.length,
+    batches: batches.length,
+    scrapedEmailCount,
+    options,
+  });
   const byKey = new Map(list.map((r) => [r.username.toLowerCase(), { ...normalizeStoredLead(r) }]));
   try {
     for (let i = 0; i < batches.length; i++) {
+      aiTrace('batch_loop_start', { batchIndex: i + 1, batchTotal: batches.length, size: batches[i].length });
       setAiStatus(tf(uiLocale, 'dashboard.aiEnriching', { cur: i + 1, tot: batches.length }));
       const dtos = batches[i].map(leadToEnrichDto);
       const returned = await processRemoteEnrichBatch(dtos, options);
+      aiTrace('batch_loop_response', { batchIndex: i + 1, returned: returned.length });
       for (const row of returned) {
         if (!row || typeof row !== 'object') continue;
         const k = String(row.username || '').toLowerCase();
@@ -1043,13 +1281,21 @@ async function runRemoteEnrichPipeline() {
     renderTable();
     appendStatusLine(tf(uiLocale, 'dashboard.aiEnrichDone', { n: leads.length }));
     setAiStatus('');
-    showAiSummaryModal(scrapedEmailCount, countRowsWithEmail(updatedSubset));
+    const finalEmailCount = countRowsWithEmail(updatedSubset);
+    showAiSummaryModal(scrapedEmailCount, finalEmailCount);
+    aiTrace('pipeline_done', {
+      leadsOut: leads.length,
+      finalEmailCount,
+      addedEmails: Math.max(0, finalEmailCount - scrapedEmailCount),
+    });
   } catch (e) {
     const msg = String(e?.message || e);
     appendStatusLine(tf(uiLocale, 'dashboard.aiEnrichFail', { msg }));
     setAiStatus(tf(uiLocale, 'dashboard.aiEnrichFail', { msg }));
+    aiTrace('pipeline_error', { message: msg });
   } finally {
     if (els.aiEnrich) els.aiEnrich.disabled = false;
+    aiTrace('pipeline_end');
   }
 }
 
@@ -1270,6 +1516,115 @@ function onRuntimeMessage(msg) {
   }
 }
 
+function appendJoshMessage(role, text) {
+  if (!els.joshThoughtMessages) return;
+  const div = document.createElement('div');
+  div.className = `lf-josh-msg ${role}`;
+  div.textContent = `${role === 'user' ? 'You' : 'Josh'}: ${text}`;
+  els.joshThoughtMessages.appendChild(div);
+  els.joshThoughtMessages.scrollTop = els.joshThoughtMessages.scrollHeight;
+}
+
+function showJoshSimple() {
+  if (!els.joshThoughtSimple || !els.joshThoughtChat) return;
+  els.joshThoughtSimple.classList.remove('hidden');
+  els.joshThoughtChat.classList.add('hidden');
+}
+
+function showJoshChat() {
+  if (!els.joshThoughtSimple || !els.joshThoughtChat) return;
+  els.joshThoughtSimple.classList.add('hidden');
+  els.joshThoughtChat.classList.remove('hidden');
+  if (els.joshThoughtChatInput) els.joshThoughtChatInput.focus();
+}
+
+function updateJoshBubbleHint() {
+  if (!els.joshAvatarThought || !els.joshThoughtWrap || !els.joshThoughtChat) return;
+  if (!els.joshThoughtChat.classList.contains('hidden')) return;
+  const now = Date.now();
+  if (joshBubblePhase === 'blank') {
+    if (now - joshBubbleAt >= JOSH_BLANK_MS) {
+      joshBubblePhase = 'message';
+      joshBubbleAt = now;
+      const opts = [t(uiLocale, 'dashboard.joshBubbleHintA'), t(uiLocale, 'dashboard.joshBubbleHintB')];
+      els.joshAvatarThought.textContent = opts[Math.floor(Math.random() * opts.length)];
+      els.joshThoughtWrap.classList.remove('lf-josh-bubble-empty');
+    } else {
+      els.joshAvatarThought.textContent = '';
+      els.joshThoughtWrap.classList.add('lf-josh-bubble-empty');
+    }
+  } else if (now - joshBubbleAt >= JOSH_MESSAGE_MS) {
+    joshBubblePhase = 'blank';
+    joshBubbleAt = now;
+    els.joshAvatarThought.textContent = '';
+    els.joshThoughtWrap.classList.add('lf-josh-bubble-empty');
+  }
+}
+
+function initJoshDrag() {
+  const wrap = els.joshAvatar;
+  if (!wrap) return;
+  let startX = 0;
+  let startY = 0;
+  let left = 0;
+  let top = 0;
+  let dragging = false;
+  function down(ev) {
+    if (ev.target instanceof HTMLElement && ev.target.closest('button,input,.lf-josh-thought-chat')) return;
+    const r = wrap.getBoundingClientRect();
+    startX = ev.clientX;
+    startY = ev.clientY;
+    left = r.left;
+    top = r.top;
+    wrap.style.left = `${left}px`;
+    wrap.style.top = `${top}px`;
+    wrap.style.right = 'auto';
+    wrap.style.bottom = 'auto';
+    dragging = true;
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  }
+  function move(ev) {
+    if (!dragging) return;
+    const nextLeft = Math.max(6, Math.min(window.innerWidth - wrap.offsetWidth - 6, left + (ev.clientX - startX)));
+    const nextTop = Math.max(6, Math.min(window.innerHeight - wrap.offsetHeight - 6, top + (ev.clientY - startY)));
+    wrap.style.left = `${nextLeft}px`;
+    wrap.style.top = `${nextTop}px`;
+  }
+  function up() {
+    dragging = false;
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+  }
+  wrap.addEventListener('mousedown', down);
+}
+
+async function onJoshSend() {
+  const input = els.joshThoughtChatInput;
+  if (!input || joshSending) return;
+  const text = String(input.value || '').trim();
+  if (!text) return;
+  joshSending = true;
+  input.value = '';
+  appendJoshMessage('user', text);
+  appendJoshMessage('bot', t(uiLocale, 'dashboard.joshTyping'));
+  try {
+    const { reply, notes } = await sendJoshChat(text);
+    if (els.joshThoughtMessages?.lastElementChild) {
+      els.joshThoughtMessages.lastElementChild.remove();
+    }
+    const full = notes.length ? `${reply}\n\nDone: ${notes.join('; ')}.` : reply;
+    appendJoshMessage('bot', full || t(uiLocale, 'dashboard.joshNetworkError'));
+  } catch (_e) {
+    if (els.joshThoughtMessages?.lastElementChild) {
+      els.joshThoughtMessages.lastElementChild.remove();
+    }
+    appendJoshMessage('bot', t(uiLocale, 'dashboard.joshNetworkError'));
+  } finally {
+    joshSending = false;
+  }
+}
+
 function wireEvents() {
   els.filter.addEventListener('input', () => renderTable());
 
@@ -1376,6 +1731,38 @@ function wireEvents() {
   if (els.sessionStop) {
     els.sessionStop.addEventListener('click', () => void onDashboardRunToggleClick());
   }
+
+  if (els.joshAvatarThought) {
+    els.joshAvatarThought.addEventListener('click', () => showJoshChat());
+    els.joshAvatarThought.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        showJoshChat();
+      }
+    });
+  }
+  if (els.joshAvatarHelp) {
+    els.joshAvatarHelp.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      showJoshChat();
+    });
+  }
+  if (els.joshThoughtClose) els.joshThoughtClose.addEventListener('click', () => showJoshSimple());
+  if (els.joshThoughtChatSend) els.joshThoughtChatSend.addEventListener('click', () => void onJoshSend());
+  if (els.joshThoughtChatInput) {
+    els.joshThoughtChatInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        void onJoshSend();
+      }
+    });
+  }
+  if (els.joshAvatar) {
+    document.addEventListener('mousedown', (ev) => {
+      if (!els.joshAvatar.contains(/** @type {Node} */ (ev.target))) showJoshSimple();
+    });
+  }
 }
 
 async function init() {
@@ -1389,6 +1776,11 @@ async function init() {
   await loadSessionHistory();
   wireTableSort();
   wireEvents();
+  initJoshDrag();
+  setInterval(updateJoshBubbleHint, 500);
+  updateJoshBubbleHint();
+  showJoshSimple();
+  appendJoshMessage('bot', t(uiLocale, 'dashboard.joshWelcome'));
 
   if (rs?.running) setRunningUi(true);
 }

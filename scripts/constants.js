@@ -19,6 +19,8 @@ export const MSG = {
   GET_PAGE_CONTEXT: 'LF_GET_PAGE_CONTEXT',
   /** Dashboard → background: POST leads to Render enrich API (see scripts/leadflow-remote-config.js). */
   LF_LEADS_REMOTE_ENRICH: 'LF_LEADS_REMOTE_ENRICH',
+  /** Dashboard → background: Josh assistant chat + optional lead-list actions. */
+  LF_JOSH_CHAT: 'LF_JOSH_CHAT',
 };
 
 /** @type {const} */

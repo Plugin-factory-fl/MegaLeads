@@ -1,0 +1,30 @@
+{
+  "name": "megamixai-backend",
+  "version": "1.0.0",
+  "description": "Backend server for MegaMixAI plugin licensing system",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "sync-version": "node sync-version.js"
+  },
+  "dependencies": {
+    "@mailchimp/mailchimp_marketing": "^3.0.80",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "nodemailer": "^6.9.7",
+    "openai": "^6.22.0",
+    "pg": "^8.11.3",
+    "replicate": "^1.4.0",
+    "stripe": "^14.5.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

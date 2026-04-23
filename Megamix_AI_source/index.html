@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MegaMix AI – AI Mixing &amp; Mastering</title>
+    <link rel="icon" type="image/png" href="/assets/Logo.png">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-4JZ3RNEJWY"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-4JZ3RNEJWY');
+        window.trackEvent = function(name, params) {
+            try {
+                if (window.gtag) {
+                    window.gtag('event', name, params || {});
+                }
+            } catch (e) {
+                // swallow analytics errors
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="/app/styles.css">
+    <style>
+        .announcement-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: #8b5cf6;
+            color: #fff;
+            overflow: hidden;
+            z-index: 1100;
+            height: 40px;
+            display: flex;
+            align-items: center;
+        }
+        .announcement-inner { width: 100%; overflow: hidden; }
+        .announcement-track {
+            display: inline-flex;
+            align-items: center;
+            gap: 80px;
+            min-width: 200%;
+            animation: marquee 22s linear infinite;
+            font-size: 0.95rem;
+            letter-spacing: 0.8px;
+            font-weight: normal;
+        }
+        .announcement-track span { white-space: nowrap; }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .home-nav { top: 40px; }
+        .home-main { padding-top: 120px; }
+        .navbar-logo img { height: 80px; display: block; object-fit: contain; }
+        .before-after-heading { text-align: center; color: #8b5cf6; font-size: 1.8rem; margin: 50px 0 24px 0; }
+        .before-after-section { width: 100vw; position: relative; left: 50%; right: 50%; margin-left: -50vw; margin-right: -50vw; margin-top: 40px; margin-bottom: 50px; padding: 0 24px 12px; overflow-x: auto; overflow-y: hidden; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; box-sizing: border-box; }
+        .before-after-section-inner { display: flex; flex-wrap: nowrap; gap: 24px; width: max-content; margin: 0 auto; }
+        .before-after-section::-webkit-scrollbar { height: 8px; }
+        .before-after-section::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
+        .before-after-section::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.5); border-radius: 4px; }
+        .before-after-section::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.7); }
+        .before-after-card { flex: 0 0 auto; min-width: 340px; width: min(420px, calc(100vw - 72px)); max-width: 420px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 20px; backdrop-filter: blur(10px); box-sizing: border-box; }
+        .before-after-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+        .before-after-card-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0; }
+        .before-after-tabs { display: flex; background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 3px; flex-shrink: 0; }
+        .before-after-tabs button { padding: 6px 14px; border: none; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; background: transparent; color: rgba(255, 255, 255, 0.8); }
+        .before-after-tabs button.active { background: #fff; color: #111; }
+        .before-after-tabs button:not(.active):hover { color: #fff; }
+        .before-after-genre { display: inline-block; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.5px; padding: 4px 10px; border-radius: 6px; margin-bottom: 10px; }
+        .before-after-tagline { color: #8b5cf6; font-size: 0.85rem; margin-top: 8px; margin-bottom: 6px; text-align: center; }
+        .before-after-instruction { font-size: 0.8rem; color: rgba(255, 255, 255, 0.65); text-align: center; margin-bottom: 8px; line-height: 1.35; }
+        .before-after-listen-label { font-size: 0.78rem; color: rgba(255, 255, 255, 0.7); text-align: center; margin-bottom: 4px; }
+        .before-after-listen-list { font-size: 0.78rem; color: rgba(255, 255, 255, 0.6); text-align: left; margin: 0 auto 14px auto; padding-left: 1.25rem; max-width: 320px; line-height: 1.5; }
+        .before-after-listen-list li { margin-bottom: 2px; }
+        .before-after-play-wrap { display: flex; justify-content: center; align-items: center; }
+        .before-after-play-btn { width: 48px; height: 48px; border-radius: 50%; border: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .before-after-play-btn:hover { transform: scale(1.05); box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4); }
+        .before-after-play-btn.playing { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+        .before-after-progress-wrap { display: flex; align-items: center; gap: 10px; margin-top: 14px; width: 100%; }
+        .before-after-time, .before-after-duration { font-size: 0.8rem; color: rgba(255, 255, 255, 0.8); min-width: 36px; }
+        .before-after-duration { text-align: right; }
+        .before-after-progress { flex: 1; height: 8px; -webkit-appearance: none; appearance: none; background: rgba(255, 255, 255, 0.2); border-radius: 4px; outline: none; }
+        .before-after-progress::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #8b5cf6; cursor: pointer; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3); }
+        .before-after-progress::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #8b5cf6; cursor: pointer; border: none; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3); }
+        .before-after-progress::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.2); }
+        .before-after-progress::-moz-range-track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.2); }
+        .footer { text-align: center; padding: 24px 20px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 24px; }
+        .footer a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+        .footer a:hover { color: #8b5cf6; }
+        .cover-section { position: relative; width: 100vw; height: 280px; margin: -100px calc(-50vw + 50%) 0 calc(-50vw + 50%); overflow: hidden; background: linear-gradient(to bottom, #6d28d9 0%, #5b21b6 25%, #4c1d95 50%, #1e293b 75%, #0f172a 100%); background-image: url('/assets/Homebanner.png'); background-size: cover; background-position: center; }
+        .cover-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, rgba(15, 23, 42, 0.5) 0%, transparent 60%); z-index: 2; pointer-events: none; }
+        .cover-content { position: relative; z-index: 3; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; text-align: center; padding: 40px 20px 0; transform: translateY(30px); }
+        .cover-content .header { background: transparent; padding: 0; margin-bottom: 20px; box-shadow: none; }
+        .cover-content .header h1 { font-size: 3.5rem; font-weight: 700; margin-bottom: 20px; text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); color: #fff; }
+        .cover-content .subheader { font-size: 1.4rem; font-weight: 300; opacity: 0.9; line-height: 1.6; margin-bottom: 50px; color: #fff; }
+        @media (max-width: 700px) {
+            .before-after-card { min-width: 300px; width: min(360px, calc(100vw - 72px)); max-width: 360px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="announcement-bar">
+        <div class="announcement-inner">
+            <div class="announcement-track">
+                <span>AMAZING CUSTOMER SUPPORT | MIX YOUR SONG ON ANY BROWSER | 7-DAY FREE TRIAL | MADE BY AN INDIE DEVELOPER WHO CARES</span>
+                <span>AMAZING CUSTOMER SUPPORT | MIX YOUR SONG ON ANY BROWSER | 7-DAY FREE TRIAL | MADE BY AN INDIE DEVELOPER WHO CARES</span>
+            </div>
+        </div>
+    </div>
+    <nav class="navbar home-nav">
+        <div class="navbar-container">
+            <div class="navbar-logo">
+                <a href="/"><img src="/assets/Logo.png" alt="MegaMix AI"></a>
+            </div>
+            <div class="navbar-links">
+                <a href="/">Home</a>
+                <a href="/app">MegaMix AI</a>
+                <a href="/manage">Manage Subscription</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="view home-main">
+        <div class="cover-section">
+            <div class="cover-overlay"></div>
+            <div class="cover-content">
+                <div class="header">
+                    <h1>MegaMix AI</h1>
+                </div>
+            </div>
+        </div>
+        <section class="hero">
+            <h1>AI Mixing &amp; Mastering for Release-Ready Music</h1>
+            <p class="hero-sub">MegaMix AI is a web app that turns your stems or rough mix into a finished, mastered track in minutes. Upload your tracks, let the AI mix and master, then refine with natural language — no studio or engineering degree required.</p>
+            <div class="hero-cta-center">
+                <a href="/app" class="btn btn-primary btn-hero">Upload stems now</a>
+            </div>
+            <ul class="hero-benefits hero-benefits-below-btn">
+                <li><span class="hero-benefit-emoji" aria-hidden="true">📤</span> Upload stems or a stereo mix</li>
+                <li><span class="hero-benefit-emoji" aria-hidden="true">🎚️</span> AI mixing and mastering in one flow</li>
+                <li><span class="hero-benefit-emoji" aria-hidden="true">💬</span> Iterate with chat (e.g. “bring up the vocals”, “more punch”)</li>
+                <li><span class="hero-benefit-emoji" aria-hidden="true">🌊</span> Slowed + reverb version from your mastered track</li>
+                <li><span class="hero-benefit-emoji" aria-hidden="true">📥</span> Download WAV when you’re done</li>
+            </ul>
+        </section>
+        <h2 class="before-after-heading">Hear MegaMix AI in Action</h2>
+        <section class="before-after-section" aria-label="Before / After hearing demos">
+            <div class="before-after-section-inner">
+            <div class="before-after-card" data-card="1">
+                <div class="before-after-card-header">
+                    <h3 class="before-after-card-title">Tom Sawyer</h3>
+                    <div class="before-after-tabs" role="tablist">
+                        <button type="button" role="tab" aria-selected="false" class="before-after-tab" data-mode="before">Before</button>
+                        <button type="button" role="tab" aria-selected="true" class="before-after-tab active" data-mode="after">After</button>
+                    </div>
+                </div>
+                <span class="before-after-genre">ROCK</span>
+                <p class="before-after-tagline">This song was MegaMix'd in less than 3 minutes</p>
+                <p class="before-after-instruction">Press Play, then switch between before/after to hear the improvement in the song.</p>
+                <p class="before-after-listen-label">Things to listen for:</p>
+                <ul class="before-after-listen-list">
+                    <li>More powerful, punchy drums</li>
+                    <li>Cleaned up the muddy sound</li>
+                    <li>Prominent guitar solo and main vocals</li>
+                </ul>
+                <div class="before-after-play-wrap">
+                    <button type="button" class="before-after-play-btn" aria-label="Play audio" data-card="1" title="Play">&#9658;</button>
+                </div>
+                <div class="before-after-progress-wrap">
+                    <span class="before-after-time" aria-live="polite">0:00</span>
+                    <input type="range" class="before-after-progress" min="0" max="100" value="0" step="0.1" aria-label="Seek">
+                    <span class="before-after-duration">0:00</span>
+                </div>
+                <audio class="before-after-audio" data-card="1" data-mode="before" preload="metadata" src="/assets/audio/TomSawyer_BEFORE.mp3"></audio>
+                <audio class="before-after-audio" data-card="1" data-mode="after" preload="metadata" src="/assets/audio/TomSawyer_AFTER.mp3"></audio>
+            </div>
+            <div class="before-after-card" data-card="2">
+                <div class="before-after-card-header">
+                    <h3 class="before-after-card-title">It's Looking Over</h3>
+                    <div class="before-after-tabs" role="tablist">
+                        <button type="button" role="tab" aria-selected="false" class="before-after-tab" data-mode="before">Before</button>
+                        <button type="button" role="tab" aria-selected="true" class="before-after-tab active" data-mode="after">After</button>
+                    </div>
+                </div>
+                <span class="before-after-genre">HIP-HOP / TRAP SOUL</span>
+                <p class="before-after-tagline">This beat was MegaMix'd in less than 3 minutes</p>
+                <p class="before-after-instruction">Press Play, then switch between before/after to hear the improvement in the song.</p>
+                <p class="before-after-listen-label">Things to listen for:</p>
+                <ul class="before-after-listen-list">
+                    <li>Punchier kick and 808</li>
+                    <li>Clearer vocals and hooks</li>
+                    <li>Tighter, more polished low end</li>
+                </ul>
+                <div class="before-after-play-wrap">
+                    <button type="button" class="before-after-play-btn" aria-label="Play audio" data-card="2" title="Play">&#9658;</button>
+                </div>
+                <div class="before-after-progress-wrap">
+                    <span class="before-after-time" aria-live="polite">0:00</span>
+                    <input type="range" class="before-after-progress" min="0" max="100" value="0" step="0.1" aria-label="Seek">
+                    <span class="before-after-duration">0:00</span>
+                </div>
+                <audio class="before-after-audio" data-card="2" data-mode="before" preload="metadata" src="/assets/audio/ItsLookingOver_before.mp3"></audio>
+                <audio class="before-after-audio" data-card="2" data-mode="after" preload="metadata" src="/assets/audio/ItsLookingOver_After.wav"></audio>
+            </div>
+            <div class="before-after-card" data-card="3">
+                <div class="before-after-card-header">
+                    <h3 class="before-after-card-title">It's Looking Over — Slowed + Reverb</h3>
+                    <div class="before-after-tabs" role="tablist">
+                        <button type="button" role="tab" aria-selected="false" class="before-after-tab" data-mode="before">Before</button>
+                        <button type="button" role="tab" aria-selected="true" class="before-after-tab active" data-mode="after">After</button>
+                    </div>
+                </div>
+                <span class="before-after-genre">HIP-HOP / TRAP SOUL</span>
+                <p class="before-after-tagline">Slowed + reverbed version — same song, new vibe</p>
+                <p class="before-after-instruction">Press Play, then switch between before/after to hear the original and the slowed + reverb version.</p>
+                <p class="before-after-listen-label">Things to listen for:</p>
+                <ul class="before-after-listen-list">
+                    <li>Deeper, stretched vocals</li>
+                    <li>Room and reverb on the beat</li>
+                    <li>Same track, different feel</li>
+                </ul>
+                <div class="before-after-play-wrap">
+                    <button type="button" class="before-after-play-btn" aria-label="Play audio" data-card="3" title="Play">&#9658;</button>
+                </div>
+                <div class="before-after-progress-wrap">
+                    <span class="before-after-time" aria-live="polite">0:00</span>
+                    <input type="range" class="before-after-progress" min="0" max="100" value="0" step="0.1" aria-label="Seek">
+                    <span class="before-after-duration">0:00</span>
+                </div>
+                <audio class="before-after-audio" data-card="3" data-mode="before" preload="metadata" src="/assets/audio/ItsLookingOver_before.mp3"></audio>
+                <audio class="before-after-audio" data-card="3" data-mode="after" preload="metadata" src="/assets/audio/ItsLookingOver_Slowed.wav"></audio>
+            </div>
+            </div>
+        </section>
+        <section class="hero-free-trial-bottom">
+            <button type="button" class="btn btn-primary btn-hero" id="btn-get-free-trial-bottom" data-cta-location="hero_bottom">GET FREE TRIAL</button>
+        </section>
+    </main>
+    <footer class="footer">
+        <a href="/">Home</a>
+        <a href="#" id="footer-contact-home">Contact Us</a>
+        <a href="#" id="footer-free-trial-home" data-cta-location="footer">Get 7-Day Free Trial</a>
+        <a href="#" id="footer-newsletter-home">Sign Up for Newsletter</a>
+    </footer>
+    <!-- Contact Support modal (home page) -->
+    <div id="contactModalHome" class="contact-modal-app hidden">
+        <div class="contact-modal-app-content">
+            <div class="contact-modal-app-header">
+                <h3>Contact Support</h3>
+                <span class="contact-modal-app-close" id="contactModalHomeClose" aria-label="Close">&times;</span>
+            </div>
+            <div class="contact-modal-app-body">
+                <form id="contactFormHome">
+                    <div class="form-group">
+                        <label for="contactNameHome">Your Name:</label>
+                        <input type="text" id="contactNameHome" name="contactName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contactEmailHome">Your Email:</label>
+                        <input type="email" id="contactEmailHome" name="contactEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contactSubjectHome">Subject:</label>
+                        <select id="contactSubjectHome" name="contactSubject" required>
+                            <option value="">Select a topic...</option>
+                            <option value="Plugin Installation Help">Plugin Installation Help</option>
+                            <option value="License Key Issues">License Key Issues</option>
+                            <option value="Plugin Not Working">Plugin Not Working</option>
+                            <option value="Feature Request">Feature Request</option>
+                            <option value="Bug Report">Bug Report</option>
+                            <option value="General Question">General Question</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="contactMessageHome">Message:</label>
+                        <textarea id="contactMessageHome" name="contactMessage" rows="5" placeholder="Please describe your issue or question in detail..." required></textarea>
+                    </div>
+                    <div class="contact-modal-app-buttons">
+                        <button type="button" class="cancel-btn" id="contactModalHomeCancel">Cancel</button>
+                        <button type="submit" class="submit-btn">Send Message</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Pre-checkout email modal (before Stripe; shown only to non-subscribers) -->
+    <div id="preCheckoutEmailModalHome" class="email-modal-app hidden">
+        <div class="email-modal-app-content" onclick="event.stopPropagation()">
+            <div class="email-modal-app-header">
+                <h3>Sign up for the newsletter for all updates in real time. New features implemented weekly!</h3>
+                <span class="email-modal-app-close" id="preCheckoutEmailModalHomeClose">&times;</span>
+            </div>
+            <div class="email-modal-app-body">
+                <p class="email-modal-app-p">Optional—you can skip and go straight to your free trial.</p>
+                <label for="preCheckoutEmailInputHome">Your email address:</label>
+                <input type="email" id="preCheckoutEmailInputHome" placeholder="your@email.com">
+                <div class="email-modal-app-buttons">
+                    <button type="button" class="btn btn-primary" id="preCheckoutEmailModalHomeSubmit">Sign me up</button>
+                    <button type="button" class="btn btn-ghost" id="preCheckoutEmailModalHomeSkip">Skip to free trial</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Newsletter signup-only modal (home page) -->
+    <div id="newsletterSignupModalHome" class="email-modal-app hidden">
+        <div class="email-modal-app-content" onclick="event.stopPropagation()">
+            <div class="email-modal-app-header">
+                <h3>Join the MegaMixAI Community</h3>
+                <span class="email-modal-app-close" id="newsletterSignupModalHomeClose">&times;</span>
+            </div>
+            <div class="email-modal-app-body">
+                <p class="email-modal-app-p">Be the first to find out about our next releases. Sign up for our newsletter.</p>
+                <label for="newsletterEmailInputHome">Your email address:</label>
+                <input type="email" id="newsletterEmailInputHome" placeholder="your.email@example.com">
+                <div class="email-modal-app-buttons">
+                    <button type="button" class="btn btn-primary" id="newsletterSignupModalHomeSubmit">Sign Me Up</button>
+                    <button type="button" class="btn btn-ghost" id="newsletterSignupModalHomeCancel">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var newsletterModal = document.getElementById('newsletterSignupModalHome');
+            var newsletterLink = document.getElementById('footer-newsletter-home');
+            var newsletterClose = document.getElementById('newsletterSignupModalHomeClose');
+            var newsletterCancel = document.getElementById('newsletterSignupModalHomeCancel');
+            var newsletterSubmit = document.getElementById('newsletterSignupModalHomeSubmit');
+            var newsletterInput = document.getElementById('newsletterEmailInputHome');
+            function openNewsletter(signupSource) {
+                window.__megamixNewsletterSignupSource = signupSource || null;
+                newsletterModal.classList.remove('hidden');
+                if (newsletterInput) newsletterInput.value = '';
+                document.body.style.overflow = 'hidden';
+            }
+            function closeNewsletter() {
+                if (window.__megamixNewsletterSignupSource === 'prospective-60s-home') {
+                    try { sessionStorage.setItem('megamix_60s_popup_shown', '1'); } catch (e) {}
+                }
+                window.__megamixNewsletterSignupSource = null;
+                newsletterModal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+            function isValidEmail(email) { return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email || ''); }
+            if (newsletterLink) newsletterLink.addEventListener('click', function (e) { e.preventDefault(); openNewsletter(); });
+            if (newsletterClose) newsletterClose.addEventListener('click', closeNewsletter);
+            if (newsletterCancel) newsletterCancel.addEventListener('click', closeNewsletter);
+            newsletterModal.addEventListener('click', function (e) { if (e.target === newsletterModal) closeNewsletter(); });
+            if (newsletterSubmit) newsletterSubmit.addEventListener('click', function () {
+                var email = newsletterInput ? newsletterInput.value.trim() : '';
+                if (!email || !isValidEmail(email)) { alert('Please enter a valid email address.'); return; }
+                var signupSource = window.__megamixNewsletterSignupSource;
+                var body = signupSource
+                    ? { email: email, signupSource: signupSource }
+                    : { email: email, format: 'web-newsletter', platform: 'web' };
+                fetch((window.location.origin || '') + '/mailchimp-signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (data) {
+                    if (data.success) { alert('Thanks for signing up!'); } else { alert(data.error || 'Please try again.'); }
+                    closeNewsletter();
+                }).catch(function () { alert('Something went wrong. Please try again.'); closeNewsletter(); });
+            });
+            window.openNewsletterHome = openNewsletter;
+        })();
+    </script>
+    <script>
+        (function () {
+            var contactModal = document.getElementById('contactModalHome');
+            var contactLink = document.getElementById('footer-contact-home');
+            var contactClose = document.getElementById('contactModalHomeClose');
+            var contactCancel = document.getElementById('contactModalHomeCancel');
+            var contactForm = document.getElementById('contactFormHome');
+            function openContact() {
+                if (contactModal) {
+                    contactModal.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+            function closeContact() {
+                if (contactModal) {
+                    contactModal.classList.add('hidden');
+                    document.body.style.overflow = '';
+                    if (contactForm) contactForm.reset();
+                }
+            }
+            if (contactLink) contactLink.addEventListener('click', function (e) { e.preventDefault(); openContact(); });
+            if (contactClose) contactClose.addEventListener('click', closeContact);
+            if (contactCancel) contactCancel.addEventListener('click', closeContact);
+            if (contactModal) contactModal.addEventListener('click', function (e) { if (e.target === contactModal) closeContact(); });
+            if (contactForm) contactForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var name = document.getElementById('contactNameHome') && document.getElementById('contactNameHome').value.trim();
+                var email = document.getElementById('contactEmailHome') && document.getElementById('contactEmailHome').value.trim();
+                var subject = document.getElementById('contactSubjectHome') && document.getElementById('contactSubjectHome').value;
+                var message = document.getElementById('contactMessageHome') && document.getElementById('contactMessageHome').value.trim();
+                if (!name || !email || !subject || !message) { alert('Please fill in all fields.'); return; }
+                fetch((window.location.origin || '') + '/contact-support', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, email: email, subject: subject, message: message })
+                }).then(function (r) { return r.json(); }).then(function (result) {
+                    if (result.success) { alert('Thank you for contacting us! We\'ll get back to you within 24 hours.'); closeContact(); }
+                    else { alert('Sorry, there was an error. Please try again or email support@megamixai.com'); }
+                }).catch(function () { alert('Sorry, there was an error. Please try again or email support@megamixai.com'); });
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            var AUTH_TOKEN_KEY = 'megamix_token';
+            var preCheckoutModal = document.getElementById('preCheckoutEmailModalHome');
+            var preCheckoutClose = document.getElementById('preCheckoutEmailModalHomeClose');
+            var preCheckoutInput = document.getElementById('preCheckoutEmailInputHome');
+            var preCheckoutSubmit = document.getElementById('preCheckoutEmailModalHomeSubmit');
+            var preCheckoutSkip = document.getElementById('preCheckoutEmailModalHomeSkip');
+            var pendingCheckoutEv = null;
+
+            function getToken() {
+                try { return localStorage.getItem(AUTH_TOKEN_KEY); } catch (e) { return null; }
+            }
+            function isSubscriber(cb) {
+                var token = getToken();
+                if (!token) { cb(false); return; }
+                fetch((window.location.origin || '') + '/api/auth/me', {
+                    headers: { Authorization: 'Bearer ' + token }
+                }).then(function (r) { cb(r.ok); }).catch(function () { cb(false); });
+            }
+            function proceedToCheckout() {
+                fetch((window.location.origin || '') + '/create-checkout-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ priceId: '1mo' })
+                }).then(function (r) { return r.json(); }).then(function (data) {
+                    if (data.url) window.location.href = data.url;
+                    else alert(data.error || 'Could not start checkout.');
+                }).catch(function () { alert('Network error. Please try again.'); });
+            }
+            function closePreCheckoutModal() {
+                if (preCheckoutModal) preCheckoutModal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+            function openPreCheckoutModal(e) {
+                pendingCheckoutEv = e;
+                if (preCheckoutModal) {
+                    preCheckoutModal.classList.remove('hidden');
+                    if (preCheckoutInput) preCheckoutInput.value = '';
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+            function isValidEmail(email) { return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email || ''); }
+
+            if (preCheckoutSubmit) preCheckoutSubmit.addEventListener('click', function () {
+                var email = preCheckoutInput ? preCheckoutInput.value.trim() : '';
+                if (email && isValidEmail(email)) {
+                    fetch((window.location.origin || '') + '/mailchimp-signup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email, signupSource: 'prospective-free-trial' })
+                    }).then(function () {}).catch(function () {});
+                }
+                closePreCheckoutModal();
+                proceedToCheckout();
+            });
+            if (preCheckoutSkip) preCheckoutSkip.addEventListener('click', function () {
+                closePreCheckoutModal();
+                proceedToCheckout();
+            });
+            if (preCheckoutClose) preCheckoutClose.addEventListener('click', function () {
+                closePreCheckoutModal();
+                proceedToCheckout();
+            });
+            if (preCheckoutModal) preCheckoutModal.addEventListener('click', function (e) {
+                if (e.target === preCheckoutModal) { closePreCheckoutModal(); proceedToCheckout(); }
+            });
+
+            function startCheckout(e) {
+                if (e) e.preventDefault();
+                if (window.trackEvent) {
+                    var loc = (e && e.currentTarget && e.currentTarget.getAttribute) ? e.currentTarget.getAttribute('data-cta-location') || 'unknown' : 'unknown';
+                    window.trackEvent('free_trial_click', { location: loc, page: 'marketing' });
+                }
+                isSubscriber(function (subscriber) {
+                    if (subscriber) {
+                        proceedToCheckout();
+                    } else {
+                        openPreCheckoutModal(e);
+                    }
+                });
+            }
+            var ft = document.getElementById('footer-free-trial-home');
+            if (ft) ft.addEventListener('click', startCheckout);
+            var btnTrialHome = document.getElementById('btn-get-free-trial-home');
+            if (btnTrialHome) btnTrialHome.addEventListener('click', startCheckout);
+            var btnTrialBottom = document.getElementById('btn-get-free-trial-bottom');
+            if (btnTrialBottom) btnTrialBottom.addEventListener('click', startCheckout);
+        })();
+    </script>
+    <script>
+        (function () {
+            var AUTH_TOKEN_KEY = 'megamix_token';
+            var LINGER_KEY = 'megamix_60s_popup_shown';
+            var LINGER_MS = 60000;
+            function getToken() {
+                try { return localStorage.getItem(AUTH_TOKEN_KEY); } catch (e) { return null; }
+            }
+            function checkSubscriberThenStartTimer(cb) {
+                var token = getToken();
+                if (!token) { cb(false); return; }
+                fetch((window.location.origin || '') + '/api/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+                    .then(function (r) { cb(!r.ok); })
+                    .catch(function () { cb(true); });
+            }
+            function alreadyShown() {
+                try { return sessionStorage.getItem(LINGER_KEY) === '1'; } catch (e) { return false; }
+            }
+            checkSubscriberThenStartTimer(function (shouldStartTimer) {
+                if (!shouldStartTimer || alreadyShown()) return;
+                setTimeout(function () {
+                    if (alreadyShown()) return;
+                    if (window.openNewsletterHome) window.openNewsletterHome('prospective-60s-home');
+                }, LINGER_MS);
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            function formatTime(seconds) {
+                if (!isFinite(seconds) || seconds < 0) return '0:00';
+                var m = Math.floor(seconds / 60);
+                var s = Math.floor(seconds % 60);
+                return m + ':' + (s < 10 ? '0' : '') + s;
+            }
+            var section = document.querySelector('.before-after-section');
+            if (!section) return;
+            section.querySelectorAll('.before-after-card').forEach(function (card) {
+                var audioBefore = card.querySelector('.before-after-audio[data-mode="before"]');
+                var audioAfter = card.querySelector('.before-after-audio[data-mode="after"]');
+                var playBtn = card.querySelector('.before-after-play-btn');
+                var progress = card.querySelector('.before-after-progress');
+                var timeEl = card.querySelector('.before-after-time');
+                var durationEl = card.querySelector('.before-after-duration');
+                var tabs = card.querySelectorAll('.before-after-tab');
+                if (!audioBefore || !audioAfter || !playBtn || !progress) return;
+                function getActiveMode() {
+                    var active = card.querySelector('.before-after-tab.active');
+                    return active ? active.getAttribute('data-mode') : 'after';
+                }
+                function setMutedFromTab() {
+                    var mode = getActiveMode();
+                    audioBefore.muted = (mode !== 'before');
+                    audioAfter.muted = (mode !== 'after');
+                }
+                function updateProgress() {
+                    var t = audioBefore.currentTime;
+                    var d = audioBefore.duration;
+                    if (d && isFinite(d)) {
+                        progress.value = d > 0 ? (t / d) * 100 : 0;
+                        if (durationEl) durationEl.textContent = formatTime(d);
+                    }
+                    if (timeEl) timeEl.textContent = formatTime(t);
+                }
+                tabs.forEach(function (tab) {
+                    tab.addEventListener('click', function () {
+                        tabs.forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+                        tab.classList.add('active');
+                        tab.setAttribute('aria-selected', 'true');
+                        setMutedFromTab();
+                    });
+                });
+                playBtn.addEventListener('click', function () {
+                    var playing = !audioBefore.paused || !audioAfter.paused;
+                    if (playing) {
+                        audioBefore.pause();
+                        audioAfter.pause();
+                        playBtn.classList.remove('playing');
+                        playBtn.textContent = '\u25B6';
+                    } else {
+                        var pos = audioBefore.currentTime || 0;
+                        audioBefore.currentTime = pos;
+                        audioAfter.currentTime = pos;
+                        setMutedFromTab();
+                        audioBefore.play();
+                        audioAfter.play();
+                        playBtn.classList.add('playing');
+                        playBtn.textContent = '\u23F8';
+                    }
+                });
+                progress.addEventListener('input', function () {
+                    var d = audioBefore.duration;
+                    if (d && isFinite(d)) {
+                        var t = (progress.value / 100) * d;
+                        audioBefore.currentTime = t;
+                        audioAfter.currentTime = t;
+                        if (timeEl) timeEl.textContent = formatTime(t);
+                    }
+                });
+                audioBefore.addEventListener('loadedmetadata', function () {
+                    if (durationEl) durationEl.textContent = formatTime(audioBefore.duration);
+                });
+                audioBefore.addEventListener('timeupdate', function () {
+                    updateProgress();
+                    if (Math.abs(audioBefore.currentTime - audioAfter.currentTime) > 0.15)
+                        audioAfter.currentTime = audioBefore.currentTime;
+                });
+                audioAfter.addEventListener('timeupdate', function () {
+                    if (Math.abs(audioBefore.currentTime - audioAfter.currentTime) > 0.15)
+                        audioBefore.currentTime = audioAfter.currentTime;
+                });
+                audioBefore.addEventListener('ended', function () {
+                    audioBefore.pause();
+                    audioAfter.pause();
+                    playBtn.classList.remove('playing');
+                    playBtn.textContent = '\u25B6';
+                    updateProgress();
+                });
+                audioAfter.addEventListener('ended', function () {
+                    audioBefore.pause();
+                    audioAfter.pause();
+                    playBtn.classList.remove('playing');
+                    playBtn.textContent = '\u25B6';
+                    updateProgress();
+                });
+                setMutedFromTab();
+            });
+        })();
+    </script>
+</body>
+</html>

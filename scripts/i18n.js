@@ -1,5 +1,5 @@
 /**
- * MegaLeads UI strings - English only.
+ * MegaLeadsAI UI strings - English only.
  * @typedef {'en'} Locale
  */
 
@@ -60,7 +60,7 @@ export const I18N = {
     },
     dashboard: {
       langSwitch: 'English',
-      title: 'MegaLeads - Dashboard',
+      title: 'MegaLeadsAI - Dashboard',
       version: 'v1.0 · Dashboard',
       themeLight: 'Light mode',
       themeDark: 'Dark mode',
@@ -150,7 +150,7 @@ export const I18N = {
       excelSheetEmails: 'Emails',
       aiPanelTitle: 'AI: clean & segment',
       aiPanelDesc:
-        'Uses your MegaLeads API (Render) for deterministic email rescoring, optional LLM signal segments, and optional deliverability checks. Segments are heuristic - not demographics.',
+        'Uses your MegaLeadsAI API (Render) for deterministic email rescoring, optional LLM signal segments, and optional deliverability checks. Segments are heuristic - not demographics.',
       aiLlmToggle: 'Use LLM (OpenAI on server)',
       aiVerifyToggle: 'Verify emails (if configured on server)',
       aiFetchUrlToggle: 'Allow FETCH_URL (extension fetches pages the model requests)',
@@ -171,6 +171,12 @@ export const I18N = {
       exportColDeliverability: 'Deliverability',
       exportColEmailAction: 'Email action',
       exportColEnrichNotes: 'AI notes',
+      joshBubbleHintA: 'Need help with your leads?',
+      joshBubbleHintB: 'Ask Josh to clean, sort, filter, or export.',
+      joshWelcome:
+        'I am Josh, your MegaLeadsAI helper. Ask me questions or tell me what to do with your extracted leads list.',
+      joshTyping: 'Thinking...',
+      joshNetworkError: "Couldn't reach Josh. Check your API config and try again.",
     },
   },
 };

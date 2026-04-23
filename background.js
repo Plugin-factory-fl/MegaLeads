@@ -235,6 +235,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === 'LF_JOSH_CHAT') {
+    void handleJoshChat(message, sendResponse);
+    return true;
+  }
+
   return false;
 });
 
@@ -323,6 +328,79 @@ async function handleLeadsRemoteEnrich(message, sendResponse) {
       name === 'AbortError'
         ? `Request timed out (${longRun ? 120 : 60}s).`
         : String((e && /** @type {Error} */ (e).message) || e);
+    sendResponse({
+      ok: false,
+      error: /Failed to fetch|NetworkError|Load failed/i.test(msg)
+        ? 'Network error — check apiBaseUrl, your connection, and that the Render service is up.'
+        : msg,
+    });
+  }
+}
+
+/**
+ * Proxy Josh assistant chat requests to the Render API.
+ * @param {{ userMessage?: string, leads?: unknown[], uiState?: Record<string, unknown> }} message
+ * @param {(r: unknown) => void} sendResponse
+ */
+async function handleJoshChat(message, sendResponse) {
+  try {
+    const apiBaseUrl = String(storedApiBaseUrl || '')
+      .trim()
+      .replace(/\/$/, '');
+    const apiKey = String(storedApiKey || '').trim();
+    if (!apiBaseUrl || !apiKey) {
+      sendResponse({
+        ok: false,
+        error: 'apiBaseUrl and apiKey must be set in scripts/leadflow-remote-config.js',
+      });
+      return;
+    }
+
+    const userMessage = String(message?.userMessage || '').trim();
+    if (!userMessage) {
+      sendResponse({ ok: false, error: 'Missing userMessage' });
+      return;
+    }
+
+    const leads = Array.isArray(message?.leads) ? message.leads : [];
+    const uiState = message?.uiState && typeof message.uiState === 'object' ? message.uiState : {};
+    const body = JSON.stringify({ userMessage, leads, uiState });
+
+    const ac = new AbortController();
+    const tid = setTimeout(() => ac.abort(), 60000);
+    const url = `${apiBaseUrl}/v1/josh/chat`;
+    const res = await fetch(url, {
+      method: 'POST',
+      signal: ac.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body,
+    });
+    clearTimeout(tid);
+
+    const text = await res.text();
+    let json = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      /* leave null */
+    }
+
+    if (!res.ok) {
+      const msg =
+        (json && (json.message || json.error)) ||
+        (text && text.slice(0, 200)) ||
+        `HTTP ${res.status}`;
+      sendResponse({ ok: false, error: String(msg), status: res.status });
+      return;
+    }
+
+    sendResponse({ ok: true, data: json });
+  } catch (e) {
+    const msg = String((e && /** @type {Error} */ (e).message) || e);
     sendResponse({
       ok: false,
       error: /Failed to fetch|NetworkError|Load failed/i.test(msg)

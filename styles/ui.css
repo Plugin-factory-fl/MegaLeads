@@ -1124,3 +1124,173 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   font-size: 0.92em;
 }
 
+/* --- Josh floating helper (dashboard) --- */
+.lf-josh-wrap {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 55;
+  cursor: grab;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lf-josh-wrap:active {
+  cursor: grabbing;
+}
+
+.lf-josh-avatar-bubble {
+  width: 74px;
+  height: 74px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--lf-surface);
+  border: 2px solid color-mix(in srgb, var(--lf-accent) 45%, var(--lf-border));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.26);
+}
+
+.lf-josh-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lf-josh-avatar-help {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--lf-border);
+  background: var(--lf-surface);
+  color: var(--lf-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lf-josh-thought-wrap {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 230px;
+  max-width: 260px;
+}
+
+.lf-josh-thought-wrap.lf-josh-bubble-empty .lf-josh-thought-simple {
+  display: none;
+}
+
+.lf-josh-avatar-thought {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--lf-accent) 38%, var(--lf-border));
+  background: var(--lf-surface);
+  color: var(--lf-muted);
+  font-size: 0.8rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.lf-josh-avatar-thought::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  margin-left: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  background: var(--lf-surface);
+  border-right: 1px solid color-mix(in srgb, var(--lf-accent) 38%, var(--lf-border));
+  border-bottom: 1px solid color-mix(in srgb, var(--lf-accent) 38%, var(--lf-border));
+}
+
+.lf-josh-thought-chat {
+  width: min(360px, calc(100vw - 24px));
+  max-width: 320px;
+  max-height: min(50vh, 380px);
+  display: flex;
+  flex-direction: column;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+.lf-josh-thought-chat.hidden {
+  display: none;
+}
+
+.lf-josh-thought-close {
+  border: none;
+  background: transparent;
+  color: var(--lf-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  align-self: flex-start;
+  margin: 0.28rem 0 0 0.45rem;
+  cursor: pointer;
+}
+
+.lf-josh-thought-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.25rem 0.55rem 0.35rem;
+  min-height: 120px;
+}
+
+.lf-josh-thought-messages .lf-josh-msg {
+  margin: 0.35rem 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.lf-josh-thought-messages .lf-josh-msg.user {
+  color: var(--lf-accent);
+  font-weight: 600;
+}
+
+.lf-josh-thought-messages .lf-josh-msg.bot {
+  color: var(--lf-text);
+}
+
+.lf-josh-thought-chat-input-row {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0.45rem 0.5rem 0.55rem;
+  border-top: 1px solid var(--lf-border);
+}
+
+.lf-josh-thought-chat-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
+  padding: 0.45rem 0.52rem;
+  font: inherit;
+  color: var(--lf-text);
+  background: var(--lf-bg);
+}
+
+.lf-josh-thought-chat-send {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: var(--lf-accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.lf-josh-thought-chat-send:hover {
+  background: var(--lf-accent-hover);
+}
+
