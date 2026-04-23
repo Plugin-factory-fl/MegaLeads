@@ -30,6 +30,22 @@ You need **two different secrets** on Render (do not replace one with the other)
 | `MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND` | Optional | Max URLs the model may request per round before the rest are answered with “skipped” (default `5`, cap `12`). |
 | `MEGALEADS_FETCH_TOOL_MAX_PER_LEAD` | Optional | Max browser fetches **per username** per enrich batch across all rounds (default `2`, cap `8`). Extra `fetch_url` calls are prefilled as skipped. |
 
+### Stripe (subscription checkout from the extension)
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `STRIPE_SECRET_KEY` | For Checkout API | Server creates Checkout Sessions (`sk_live_…` / `sk_test_…`). |
+| `STRIPE_PRICE_ID` | For Checkout API | Recurring **price** id for the unlimited plan (`price_…`). |
+| `STRIPE_WEBHOOK_SECRET` | For webhooks | Verifies `POST /v1/stripe/webhook` (`whsec_…`). |
+| `STRIPE_PRODUCT_ID` | Optional | Stored in Checkout `metadata` for your own bookkeeping (not required by Stripe for checkout). |
+| `PUBLIC_BASE_URL` | Recommended | Public **https** origin with **no** trailing slash, e.g. `https://megaleads.onrender.com`. Used for success/cancel URLs. On Render you can often rely on **`RENDER_EXTERNAL_URL`** instead if you do not set `PUBLIC_BASE_URL`. |
+
+In the Stripe Dashboard, add a webhook endpoint: `https://<your-service-host>/v1/stripe/webhook` and subscribe at least to `checkout.session.completed`. Deploy after `npm install` in `server/` so the `stripe` package is installed.
+
+The Chrome extension calls **`POST /v1/stripe/checkout-session`** with the same **`Authorization: Bearer`** as enrich (`MEGALEADS_API_KEY`). The JSON response contains `{ "url": "https://checkout.stripe.com/..." }`, which opens in a new tab. If that fails, the extension can still use a static Payment Link in `scripts/leadflow-remote-config.js` (`stripeCheckoutUrl`).
+
+`DATABASE_URL` is not used by the Stripe handlers yet; you can extend the webhook to persist subscription state when you add a schema.
+
 With **FETCH_URL**, the OpenAI path can return `status: "needs_fetch"`; the extension fetches those URLs in the browser context and POSTs tool results back until the model returns final `leads`.
 
 ## 3. Extension configuration

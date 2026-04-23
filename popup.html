@@ -19,7 +19,31 @@
             height="41"
           />
         </div>
-        <div class="lf-header-actions" role="toolbar" aria-label="Appearance">
+        <div class="lf-header-actions" role="toolbar" aria-label="Upgrade, account, and theme">
+          <button
+            type="button"
+            class="lf-btn lf-btn-ghost lf-btn-upgrade-popup"
+            id="lfUpgrade"
+            aria-label="Upgrade — unlimited email extractions (Stripe)"
+            title="Upgrade"
+          >
+            <span class="lf-upgrade-icon" aria-hidden="true">◇</span>
+            <span class="lf-upgrade-label">Upgrade</span>
+          </button>
+          <button
+            type="button"
+            class="lf-btn lf-btn-ghost lf-btn-icon lf-account-btn"
+            id="lfAccountBtn"
+            aria-label="Account — opens dashboard to sign in"
+            title="Account"
+          >
+            <svg class="lf-header-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             class="lf-btn lf-btn-ghost lf-theme-toggle"

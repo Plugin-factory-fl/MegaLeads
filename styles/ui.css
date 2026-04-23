@@ -1351,3 +1351,247 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   }
 }
 
+/* --- Header: upgrade + account (popup) / account (dashboard) --- */
+.lf-btn-icon {
+  flex-shrink: 0;
+  padding: 0.35rem 0.45rem;
+  min-width: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lf-header-action-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+}
+
+.lf-btn-upgrade-popup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.3rem 0.45rem;
+  font-weight: 600;
+  font-size: max(var(--lf-min-font), 0.78rem);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.14), rgba(234, 179, 8, 0.18));
+  border-color: rgba(124, 58, 237, 0.35);
+}
+
+.lf-dark .lf-btn-upgrade-popup {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(250, 204, 21, 0.12));
+  border-color: rgba(167, 139, 250, 0.45);
+}
+
+.lf-btn-upgrade-popup:hover {
+  border-color: var(--lf-accent);
+  color: var(--lf-accent);
+}
+
+.lf-upgrade-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: #a855f7;
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.55);
+  animation: lf-upgrade-sparkle 2.2s ease-in-out infinite;
+}
+
+.lf-dark .lf-upgrade-icon {
+  color: #e9d5ff;
+}
+
+@keyframes lf-upgrade-sparkle {
+  0%,
+  100% {
+    filter: brightness(1);
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    filter: brightness(1.25);
+    transform: rotate(12deg) scale(1.08);
+  }
+}
+
+.lf-upgrade-label {
+  white-space: nowrap;
+}
+
+/* --- Account modals (dashboard) --- */
+.lf-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(9, 12, 20, 0.5);
+  z-index: 60;
+}
+
+.lf-modal-backdrop[hidden] {
+  display: none;
+}
+
+.lf-modal-card {
+  width: min(420px, 100%);
+  border: 1px solid var(--lf-border);
+  border-radius: 12px;
+  background: var(--lf-surface);
+  color: var(--lf-text);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+  padding: 1rem 1rem 0.85rem;
+}
+
+.lf-modal-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.lf-account-modal-desc {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--lf-muted);
+}
+
+.lf-account-modal-line {
+  margin: 0.35rem 0;
+  font-size: 0.92rem;
+}
+
+.lf-account-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.82rem;
+  color: var(--lf-muted);
+}
+
+.lf-account-field input {
+  font: inherit;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--lf-border);
+  background: var(--lf-it-bg);
+  color: var(--lf-text);
+}
+
+.lf-account-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  justify-content: flex-end;
+}
+
+.lf-account-modal-actions-footer {
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.lf-account-usage-bar-wrap {
+  margin: 0.65rem 0 0.35rem;
+}
+
+.lf-account-usage-bar {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--lf-border);
+  overflow: hidden;
+}
+
+.lf-account-usage-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  transition: width 0.35s ease;
+}
+
+.lf-account-usage-bar-wrap.is-at-cap .lf-account-usage-bar-fill {
+  background: linear-gradient(90deg, #b45309, #f59e0b);
+}
+
+.lf-account-usage-bar-label {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--lf-muted);
+}
+
+.lf-account-modal-warn {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--lf-warn-text);
+}
+
+.lf-account-usage-cta-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.85rem;
+}
+
+.lf-btn-stripe-diamond {
+  position: relative;
+  border: none;
+  cursor: pointer;
+  padding: 0.55rem 1.15rem 0.55rem 2.4rem;
+  min-height: 2.6rem;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #1e0a3c;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #fef9c3 0%, #fde68a 25%, #c4b5fd 55%, #a78bfa 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+    0 4px 14px rgba(124, 58, 237, 0.35);
+  overflow: visible;
+  animation: lf-diamond-shimmer 2.5s ease-in-out infinite;
+}
+
+.lf-btn-stripe-diamond:hover {
+  filter: brightness(1.05);
+}
+
+.lf-btn-stripe-diamond:active {
+  transform: scale(0.98);
+}
+
+.lf-btn-stripe-diamond-inner {
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  margin-top: -0.62rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #fff 0%, #e9d5ff 40%, #7c3aed 100%);
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.9),
+    0 0 18px rgba(167, 139, 250, 0.85);
+  border-radius: 2px;
+}
+
+.lf-btn-stripe-diamond-label {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes lf-diamond-shimmer {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+      0 4px 14px rgba(124, 58, 237, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.65) inset,
+      0 4px 22px rgba(234, 179, 8, 0.45),
+      0 0 24px rgba(167, 139, 250, 0.5);
+  }
+}
+

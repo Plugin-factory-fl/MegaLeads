@@ -36,6 +36,10 @@ export const STORAGE_KEYS = {
   DELAY_RISK_SNOOZE_UNTIL: 'leadflow_delay_risk_snooze_until',
   /** Stored extraction sessions with lead snapshots (newest first). */
   SESSION_HISTORY: 'leadflow_session_history',
+  /** `{ email, loggedInAt }` when signed in (UI / future API). */
+  USER_SESSION: 'leadflow_user_session',
+  /** Popup → dashboard: show login modal (`'login'`); consumed when dashboard handles it. */
+  DASHBOARD_PENDING_ACCOUNT: 'leadflow_dashboard_pending_account',
 };
 
 /** Max profiles per session (hard safety cap; UI slider cannot exceed this). */

@@ -5,6 +5,11 @@
 
 import express from 'express';
 import { pickBestEmail, normalizeEmailCandidate, EMAIL_RE } from '../scripts/email-quality.js';
+import {
+  attachStripeWebhookRoute,
+  handleStripeCheckoutSession,
+  handleStripeCheckoutReturn,
+} from './stripe.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -1241,6 +1246,7 @@ async function handleJoshChat(req, res) {
 function main() {
   const app = express();
   app.disable('x-powered-by');
+  attachStripeWebhookRoute(app);
   app.use(express.json({ limit: '3mb' }));
 
   const healthJson = { ok: true, service: 'leadflow-enrich', env: NODE_ENV };
@@ -1258,6 +1264,10 @@ function main() {
   app.post('/v1/josh/chat', requireBearer, (req, res, next) => {
     handleJoshChat(req, res).catch(next);
   });
+  app.get('/v1/stripe/checkout-return', handleStripeCheckoutReturn);
+  app.post('/v1/stripe/checkout-session', requireBearer, (req, res, next) => {
+    handleStripeCheckoutSession(req, res).catch(next);
+  });
 
   app.use((err, _req, res, _next) => {
     logWarn('unhandled', { err: String(err?.message || err) });
@@ -1265,7 +1275,12 @@ function main() {
   });
 
   app.listen(PORT, () => {
-    logInfo(`listening on ${PORT}`, { health: ['/', '/health'], enrich: 'POST /v1/leads/enrich' });
+    logInfo(`listening on ${PORT}`, {
+      health: ['/', '/health'],
+      enrich: 'POST /v1/leads/enrich',
+      stripeCheckout: 'POST /v1/stripe/checkout-session',
+      stripeWebhook: 'POST /v1/stripe/webhook',
+    });
   });
 }
 

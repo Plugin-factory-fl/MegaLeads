@@ -3,6 +3,14 @@
  */
 
 import { MSG, STORAGE_KEYS } from './constants.js';
+import {
+  FREE_EMAIL_EXTRACTION_CAP,
+  readUserSession,
+  writeUserSession,
+  clearUserSession,
+  countUniqueEmailsExtracted,
+  openStripeCheckoutInNewTab,
+} from './account-shared.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { extractEmailPhoneFromParts } from './selectors.js';
 import { t, tf, translateSessionMode, uiLocaleFromUiPrefs } from './i18n.js';
@@ -106,6 +114,7 @@ const els = {
   joshThoughtChatInput: null,
   joshThoughtChatSend: null,
   joshAvatarHelp: null,
+  dashboardAccountBtn: null,
 };
 
 /** @type {Lead[]} */
@@ -134,6 +143,7 @@ function bindEls() {
   els.exportProfiles = $('lfExportProfiles');
   els.exportEmails = $('lfExportEmails');
   els.themeToggle = $('lfThemeToggle');
+  els.dashboardAccountBtn = $('lfDashboardAccountBtn');
   els.sessionBar = document.getElementById('lfSessionBar');
   els.sessionTarget = document.getElementById('lfSessionTarget');
   els.sessionMode = document.getElementById('lfSessionMode');
@@ -455,6 +465,7 @@ function applyDashboardLocale() {
   renderHistory();
   renderTable();
   if (running) setRunningUi(true);
+  syncAccountModalLocale();
 }
 
 async function loadPrefsUi() {
@@ -1827,7 +1838,161 @@ async function onJoshSend() {
   }
 }
 
+function closeAccountModals() {
+  const login = document.getElementById('lfAccountLoginWrap');
+  const usage = document.getElementById('lfAccountUsageWrap');
+  if (login) login.hidden = true;
+  if (usage) usage.hidden = true;
+}
+
+function syncAccountModalLocale() {
+  const L = uiLocale;
+  const q = (id) => document.getElementById(id);
+  const setText = (id, path) => {
+    const el = q(id);
+    if (el) el.textContent = t(L, path);
+  };
+  setText('lfAccountLoginTitle', 'dashboard.accountLoginTitle');
+  setText('lfAccountLoginSubtitle', 'dashboard.accountLoginSubtitle');
+  setText('lfAccountLoginEmailLabel', 'dashboard.accountEmail');
+  setText('lfAccountLoginPasswordLabel', 'dashboard.accountPassword');
+  const sub = q('lfAccountLoginSubmit');
+  if (sub) sub.textContent = t(L, 'dashboard.accountSignIn');
+  const cls = q('lfAccountLoginClose');
+  if (cls) cls.textContent = t(L, 'dashboard.accountClose');
+  setText('lfAccountUsageTitle', 'dashboard.accountUsageTitle');
+  const diamond = q('lfAccountStripeDiamond');
+  if (diamond) diamond.setAttribute('aria-label', t(L, 'dashboard.ariaCheckoutDiamond'));
+  const dlab = q('lfAccountStripeDiamondLabel');
+  if (dlab) dlab.textContent = t(L, 'dashboard.accountCheckoutDiamond');
+  const lo = q('lfAccountUsageLogout');
+  if (lo) lo.textContent = t(L, 'dashboard.accountLogout');
+  const ucls = q('lfAccountUsageClose');
+  if (ucls) ucls.textContent = t(L, 'dashboard.accountClose');
+  if (els.dashboardAccountBtn) {
+    els.dashboardAccountBtn.title = t(L, 'dashboard.accountHeaderTitle');
+    els.dashboardAccountBtn.setAttribute('aria-label', t(L, 'dashboard.ariaAccount'));
+  }
+}
+
+async function openLoginAccountModal() {
+  closeAccountModals();
+  const w = document.getElementById('lfAccountLoginWrap');
+  if (!w) return;
+  syncAccountModalLocale();
+  const pw = document.getElementById('lfAccountLoginPassword');
+  const em = document.getElementById('lfAccountLoginEmail');
+  if (pw instanceof HTMLInputElement) pw.value = '';
+  if (em instanceof HTMLInputElement) em.focus();
+  w.hidden = false;
+}
+
+async function openUsageAccountModal() {
+  closeAccountModals();
+  const w = document.getElementById('lfAccountUsageWrap');
+  if (!w) return;
+  const session = await readUserSession();
+  if (!session) {
+    await openLoginAccountModal();
+    return;
+  }
+  syncAccountModalLocale();
+  const L = uiLocale;
+  const count = await countUniqueEmailsExtracted();
+  const cap = FREE_EMAIL_EXTRACTION_CAP;
+  const pct = Math.min(100, (count / cap) * 100);
+
+  const signed = document.getElementById('lfAccountUsageSignedIn');
+  if (signed) signed.textContent = tf(L, 'dashboard.accountUsageSignedInAs', { email: session.email });
+  const cntEl = document.getElementById('lfAccountUsageCount');
+  if (cntEl) cntEl.textContent = tf(L, 'dashboard.accountUsageCount', { count });
+  const barFill = document.getElementById('lfAccountUsageBarFill');
+  if (barFill) barFill.style.width = `${pct}%`;
+  const barLab = document.getElementById('lfAccountUsageBarLabel');
+  if (barLab) barLab.textContent = tf(L, 'dashboard.accountUsageProgress', { count, cap });
+  const note = document.getElementById('lfAccountUsageCapNote');
+  if (note) note.textContent = tf(L, 'dashboard.accountUsageCapNote', { cap });
+  const atCap = document.getElementById('lfAccountUsageAtCap');
+  const barWrap = w.querySelector('.lf-account-usage-bar-wrap');
+  const capped = count >= cap;
+  if (atCap) {
+    atCap.hidden = !capped;
+    if (capped) atCap.textContent = t(L, 'dashboard.accountUsageAtCap');
+  }
+  if (barWrap) barWrap.classList.toggle('is-at-cap', capped);
+  w.hidden = false;
+}
+
+async function onDashboardAccountButtonClick() {
+  const session = await readUserSession();
+  if (session) await openUsageAccountModal();
+  else await openLoginAccountModal();
+}
+
+async function onAccountLoginSubmitClick() {
+  const emailEl = document.getElementById('lfAccountLoginEmail');
+  const pwEl = document.getElementById('lfAccountLoginPassword');
+  const email = emailEl instanceof HTMLInputElement ? emailEl.value.trim() : '';
+  const pw = pwEl instanceof HTMLInputElement ? pwEl.value : '';
+  if (!email || !pw) return;
+  await writeUserSession(email);
+  closeAccountModals();
+}
+
+async function consumePendingAccountModal() {
+  const key = STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT;
+  const { [key]: pend } = await chrome.storage.local.get(key);
+  if (pend === 'login') {
+    await chrome.storage.local.remove(key);
+    await openLoginAccountModal();
+  }
+}
+
+function wireAccountModals() {
+  const loginWrap = document.getElementById('lfAccountLoginWrap');
+  const usageWrap = document.getElementById('lfAccountUsageWrap');
+  if (loginWrap) {
+    loginWrap.addEventListener('click', (ev) => {
+      if (ev.target === loginWrap) closeAccountModals();
+    });
+    const loginCard = loginWrap.querySelector('.lf-account-modal');
+    if (loginCard) loginCard.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+  if (usageWrap) {
+    usageWrap.addEventListener('click', (ev) => {
+      if (ev.target === usageWrap) closeAccountModals();
+    });
+    const usageCard = usageWrap.querySelector('.lf-account-modal');
+    if (usageCard) usageCard.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+  const closeL = document.getElementById('lfAccountLoginClose');
+  if (closeL) closeL.addEventListener('click', () => closeAccountModals());
+  const sub = document.getElementById('lfAccountLoginSubmit');
+  if (sub) sub.addEventListener('click', () => void onAccountLoginSubmitClick());
+  const closeU = document.getElementById('lfAccountUsageClose');
+  if (closeU) closeU.addEventListener('click', () => closeAccountModals());
+  const out = document.getElementById('lfAccountUsageLogout');
+  if (out) out.addEventListener('click', () => void onAccountLogoutClick());
+  const diamond = document.getElementById('lfAccountStripeDiamond');
+  if (diamond) diamond.addEventListener('click', () => void onStripeDiamondClick());
+}
+
+async function onAccountLogoutClick() {
+  await clearUserSession();
+  closeAccountModals();
+}
+
+async function onStripeDiamondClick() {
+  const r = await openStripeCheckoutInNewTab();
+  if (!r.ok) appendStatusLine(t(uiLocale, 'dashboard.stripeMissing'));
+}
+
 function wireEvents() {
+  wireAccountModals();
+  if (els.dashboardAccountBtn) {
+    els.dashboardAccountBtn.addEventListener('click', () => void onDashboardAccountButtonClick());
+  }
+
   els.filter.addEventListener('input', () => renderTable());
 
   els.copy.addEventListener('click', () => void copySelected());
@@ -1895,6 +2060,11 @@ function wireEvents() {
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    const pend = changes[STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT];
+    if (pend?.newValue === 'login') {
+      void chrome.storage.local.remove(STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT);
+      void openLoginAccountModal();
+    }
     const uiNext = changes[STORAGE_KEYS.UI_PREFS]?.newValue;
     if (uiNext && typeof uiNext === 'object') {
       const next = uiLocaleFromUiPrefs(uiNext);
@@ -1978,6 +2148,7 @@ async function init() {
   await loadSessionHistory();
   wireTableSort();
   wireEvents();
+  await consumePendingAccountModal();
   initJoshDrag();
   if (els.joshAvatar) {
     setTimeout(() => {

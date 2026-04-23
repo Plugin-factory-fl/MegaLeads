@@ -21,7 +21,21 @@
             height="46"
           />
         </div>
-        <div class="lf-header-actions" role="toolbar" aria-label="Appearance">
+        <div class="lf-header-actions" role="toolbar" aria-label="Account and theme">
+          <button
+            type="button"
+            class="lf-btn lf-btn-ghost lf-btn-icon lf-account-btn"
+            id="lfDashboardAccountBtn"
+            aria-label="Account"
+            title="Account"
+          >
+            <svg class="lf-header-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             class="lf-btn lf-btn-ghost lf-theme-toggle"
@@ -141,6 +155,61 @@
       </div>
 
       <footer class="lf-footer">Created by MegaMix AI, LLC</footer>
+    </div>
+
+    <div class="lf-modal-backdrop lf-account-modal-wrap" id="lfAccountLoginWrap" hidden>
+      <div
+        class="lf-modal-card lf-account-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lfAccountLoginTitle"
+      >
+        <h3 class="lf-modal-title" id="lfAccountLoginTitle"></h3>
+        <p class="lf-account-modal-desc" id="lfAccountLoginSubtitle"></p>
+        <label class="lf-account-field">
+          <span id="lfAccountLoginEmailLabel"></span>
+          <input type="email" id="lfAccountLoginEmail" autocomplete="username" />
+        </label>
+        <label class="lf-account-field">
+          <span id="lfAccountLoginPasswordLabel"></span>
+          <input type="password" id="lfAccountLoginPassword" autocomplete="current-password" />
+        </label>
+        <div class="lf-account-modal-actions">
+          <button type="button" class="lf-btn lf-btn-primary" id="lfAccountLoginSubmit"></button>
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfAccountLoginClose"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lf-modal-backdrop lf-account-modal-wrap" id="lfAccountUsageWrap" hidden>
+      <div
+        class="lf-modal-card lf-account-modal lf-account-usage-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lfAccountUsageTitle"
+      >
+        <h3 class="lf-modal-title" id="lfAccountUsageTitle"></h3>
+        <p class="lf-account-modal-line" id="lfAccountUsageSignedIn"></p>
+        <p class="lf-account-modal-line" id="lfAccountUsageCount"></p>
+        <div class="lf-account-usage-bar-wrap" aria-hidden="true">
+          <div class="lf-account-usage-bar">
+            <div class="lf-account-usage-bar-fill" id="lfAccountUsageBarFill"></div>
+          </div>
+          <div class="lf-account-usage-bar-label" id="lfAccountUsageBarLabel"></div>
+        </div>
+        <p class="lf-account-modal-desc" id="lfAccountUsageCapNote"></p>
+        <p class="lf-account-modal-warn" id="lfAccountUsageAtCap" hidden></p>
+        <div class="lf-account-usage-cta-row">
+          <button type="button" class="lf-btn-stripe-diamond" id="lfAccountStripeDiamond" aria-label="">
+            <span class="lf-btn-stripe-diamond-inner" aria-hidden="true"></span>
+            <span class="lf-btn-stripe-diamond-label" id="lfAccountStripeDiamondLabel"></span>
+          </button>
+        </div>
+        <div class="lf-account-modal-actions lf-account-modal-actions-footer">
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfAccountUsageLogout"></button>
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfAccountUsageClose"></button>
+        </div>
+      </div>
     </div>
 
     <div class="lf-ai-summary-wrap" id="lfAiSummaryWrap" hidden>

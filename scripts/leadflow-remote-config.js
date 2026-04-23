@@ -7,3 +7,9 @@
 export const apiBaseUrl = 'https://megaleads.onrender.com';
 
 export const apiKey = '8008569420';
+
+/**
+ * Stripe Checkout or Payment Link URL (opens in a new browser tab).
+ * Leave empty until you have a live link; the UI will show a short setup hint instead.
+ */
+export const stripeCheckoutUrl = '';

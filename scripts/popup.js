@@ -17,6 +17,7 @@ import {
 } from './constants.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { t, tf, uiLocaleFromUiPrefs } from './i18n.js';
+import { openStripeCheckoutInNewTab } from './account-shared.js';
 
 /** @typedef {'en'} Locale */
 
@@ -144,6 +145,16 @@ function applyPopupLocale() {
   els.stop.textContent = t(L, 'popup.stop');
   const riskOk = document.getElementById('lfRiskToastOk');
   if (riskOk) riskOk.textContent = t(L, 'popup.riskOk');
+  const up = document.getElementById('lfUpgrade');
+  if (up) {
+    up.setAttribute('title', t(L, 'popup.upgrade'));
+    up.setAttribute('aria-label', t(L, 'popup.ariaUpgrade'));
+  }
+  const acc = document.getElementById('lfAccountBtn');
+  if (acc) {
+    acc.setAttribute('title', t(L, 'popup.account'));
+    acc.setAttribute('aria-label', t(L, 'popup.ariaAccount'));
+  }
   const riskText = document.getElementById('lfRiskToastText');
   if (riskText) riskText.textContent = t(L, 'popup.riskToast');
   const hMin = document.getElementById('lfHelpMinFollowers');
@@ -471,6 +482,12 @@ async function openOrFocusDashboard() {
   }
 }
 
+/** Popup Account: focus dashboard and show the sign-in modal there. */
+async function openDashboardWithLoginPrompt() {
+  await chrome.storage.local.set({ [STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT]: 'login' });
+  await openOrFocusDashboard();
+}
+
 async function startExtractionPipeline() {
   setPopupStatus('');
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -594,6 +611,20 @@ function wireEvents() {
     syncThemeToggleUi();
     void savePrefs();
   });
+
+  const upgradeBtn = document.getElementById('lfUpgrade');
+  if (upgradeBtn) {
+    upgradeBtn.addEventListener('click', () => {
+      void (async () => {
+        const r = await openStripeCheckoutInNewTab();
+        if (!r.ok) setPopupStatus(t(uiLocale, 'popup.stripeMissing'), true);
+      })();
+    });
+  }
+  const accountBtn = document.getElementById('lfAccountBtn');
+  if (accountBtn) {
+    accountBtn.addEventListener('click', () => void openDashboardWithLoginPrompt());
+  }
 
   document.querySelectorAll('.lf-info-btn').forEach((btn) => {
     if (!(btn instanceof HTMLElement)) return;
