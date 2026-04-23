@@ -9,7 +9,7 @@ import { pickBestEmail, normalizeEmailCandidate, EMAIL_RE } from '../scripts/ema
 const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const MEGALEADS_API_KEY = (process.env.MEGALEADS_API_KEY || '').trim();
-const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').trim();
+const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
 const OPENAI_MODEL = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
 const MAX_LEADS = Math.min(
   200,
@@ -234,6 +234,30 @@ function fetchedEmailsByHostFromMessages(messages) {
 }
 
 /**
+ * @param {object[]} messages
+ * @returns {Map<string, Set<string>>} username(lowercase) -> normalized emails
+ */
+function fetchedEmailsByUsernameFromMessages(messages) {
+  /** @type {Map<string, Set<string>>} */
+  const byUser = new Map();
+  for (const msg of messages || []) {
+    if (!msg || msg.role !== 'tool') continue;
+    const text = String(msg.content || '');
+    const m = text.match(/^\s*USERNAME:\s*([^\n\r]+)/i);
+    const username = String(m?.[1] || '').trim().toLowerCase();
+    if (!username) continue;
+    const found = emailsFromText(text);
+    for (const raw of found) {
+      const n = normalizeEmailCandidate(raw);
+      if (!n) continue;
+      if (!byUser.has(username)) byUser.set(username, new Set());
+      byUser.get(username).add(n);
+    }
+  }
+  return byUser;
+}
+
+/**
  * @param {object} row
  * @param {Map<string, Set<string>>} fetchedByHost
  * @returns {Set<string>}
@@ -322,6 +346,10 @@ Critical email accuracy rules:
 - Prefer addresses that appear on the same site/domain as the lead's websiteUrl/bio links.
 - If no trustworthy address is found, set email_action="keep" and email_suggested="".
 
+fetch_url call rules:
+- Always include BOTH username and url arguments.
+- username must exactly match one username from the input leads list.
+
 When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, segment_primary, segment_tags (array), email_suggested, email_action (keep|replace|clear), email_confidence_0_1, notes. Segments are signal-based heuristics, not census demographics.`;
 
 const FETCH_URL_FUNCTION = {
@@ -334,9 +362,10 @@ const FETCH_URL_FUNCTION = {
       type: 'object',
       additionalProperties: false,
       properties: {
+        username: { type: 'string', description: 'Exact lead username this URL belongs to' },
         url: { type: 'string', description: 'Absolute URL, e.g. https://example.com/contact' },
       },
-      required: ['url'],
+      required: ['username', 'url'],
     },
   },
 };
@@ -398,6 +427,7 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
       { role: 'user', content: `Leads JSON:\n${JSON.stringify(compact)}` },
     ];
   }
+  const validUsernames = new Set(leadsIn.map((r) => String(r?.username || '').trim().toLowerCase()).filter(Boolean));
 
   for (const tr of toolResultsIn) {
     if (!tr || typeof tr !== 'object') continue;
@@ -418,11 +448,16 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
       const llmByUser = itemsArrayToLlmMap(parsed.items);
       const doVerify = options.verify === true;
       const fetchedByHost = fetchedEmailsByHostFromMessages(messages);
+      const fetchedByUsername = fetchedEmailsByUsernameFromMessages(messages);
       const leadsOut = [];
       for (const row of leadsIn) {
+        const rowUser = String(row?.username || '').trim().toLowerCase();
+        const fromUser = fetchedByUsername.get(rowUser) || new Set();
+        const fromHost = extraEvidenceEmailsForLead(row, fetchedByHost);
+        const combined = new Set([...fromUser, ...fromHost]);
         leadsOut.push(
           await enrichOne(row, llmByUser, doVerify, {
-            extraEvidenceEmails: extraEvidenceEmailsForLead(row, fetchedByHost),
+            extraEvidenceEmails: combined,
             excludeFakeEmails: options.excludeFakeEmails !== false,
           }),
         );
@@ -451,11 +486,20 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
         continue;
       }
       let url = '';
+      let username = '';
       try {
         const args = JSON.parse(tc.function.arguments || '{}');
         url = String(args.url || '').trim();
+        username = String(args.username || '').trim();
       } catch {
         prefilledToolResults.push({ tool_call_id: tcId, content: 'Invalid JSON in fetch_url arguments.' });
+        continue;
+      }
+      if (!validUsernames.has(username.toLowerCase())) {
+        prefilledToolResults.push({
+          tool_call_id: tcId,
+          content: `Invalid username for fetch_url: ${username}`,
+        });
         continue;
       }
       if (!isFetchUrlAllowedForTool(url)) {
@@ -466,7 +510,7 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
         continue;
       }
       if (fetchJobs.length < FETCH_TOOL_MAX_URLS) {
-        fetchJobs.push({ toolCallId: tcId, url });
+        fetchJobs.push({ toolCallId: tcId, url, username });
       } else {
         prefilledToolResults.push({
           tool_call_id: tcId,

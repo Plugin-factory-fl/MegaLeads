@@ -1149,12 +1149,26 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   background: var(--lf-surface);
   border: 2px solid color-mix(in srgb, var(--lf-accent) 45%, var(--lf-border));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.26);
+  animation: lf-josh-float 4s ease-in-out infinite;
 }
 
 .lf-josh-avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+@keyframes lf-josh-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
 }
 
 .lf-josh-avatar-help {

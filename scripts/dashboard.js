@@ -1063,18 +1063,20 @@ async function processRemoteEnrichBatch(dtos, options) {
       for (const job of data.fetchJobs || []) {
         if (!job || typeof job !== 'object') continue;
         const url = String(job.url || '');
+        const username = String(job.username || '');
         const toolCallId = String(job.toolCallId || '');
-        aiTrace('fetch_job_start', { toolRound, url, toolCallId });
+        aiTrace('fetch_job_start', { toolRound, username, url, toolCallId });
         /** @type {{ bridgeOk?: boolean, text?: string, error?: string }} */
         const r = await sendMessageAsync({ type: MSG.HTTP_TEXT_FETCH, url });
         const pageText =
           r?.bridgeOk && typeof r.text === 'string'
             ? r.text.slice(0, 80000)
             : `Fetch error: ${(r && r.error) || 'unknown'}`;
-        const content = `URL: ${url}\n\n${pageText}`;
-        merged.push({ tool_call_id: toolCallId, content, url });
+        const content = `USERNAME: ${username}\nURL: ${url}\n\n${pageText}`;
+        merged.push({ tool_call_id: toolCallId, content, url, username });
         aiTrace('fetch_job_done', {
           toolRound,
+          username,
           url,
           ok: r?.bridgeOk === true,
           chars: pageText.length,
@@ -1569,8 +1571,10 @@ function initJoshDrag() {
   let left = 0;
   let top = 0;
   let dragging = false;
-  function down(ev) {
+  let pointerId = -1;
+  function onPointerDown(ev) {
     if (ev.target instanceof HTMLElement && ev.target.closest('button,input,.lf-josh-thought-chat')) return;
+    ev.preventDefault();
     const r = wrap.getBoundingClientRect();
     startX = ev.clientX;
     startY = ev.clientY;
@@ -1581,22 +1585,27 @@ function initJoshDrag() {
     wrap.style.right = 'auto';
     wrap.style.bottom = 'auto';
     dragging = true;
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', up);
+    pointerId = ev.pointerId;
+    wrap.setPointerCapture(pointerId);
   }
-  function move(ev) {
-    if (!dragging) return;
+  function onPointerMove(ev) {
+    if (!dragging || ev.pointerId !== pointerId) return;
+    ev.preventDefault();
     const nextLeft = Math.max(6, Math.min(window.innerWidth - wrap.offsetWidth - 6, left + (ev.clientX - startX)));
     const nextTop = Math.max(6, Math.min(window.innerHeight - wrap.offsetHeight - 6, top + (ev.clientY - startY)));
     wrap.style.left = `${nextLeft}px`;
     wrap.style.top = `${nextTop}px`;
   }
-  function up() {
+  function onPointerUp(ev) {
+    if (ev.pointerId !== pointerId) return;
     dragging = false;
-    document.removeEventListener('mousemove', move);
-    document.removeEventListener('mouseup', up);
+    pointerId = -1;
   }
-  wrap.addEventListener('mousedown', down);
+  wrap.addEventListener('dragstart', (ev) => ev.preventDefault());
+  wrap.addEventListener('pointerdown', onPointerDown);
+  wrap.addEventListener('pointermove', onPointerMove);
+  wrap.addEventListener('pointerup', onPointerUp);
+  wrap.addEventListener('pointercancel', onPointerUp);
 }
 
 async function onJoshSend() {
