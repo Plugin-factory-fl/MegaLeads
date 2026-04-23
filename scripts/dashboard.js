@@ -2,7 +2,7 @@
  * MegaLeads - full-tab dashboard: progress, log, results (controls in popup).
  */
 
-import { MSG, STORAGE_KEYS } from './constants.js';
+import { MSG, STORAGE_KEYS, REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP } from './constants.js';
 import {
   FREE_EMAIL_EXTRACTION_CAP,
   readUserSession,
@@ -17,6 +17,13 @@ import { t, tf, translateSessionMode, uiLocaleFromUiPrefs } from './i18n.js';
 
 /** Max rows per POST to the enrich API (must be ≤ server cap). */
 const ENRICH_BATCH_SIZE = 40;
+
+async function redirectToSignupFromDashboard() {
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.SIGNUP_RETURN]: { url: chrome.runtime.getURL('dashboard.html') },
+  });
+  window.location.replace(chrome.runtime.getURL('signup.html'));
+}
 
 /** @typedef {{ username: string, followerCount: number|null, bio: string, email: string, phone: string, websiteUrl: string, scrapedAt?: string, contact?: string, email_confidence_0_1?: number, email_action?: string, phone_confidence_0_1?: number, phone_action?: string, email_quality_codes?: string[] }} Lead */
 
@@ -128,7 +135,7 @@ let running = false;
 let sessionGoalMax = null;
 let joshSending = false;
 let joshBubbleIndex = -1;
-const JOSH_BUBBLE_ROTATE_MS = 5000;
+const JOSH_BUBBLE_ROTATE_MS = 15000;
 
 function bindEls() {
   els.progressBar = $('lfProgressBar');
@@ -1299,7 +1306,9 @@ async function processRemoteEnrichBatch(dtos, options) {
       }
       toolResults = merged;
       toolRound += 1;
-      if (toolRound > 22) throw new Error('Too many fetch_url rounds');
+      if (toolRound > REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP) {
+        throw new Error('Too many fetch_url rounds (raise MEGALEADS_FETCH_TOOL_MAX_ROUNDS on Render, max 24).');
+      }
       setAiStatus(tf(uiLocale, 'dashboard.aiFetchRound', { n: toolRound }));
       continue;
     }
@@ -1906,7 +1915,7 @@ async function openUsageAccountModal() {
   if (!w) return;
   const session = await readUserSession();
   if (!session) {
-    window.location.replace(chrome.runtime.getURL('signup.html'));
+    await redirectToSignupFromDashboard();
     return;
   }
   syncAccountModalLocale();
@@ -1939,7 +1948,7 @@ async function openUsageAccountModal() {
 async function onDashboardAccountButtonClick() {
   const session = await readUserSession();
   if (!session) {
-    window.location.replace(chrome.runtime.getURL('signup.html'));
+    await redirectToSignupFromDashboard();
     return;
   }
   await openUsageAccountModal();
@@ -2144,7 +2153,7 @@ function wireEvents() {
 async function init() {
   const session = await readUserSession();
   if (!session) {
-    window.location.replace(chrome.runtime.getURL('signup.html'));
+    await redirectToSignupFromDashboard();
     return;
   }
 

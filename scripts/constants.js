@@ -45,6 +45,8 @@ export const STORAGE_KEYS = {
   SUBSCRIPTION: 'leadflow_subscription',
   /** Popup → dashboard: show usage modal (`'usage'`); consumed when dashboard handles it. */
   DASHBOARD_PENDING_ACCOUNT: 'leadflow_dashboard_pending_account',
+  /** After signup: `{ url: string|null }` — `window.location` goes here when set. */
+  SIGNUP_RETURN: 'leadflow_signup_return',
 };
 
 /** Max profiles per session (hard safety cap; UI slider cannot exceed this). */
@@ -96,6 +98,12 @@ export const DELAY_SLIDER_SPREAD = 2;
  * web_profile_info enrichment (otherwise the first enrich + clamped delay exhausts budget).
  */
 export const MIN_ENRICH_GRACE_MS = 5 * 60 * 1000;
+
+/**
+ * Dashboard safety cap for `toolRound` during remote FETCH_URL enrich.
+ * Keep in sync with server `MEGALEADS_FETCH_TOOL_MAX_ROUNDS` (Render caps that value at 24).
+ */
+export const REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP = 24;
 
 /**
  * @param {number} sliderValue raw range input value

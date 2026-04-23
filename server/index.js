@@ -24,7 +24,7 @@ const LOG_LEVEL = (process.env.LEADFLOW_LOG_LEVEL || 'info').toLowerCase();
 const EMAIL_VERIFICATION_API_KEY = (process.env.EMAIL_VERIFICATION_API_KEY || '').trim();
 const EMAIL_VERIFICATION_PROVIDER = (process.env.EMAIL_VERIFICATION_PROVIDER || '').trim().toLowerCase();
 /** Max extension fetch_url rounds per batch (client increments toolRound). */
-const FETCH_TOOL_MAX_ROUNDS = Math.min(24, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_ROUNDS) || 10));
+const FETCH_TOOL_MAX_ROUNDS = Math.min(24, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_ROUNDS) || 18));
 /** Max URLs sent to the extension per needs_fetch response. */
 const FETCH_TOOL_MAX_URLS = Math.min(12, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND) || 5));
 /** Max completed browser fetches per lead (username) per enrich request, across all tool rounds. */
@@ -761,7 +761,9 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
   }
   const clientRound = Number(body.toolRound) || 0;
   if (clientRound > FETCH_TOOL_MAX_ROUNDS) {
-    throw new Error(`fetch_url tool: exceeded max rounds (${FETCH_TOOL_MAX_ROUNDS})`);
+    throw new Error(
+      `fetch_url tool: toolRound ${clientRound} exceeds MEGALEADS_FETCH_TOOL_MAX_ROUNDS (${FETCH_TOOL_MAX_ROUNDS}; max 24).`,
+    );
   }
 
   let messages =
