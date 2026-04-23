@@ -1135,6 +1135,20 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px) scale(0.98);
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s ease,
+    visibility 0s linear 0.5s;
+}
+
+.lf-josh-wrap.lf-josh-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  transition-delay: 0s;
 }
 
 .lf-josh-wrap:active {
@@ -1148,7 +1162,11 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   overflow: hidden;
   background: var(--lf-surface);
   border: 2px solid color-mix(in srgb, var(--lf-accent) 45%, var(--lf-border));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.26);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.26),
+    0 0 12px rgba(124, 58, 237, 0.65),
+    0 0 26px rgba(124, 58, 237, 0.55),
+    0 0 44px rgba(124, 58, 237, 0.35);
   animation: lf-josh-float 4s ease-in-out infinite;
 }
 
@@ -1306,5 +1324,30 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 
 .lf-josh-thought-chat-send:hover {
   background: var(--lf-accent-hover);
+}
+
+.lf-josh-sparkle {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 54;
+  background: radial-gradient(circle, #ffffff 0%, #c4b5fd 45%, #7c3aed 100%);
+  box-shadow:
+    0 0 8px rgba(196, 181, 253, 0.9),
+    0 0 16px rgba(124, 58, 237, 0.8);
+  animation: lf-josh-sparkle-pop 520ms ease-out forwards;
+}
+
+@keyframes lf-josh-sparkle-pop {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px) scale(1.6);
+  }
 }
 

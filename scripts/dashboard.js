@@ -10,18 +10,16 @@ import { t, tf, translateSessionMode, uiLocaleFromUiPrefs } from './i18n.js';
 /** Max rows per POST to the enrich API (must be ≤ server cap). */
 const ENRICH_BATCH_SIZE = 40;
 
-/** @typedef {{ username: string, followerCount: number|null, bio: string, email: string, phone: string, websiteUrl: string, scrapedAt?: string, contact?: string, segment_primary?: string, segment_tags?: string[], enrich_notes?: string, email_confidence_0_1?: number, email_action?: string, email_deliverability?: string, email_verify_reason?: string, email_quality_codes?: string[] }} Lead */
+/** @typedef {{ username: string, followerCount: number|null, bio: string, email: string, phone: string, websiteUrl: string, scrapedAt?: string, contact?: string, email_confidence_0_1?: number, email_action?: string, phone_confidence_0_1?: number, phone_action?: string, email_quality_codes?: string[] }} Lead */
 
 /** Server → stored lead fields (additive). */
 const ENRICH_KEYS_FROM_API = [
   'email',
-  'segment_primary',
-  'segment_tags',
-  'enrich_notes',
+  'phone',
   'email_confidence_0_1',
   'email_action',
-  'email_deliverability',
-  'email_verify_reason',
+  'phone_confidence_0_1',
+  'phone_action',
   'email_quality_codes',
 ];
 
@@ -446,8 +444,6 @@ function applyDashboardLocale() {
     email: 'dashboard.thEmail',
     phone: 'dashboard.thPhone',
     websiteUrl: 'dashboard.thWebsite',
-    segment_primary: 'dashboard.thSegment',
-    email_deliverability: 'dashboard.thEmailQa',
   };
   document.querySelectorAll('#lfTable th[data-sort]').forEach((th) => {
     const k = th.getAttribute('data-sort');
@@ -801,12 +797,7 @@ function renderTable() {
         (r.bio && r.bio.toLowerCase().includes(q)) ||
         (r.email && r.email.toLowerCase().includes(q)) ||
         (r.phone && r.phone.toLowerCase().includes(q)) ||
-        (r.websiteUrl && r.websiteUrl.toLowerCase().includes(q)) ||
-        (r.segment_primary && String(r.segment_primary).toLowerCase().includes(q)) ||
-        (Array.isArray(r.segment_tags) &&
-          r.segment_tags.join(' ').toLowerCase().includes(q)) ||
-        (r.enrich_notes && String(r.enrich_notes).toLowerCase().includes(q)) ||
-        (r.email_deliverability && String(r.email_deliverability).toLowerCase().includes(q)),
+        (r.websiteUrl && r.websiteUrl.toLowerCase().includes(q)),
     );
   }
 
@@ -827,7 +818,7 @@ function renderTable() {
 
   if (rows.length === 0) {
     const emptyEsc = escapeHtml(t(uiLocale, 'dashboard.emptyMsg'));
-    els.tableBody.innerHTML = `<tr class="lf-empty-row"><td colspan="9" class="lf-empty-msg">${emptyEsc}</td></tr>`;
+    els.tableBody.innerHTML = `<tr class="lf-empty-row"><td colspan="7" class="lf-empty-msg">${emptyEsc}</td></tr>`;
     els.selectAll.checked = false;
     els.selectAll.indeterminate = false;
     return;
@@ -844,19 +835,6 @@ function renderTable() {
             truncate(w, 40),
           )}</a>`
         : '—';
-      const seg = (r.segment_primary || '').trim();
-      const tags = Array.isArray(r.segment_tags) ? r.segment_tags.join(', ') : '';
-      const segTitle = escapeHtml([seg, tags].filter(Boolean).join(' · ').slice(0, 500));
-      const segCell = seg ? escapeHtml(truncate(seg, 28)) : '—';
-      const del = String(r.email_deliverability || '').trim().toLowerCase();
-      const qaParts = [
-        r.email_action && `action: ${r.email_action}`,
-        del && `deliverability: ${del}`,
-        r.email_verify_reason && `verify: ${r.email_verify_reason}`,
-        r.enrich_notes && String(r.enrich_notes).slice(0, 400),
-      ].filter(Boolean);
-      const qaTitle = escapeHtml(qaParts.join(' | '));
-      const qaCell = del ? escapeHtml(del) : '—';
       return `<tr data-user="${escapeHtml(r.username)}">
         <td><input type="checkbox" class="lf-row-check" /></td>
         <td><a href="${ig}" target="_blank" rel="noreferrer">${escapeHtml(r.username)}</a></td>
@@ -865,8 +843,6 @@ function renderTable() {
         <td>${escapeHtml(r.email || '')}</td>
         <td>${escapeHtml(r.phone || '')}</td>
         <td>${webCell}</td>
-        <td class="lf-seg-cell" title="${segTitle}">${segCell}</td>
-        <td class="lf-qa-cell" title="${qaTitle}">${qaCell}</td>
       </tr>`;
     })
     .join('');
@@ -1112,8 +1088,6 @@ function mapJoshSortKey(raw) {
     'email',
     'phone',
     'websiteUrl',
-    'segment_primary',
-    'email_deliverability',
   ]);
   return allowed.has(k) ? /** @type {keyof Lead} */ (k) : '';
 }
@@ -1249,10 +1223,9 @@ async function runRemoteEnrichPipeline() {
   const scrapedEmailCount = countRowsWithEmail(list);
   if (els.aiEnrich) els.aiEnrich.disabled = true;
   const useLlm = els.aiLlm ? els.aiLlm.checked : true;
-  const useVerify = els.aiVerify ? els.aiVerify.checked : false;
   const useFetchUrl = els.aiFetchUrl ? els.aiFetchUrl.checked : false;
   const excludeFakeEmails = els.aiExcludeFake ? els.aiExcludeFake.checked : true;
-  const options = { llm: useLlm, verify: useVerify, fetchUrlTool: useFetchUrl, excludeFakeEmails };
+  const options = { llm: useLlm, verify: false, fetchUrlTool: useFetchUrl, excludeFakeEmails };
   const batches = chunkArray(list, ENRICH_BATCH_SIZE);
   aiTrace('pipeline_config', {
     leads: list.length,
@@ -1321,15 +1294,9 @@ function toCsv(rows) {
     t(L, 'dashboard.thPhone'),
     t(L, 'dashboard.thWebsite'),
     t(L, 'dashboard.thScraped'),
-    t(L, 'dashboard.thSegment'),
-    t(L, 'dashboard.exportColDeliverability'),
-    t(L, 'dashboard.exportColEmailAction'),
-    t(L, 'dashboard.exportColEnrichNotes'),
   ];
   const lines = [header.join(',')];
   for (const r of rows) {
-    const tags = Array.isArray(r.segment_tags) ? r.segment_tags.join('; ') : '';
-    const segCol = [r.segment_primary || '', tags].filter(Boolean).join(' | ');
     const cells = [
       r.username,
       r.followerCount == null ? '' : String(r.followerCount),
@@ -1338,10 +1305,6 @@ function toCsv(rows) {
       r.phone || '',
       r.websiteUrl || '',
       r.scrapedAt || '',
-      segCol,
-      r.email_deliverability || '',
-      r.email_action || '',
-      r.enrich_notes || '',
     ].map((c) => {
       const s = String(c).replace(/"/g, '""');
       if (/[",\n]/.test(s)) return `"${s}"`;
@@ -1410,8 +1373,6 @@ async function exportExcelProfiles() {
   }
   const L = uiLocale;
   const data = target.map((r) => {
-    const tags = Array.isArray(r.segment_tags) ? r.segment_tags.join('; ') : '';
-    const segCol = [r.segment_primary || '', tags].filter(Boolean).join(' | ');
     return {
       [t(L, 'dashboard.thUser')]: r.username,
       [t(L, 'dashboard.thFollowers')]: r.followerCount == null ? '' : r.followerCount,
@@ -1420,10 +1381,6 @@ async function exportExcelProfiles() {
       [t(L, 'dashboard.thPhone')]: r.phone || '',
       [t(L, 'dashboard.thWebsite')]: r.websiteUrl || '',
       [t(L, 'dashboard.thScraped')]: r.scrapedAt || '',
-      [t(L, 'dashboard.thSegment')]: segCol,
-      [t(L, 'dashboard.exportColDeliverability')]: r.email_deliverability || '',
-      [t(L, 'dashboard.exportColEmailAction')]: r.email_action || '',
-      [t(L, 'dashboard.exportColEnrichNotes')]: r.enrich_notes || '',
     };
   });
   const ws = X.utils.json_to_sheet(data);
@@ -1563,6 +1520,20 @@ function updateJoshBubbleHint() {
   }
 }
 
+function spawnJoshSparkle(x, y) {
+  const el = document.createElement('span');
+  el.className = 'lf-josh-sparkle';
+  const jitterX = (Math.random() - 0.5) * 20;
+  const jitterY = (Math.random() - 0.5) * 20;
+  const size = 5 + Math.random() * 8;
+  el.style.left = `${x + jitterX}px`;
+  el.style.top = `${y + jitterY}px`;
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 650);
+}
+
 function initJoshDrag() {
   const wrap = els.joshAvatar;
   if (!wrap) return;
@@ -1572,6 +1543,7 @@ function initJoshDrag() {
   let top = 0;
   let dragging = false;
   let pointerId = -1;
+  let sparkleAt = 0;
   function onPointerDown(ev) {
     if (ev.target instanceof HTMLElement && ev.target.closest('button,input,.lf-josh-thought-chat')) return;
     ev.preventDefault();
@@ -1595,6 +1567,13 @@ function initJoshDrag() {
     const nextTop = Math.max(6, Math.min(window.innerHeight - wrap.offsetHeight - 6, top + (ev.clientY - startY)));
     wrap.style.left = `${nextLeft}px`;
     wrap.style.top = `${nextTop}px`;
+    const now = Date.now();
+    if (now - sparkleAt >= 35) {
+      sparkleAt = now;
+      const r = wrap.getBoundingClientRect();
+      spawnJoshSparkle(r.left + r.width * 0.5, r.top + r.height * 0.85);
+      if (Math.random() > 0.55) spawnJoshSparkle(r.left + r.width * 0.3, r.top + r.height * 0.6);
+    }
   }
   function onPointerUp(ev) {
     if (ev.pointerId !== pointerId) return;
@@ -1624,11 +1603,12 @@ async function onJoshSend() {
     }
     const full = notes.length ? `${reply}\n\nDone: ${notes.join('; ')}.` : reply;
     appendJoshMessage('bot', full || t(uiLocale, 'dashboard.joshNetworkError'));
-  } catch (_e) {
+  } catch (e) {
     if (els.joshThoughtMessages?.lastElementChild) {
       els.joshThoughtMessages.lastElementChild.remove();
     }
-    appendJoshMessage('bot', t(uiLocale, 'dashboard.joshNetworkError'));
+    const msg = String(e?.message || '').trim();
+    appendJoshMessage('bot', msg || t(uiLocale, 'dashboard.joshNetworkError'));
   } finally {
     joshSending = false;
   }
@@ -1786,6 +1766,11 @@ async function init() {
   wireTableSort();
   wireEvents();
   initJoshDrag();
+  if (els.joshAvatar) {
+    setTimeout(() => {
+      els.joshAvatar?.classList.add('lf-josh-visible');
+    }, 3000);
+  }
   setInterval(updateJoshBubbleHint, 500);
   updateJoshBubbleHint();
   showJoshSimple();

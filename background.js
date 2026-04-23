@@ -313,10 +313,14 @@ async function handleLeadsRemoteEnrich(message, sendResponse) {
     }
 
     if (!res.ok) {
-      const msg =
+      let msg =
         (json && (json.message || json.error)) ||
         (text && text.slice(0, 200)) ||
         `HTTP ${res.status}`;
+      if (res.status === 404) {
+        msg =
+          'Josh endpoint not found on server (POST /v1/josh/chat). Deploy latest server code to Render.';
+      }
       sendResponse({ ok: false, error: String(msg), status: res.status });
       return;
     }

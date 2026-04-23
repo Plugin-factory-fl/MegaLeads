@@ -9,7 +9,7 @@ import { pickBestEmail, normalizeEmailCandidate, EMAIL_RE } from '../scripts/ema
 const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const MEGALEADS_API_KEY = (process.env.MEGALEADS_API_KEY || '').trim();
-const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
+const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').trim();
 const OPENAI_MODEL = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
 const MAX_LEADS = Math.min(
   200,
@@ -83,6 +83,76 @@ function emailCandidatesForRow(row) {
   if (row.email) parts.push(String(row.email));
   if (row.bio) parts.push(...emailsFromText(String(row.bio)));
   if (row.websiteUrl) parts.push(...emailsFromText(String(row.websiteUrl)));
+  return parts;
+}
+
+const PHONE_RE = /(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,9}\b/g;
+const PHONE_TRAIL_RE = /[),.;:!?]+$/;
+
+/** @param {string} text */
+function phonesFromText(text) {
+  if (!text || typeof text !== 'string') return [];
+  const re = new RegExp(PHONE_RE.source, PHONE_RE.flags);
+  return text.match(re) || [];
+}
+
+/** @param {string} raw */
+function looksLikeDateLikePhone(raw) {
+  const t = String(raw || '').trim();
+  return (
+    /^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/.test(t) ||
+    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/.test(t) ||
+    /^\d{4}\s*[-–—]\s*\d{4}$/.test(t)
+  );
+}
+
+/** @param {string} raw */
+function normalizePhoneCandidate(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const base = String(raw).trim().replace(PHONE_TRAIL_RE, '');
+  if (!base || base.includes('@')) return '';
+  if (looksLikeDateLikePhone(base)) return '';
+  const digits = base.replace(/\D/g, '');
+  if (digits.length < 8 || digits.length > 15) return '';
+  if (/^\+?\d+$/.test(base.replace(/\s+/g, ''))) {
+    if (!base.trim().startsWith('+')) {
+      if (digits.length < 10 || digits.length > 11) return '';
+      if (digits.length === 11 && !digits.startsWith('1')) return '';
+    }
+  }
+  if (!/[()\s.\-+]/.test(base) && digits.length >= 12) return '';
+  return base;
+}
+
+/**
+ * @param {string[]} candidates
+ * @returns {string}
+ */
+function pickBestPhone(candidates) {
+  const uniq = [];
+  const seen = new Set();
+  for (const c of candidates || []) {
+    const n = normalizePhoneCandidate(String(c || ''));
+    if (!n) continue;
+    const k = n.replace(/\D/g, '');
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(n);
+  }
+  if (!uniq.length) return '';
+  uniq.sort((a, b) => b.replace(/\D/g, '').length - a.replace(/\D/g, '').length);
+  return uniq[0] || '';
+}
+
+/**
+ * @param {object} row
+ * @returns {string[]}
+ */
+function phoneCandidatesForRow(row) {
+  const parts = [];
+  if (row.phone) parts.push(String(row.phone));
+  if (row.bio) parts.push(...phonesFromText(String(row.bio)));
+  if (row.websiteUrl) parts.push(...phonesFromText(String(row.websiteUrl)));
   return parts;
 }
 
@@ -235,6 +305,35 @@ function fetchedEmailsByHostFromMessages(messages) {
 
 /**
  * @param {object[]} messages
+ * @returns {Map<string, Set<string>>} host -> normalized phones from fetched tool text
+ */
+function fetchedPhonesByHostFromMessages(messages) {
+  /** @type {Map<string, Set<string>>} */
+  const byHost = new Map();
+  for (const msg of messages || []) {
+    if (!msg || msg.role !== 'tool') continue;
+    const text = String(msg.content || '');
+    let host = '';
+    const first = text.match(/^\s*URL:\s*(https?:\/\/\S+)/im);
+    if (first && first[1]) host = hostFromMaybeUrl(first[1]);
+    if (!host) {
+      const firstUrl = urlsFromText(text)[0] || '';
+      host = hostFromMaybeUrl(firstUrl);
+    }
+    const found = phonesFromText(text);
+    for (const raw of found) {
+      const n = normalizePhoneCandidate(raw);
+      if (!n) continue;
+      const k = host || '__unknown_host__';
+      if (!byHost.has(k)) byHost.set(k, new Set());
+      byHost.get(k).add(n);
+    }
+  }
+  return byHost;
+}
+
+/**
+ * @param {object[]} messages
  * @returns {Map<string, Set<string>>} username(lowercase) -> normalized emails
  */
 function fetchedEmailsByUsernameFromMessages(messages) {
@@ -258,6 +357,30 @@ function fetchedEmailsByUsernameFromMessages(messages) {
 }
 
 /**
+ * @param {object[]} messages
+ * @returns {Map<string, Set<string>>} username(lowercase) -> normalized phones
+ */
+function fetchedPhonesByUsernameFromMessages(messages) {
+  /** @type {Map<string, Set<string>>} */
+  const byUser = new Map();
+  for (const msg of messages || []) {
+    if (!msg || msg.role !== 'tool') continue;
+    const text = String(msg.content || '');
+    const m = text.match(/^\s*USERNAME:\s*([^\n\r]+)/i);
+    const username = String(m?.[1] || '').trim().toLowerCase();
+    if (!username) continue;
+    const found = phonesFromText(text);
+    for (const raw of found) {
+      const n = normalizePhoneCandidate(raw);
+      if (!n) continue;
+      if (!byUser.has(username)) byUser.set(username, new Set());
+      byUser.get(username).add(n);
+    }
+  }
+  return byUser;
+}
+
+/**
  * @param {object} row
  * @param {Map<string, Set<string>>} fetchedByHost
  * @returns {Set<string>}
@@ -270,6 +393,24 @@ function extraEvidenceEmailsForLead(row, fetchedByHost) {
       if (k === '__unknown_host__') continue;
       if (!hostsMatch(h, k)) continue;
       for (const e of emails) out.add(e);
+    }
+  }
+  return out;
+}
+
+/**
+ * @param {object} row
+ * @param {Map<string, Set<string>>} fetchedByHost
+ * @returns {Set<string>}
+ */
+function extraEvidencePhonesForLead(row, fetchedByHost) {
+  const out = new Set();
+  const hosts = leadEvidenceHosts(row);
+  for (const h of hosts) {
+    for (const [k, phones] of fetchedByHost.entries()) {
+      if (k === '__unknown_host__') continue;
+      if (!hostsMatch(h, k)) continue;
+      for (const p of phones) out.add(p);
     }
   }
   return out;
@@ -338,7 +479,7 @@ function itemsArrayToLlmMap(items) {
   return byUser;
 }
 
-const FETCH_URL_TOOL_SYSTEM = `You enrich Instagram lead rows for a CRM export. You may call fetch_url with absolute http(s) URLs to load public HTML (contact pages, link-in-bio sites, about pages). Never use instagram.com or instagr.am. Use fetch only when extra page text would materially improve email or segmentation.
+const FETCH_URL_TOOL_SYSTEM = `You enrich Instagram lead rows for a CRM export. You may call fetch_url with absolute http(s) URLs to load public HTML (contact pages, link-in-bio sites, about pages). Never use instagram.com or instagr.am. Use fetch only when extra page text would materially improve contact accuracy.
 
 Critical email accuracy rules:
 - Never invent an email.
@@ -346,11 +487,17 @@ Critical email accuracy rules:
 - Prefer addresses that appear on the same site/domain as the lead's websiteUrl/bio links.
 - If no trustworthy address is found, set email_action="keep" and email_suggested="".
 
+Critical phone accuracy rules:
+- Never invent a phone number.
+- Only suggest phone_suggested if the exact number appears in provided lead fields or fetched tool text.
+- Reject date-like strings, plain long numeric IDs, version numbers, and obvious non-phone patterns.
+- If no trustworthy number is found, set phone_action="keep" and phone_suggested="".
+
 fetch_url call rules:
 - Always include BOTH username and url arguments.
 - username must exactly match one username from the input leads list.
 
-When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, segment_primary, segment_tags (array), email_suggested, email_action (keep|replace|clear), email_confidence_0_1, notes. Segments are signal-based heuristics, not census demographics.`;
+When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, email_suggested, email_action (keep|replace|clear), email_confidence_0_1, phone_suggested, phone_action (keep|replace|clear), phone_confidence_0_1.`;
 
 const FETCH_URL_FUNCTION = {
   type: 'function',
@@ -446,18 +593,24 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
       const parsed = extractJsonObjectWithItems(choice.content || '');
       if (!parsed) throw new Error('openai_final_parse_failed');
       const llmByUser = itemsArrayToLlmMap(parsed.items);
-      const doVerify = options.verify === true;
+      const doVerify = false;
       const fetchedByHost = fetchedEmailsByHostFromMessages(messages);
       const fetchedByUsername = fetchedEmailsByUsernameFromMessages(messages);
+      const fetchedPhonesByHost = fetchedPhonesByHostFromMessages(messages);
+      const fetchedPhonesByUsername = fetchedPhonesByUsernameFromMessages(messages);
       const leadsOut = [];
       for (const row of leadsIn) {
         const rowUser = String(row?.username || '').trim().toLowerCase();
         const fromUser = fetchedByUsername.get(rowUser) || new Set();
         const fromHost = extraEvidenceEmailsForLead(row, fetchedByHost);
         const combined = new Set([...fromUser, ...fromHost]);
+        const phonesFromUser = fetchedPhonesByUsername.get(rowUser) || new Set();
+        const phonesFromHost = extraEvidencePhonesForLead(row, fetchedPhonesByHost);
+        const combinedPhones = new Set([...phonesFromUser, ...phonesFromHost]);
         leadsOut.push(
           await enrichOne(row, llmByUser, doVerify, {
             extraEvidenceEmails: combined,
+            extraEvidencePhones: combinedPhones,
             excludeFakeEmails: options.excludeFakeEmails !== false,
           }),
         );
@@ -569,24 +722,21 @@ async function runLlmBatch(leads, options) {
             additionalProperties: false,
             properties: {
               username: { type: 'string' },
-              segment_primary: { type: 'string' },
-              segment_tags: {
-                type: 'array',
-                items: { type: 'string' },
-              },
               email_suggested: { type: 'string' },
               email_action: { type: 'string', enum: ['keep', 'replace', 'clear'] },
               email_confidence_0_1: { type: 'number' },
-              notes: { type: 'string' },
+              phone_suggested: { type: 'string' },
+              phone_action: { type: 'string', enum: ['keep', 'replace', 'clear'] },
+              phone_confidence_0_1: { type: 'number' },
             },
             required: [
               'username',
-              'segment_primary',
-              'segment_tags',
               'email_suggested',
               'email_action',
               'email_confidence_0_1',
-              'notes',
+              'phone_suggested',
+              'phone_action',
+              'phone_confidence_0_1',
             ],
           },
         },
@@ -595,7 +745,7 @@ async function runLlmBatch(leads, options) {
     },
   };
 
-  const system = `You enrich Instagram lead rows for a CRM export. Output is signal-based segmentation only — not census demographics. Use short segment labels (e.g. creator_signals, local_business_signals, b2b_domain, agency_signals, unknown). email_action: keep = keep current email; replace = use email_suggested (must be plausible contact); clear = remove email. Respect username keys exactly.`;
+  const system = `You enrich Instagram lead rows for a CRM export. Only improve contact fields (email + phone), never segmentation. email_action: keep = keep current email; replace = use email_suggested (must be exact evidence); clear = remove email. phone_action: keep = keep current phone; replace = use phone_suggested (must be exact evidence); clear = remove phone. Respect username keys exactly.`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -645,18 +795,24 @@ async function runLlmBatch(leads, options) {
 /**
  * @param {object} row
  * @param {Map<string, object>} llmByUser
- * @param {boolean} doVerify
- * @param {{ extraEvidenceEmails?: Set<string>, excludeFakeEmails?: boolean }} [extras]
+ * @param {boolean} _doVerify kept for backward signature compatibility (unused)
+ * @param {{ extraEvidenceEmails?: Set<string>, extraEvidencePhones?: Set<string>, excludeFakeEmails?: boolean }} [extras]
  */
-async function enrichOne(row, llmByUser, doVerify, extras) {
+async function enrichOne(row, llmByUser, _doVerify, extras) {
   const username = String(row.username || '').trim();
   const key = username.toLowerCase();
   const candidates = emailCandidatesForRow(row);
+  const phoneCandidates = phoneCandidatesForRow(row);
   if (extras?.extraEvidenceEmails && extras.extraEvidenceEmails.size) {
     for (const em of extras.extraEvidenceEmails) candidates.push(em);
   }
+  if (extras?.extraEvidencePhones && extras.extraEvidencePhones.size) {
+    for (const ph of extras.extraEvidencePhones) phoneCandidates.push(ph);
+  }
   const rescored = pickBestEmail(candidates) || '';
+  const rescoredPhone = pickBestPhone(phoneCandidates) || '';
   const evidenceEmails = new Set(candidates.map((x) => normalizeEmailCandidate(String(x || ''))).filter(Boolean));
+  const evidencePhones = new Set(phoneCandidates.map((x) => normalizePhoneCandidate(String(x || ''))).filter(Boolean));
 
   const out = {
     ...row,
@@ -668,16 +824,19 @@ async function enrichOne(row, llmByUser, doVerify, extras) {
     out.email_quality_codes = [...(out.email_quality_codes || []), 'rescored_from_bio_or_url'];
   }
 
+  out.phone = rescoredPhone || normalizePhoneCandidate(String(row.phone || '')) || '';
+
   const llm = llmByUser.get(key);
   if (llm) {
-    out.segment_primary = String(llm.segment_primary || '').slice(0, 120);
-    out.segment_tags = Array.isArray(llm.segment_tags) ? llm.segment_tags.map((x) => String(x).slice(0, 64)) : [];
-    out.enrich_notes = String(llm.notes || '').slice(0, 500);
     out.email_confidence_0_1 = Math.max(0, Math.min(1, Number(llm.email_confidence_0_1) || 0));
+    out.phone_confidence_0_1 = Math.max(0, Math.min(1, Number(llm.phone_confidence_0_1) || 0));
 
     const action = String(llm.email_action || 'keep');
     const suggested = normalizeEmailCandidate(String(llm.email_suggested || ''));
     const suggestedInEvidence = suggested ? evidenceEmails.has(suggested) : false;
+    const phoneAction = String(llm.phone_action || 'keep');
+    const phoneSuggested = normalizePhoneCandidate(String(llm.phone_suggested || ''));
+    const phoneSuggestedInEvidence = phoneSuggested ? evidencePhones.has(phoneSuggested) : false;
 
     if (action === 'clear') {
       out.email = '';
@@ -697,11 +856,29 @@ async function enrichOne(row, llmByUser, doVerify, extras) {
       out.email = rescored || String(row.email || '').trim();
       out.email_action = 'keep';
     }
+    if (phoneAction === 'clear') {
+      out.phone = '';
+      out.phone_action = 'clear';
+    } else if (phoneAction === 'replace' && phoneSuggested && !phoneSuggestedInEvidence) {
+      out.phone = rescoredPhone || normalizePhoneCandidate(String(row.phone || '')) || '';
+      out.phone_action = 'keep';
+      out.email_quality_codes = [...(out.email_quality_codes || []), 'llm_phone_replace_not_in_evidence'];
+    } else if (phoneAction === 'replace' && phoneSuggested && out.phone_confidence_0_1 >= 0.45) {
+      out.phone = phoneSuggested;
+      out.phone_action = 'replace';
+    } else if (phoneAction === 'replace' && phoneSuggested) {
+      out.phone = rescoredPhone || normalizePhoneCandidate(String(row.phone || '')) || '';
+      out.phone_action = 'keep';
+      out.email_quality_codes = [...(out.email_quality_codes || []), 'llm_phone_replace_low_confidence'];
+    } else {
+      out.phone = rescoredPhone || normalizePhoneCandidate(String(row.phone || '')) || '';
+      out.phone_action = 'keep';
+    }
   } else {
     out.email = rescored || String(row.email || '').trim();
-    out.segment_primary = out.segment_primary || '';
-    out.segment_tags = Array.isArray(out.segment_tags) ? out.segment_tags : [];
+    out.phone = rescoredPhone || normalizePhoneCandidate(String(row.phone || '')) || '';
     out.email_action = out.email_action || 'keep';
+    out.phone_action = out.phone_action || 'keep';
   }
 
   if (extras?.excludeFakeEmails !== false && out.email) {
@@ -715,13 +892,7 @@ async function enrichOne(row, llmByUser, doVerify, extras) {
     }
   }
 
-  if (doVerify && out.email) {
-    const v = await verifyEmailOptional(out.email);
-    if (v) {
-      out.email_deliverability = v.status;
-      if (v.reason) out.email_verify_reason = v.reason;
-    }
-  }
+  out.phone = normalizePhoneCandidate(String(out.phone || '')) || '';
 
   delete out.email_deterministic;
   return out;
@@ -802,7 +973,7 @@ async function handleEnrich(req, res) {
     }
   }
 
-  const doVerify = options.verify === true;
+  const doVerify = false;
   const leadsOut = [];
   for (const row of leadsIn) {
     leadsOut.push(
@@ -831,8 +1002,8 @@ function compactLeadsForJosh(leads) {
     email: String(r.email || ''),
     phone: String(r.phone || ''),
     websiteUrl: String(r.websiteUrl || '').slice(0, 200),
-    segment_primary: String(r.segment_primary || ''),
-    email_deliverability: String(r.email_deliverability || ''),
+    email_action: String(r.email_action || ''),
+    phone_action: String(r.phone_action || ''),
   }));
 }
 
@@ -877,7 +1048,7 @@ async function runJoshChatWithActions(userMessage, leads, uiState) {
 
 What MegaLeadsAI does:
 - Extracts leads from Instagram followers/following/hashtags.
-- Shows results in dashboard columns: username, followerCount, bio, email, phone, websiteUrl, segment_primary, email_deliverability.
+- Shows results in dashboard columns: username, followerCount, bio, email, phone, websiteUrl.
 - Can filter, sort, select rows, export profiles/emails, and clear rows.
 - AI enrich can improve emails and add segments.
 
