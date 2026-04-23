@@ -980,6 +980,7 @@ function sendMessageAsync(payload) {
 
 const CONTACT_LINK_HINT_RE = /(contact|about|team|support|help|customer|impressum|legal|privacy|terms|reach|connect)/i;
 const BAD_ASSET_EXT_RE = /\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|json|pdf|zip|mp4|webm|woff2?|ttf)(\?.*)?$/i;
+const PLATFORM_HOST_RE = /(^|\.)((youtube\.com|youtu\.be|twitch\.tv|x\.com|twitter\.com|tiktok\.com))$/i;
 
 /** @param {string} url */
 async function fetchHtmlViaBridge(url) {
@@ -1038,6 +1039,50 @@ function extractLikelyContactUrls(baseUrl, html) {
   return out.slice(0, 4);
 }
 
+/** @param {string} host */
+function isPlatformHost(host) {
+  return PLATFORM_HOST_RE.test(String(host || '').toLowerCase());
+}
+
+/**
+ * Pull likely outbound non-platform URLs from a platform page.
+ * @param {string} baseUrl
+ * @param {string} html
+ * @returns {string[]}
+ */
+function extractExternalCandidateUrls(baseUrl, html) {
+  const out = [];
+  const seen = new Set();
+  let base;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    return out;
+  }
+  const add = (raw) => {
+    if (!raw || typeof raw !== 'string') return;
+    let u;
+    try {
+      u = new URL(raw, base.href);
+    } catch {
+      return;
+    }
+    if (!/^https?:$/i.test(u.protocol)) return;
+    if (u.hostname === base.hostname) return;
+    if (isPlatformHost(u.hostname)) return;
+    if (BAD_ASSET_EXT_RE.test(u.pathname)) return;
+    const k = `${u.origin}${u.pathname}`.replace(/\/$/, '').toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(u.href);
+  };
+  const sample = String(html || '').slice(0, 250000);
+  const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+  let m;
+  while ((m = hrefRe.exec(sample))) add(m[1] || '');
+  return out.slice(0, 3);
+}
+
 /**
  * Fetch primary page and likely contact/about pages on same host.
  * @param {string} url
@@ -1046,9 +1091,26 @@ async function fetchExpandedContactText(url) {
   const first = await fetchHtmlViaBridge(url);
   const blocks = [`URL: ${url}\n${first.text.slice(0, 100000)}`];
   if (!first.ok) return { ok: false, mergedText: blocks.join('\n\n'), fetchedUrls: [url] };
-  const extraUrls = extractLikelyContactUrls(url, first.text);
+  let extraUrls = extractLikelyContactUrls(url, first.text);
+  try {
+    const h = new URL(url).hostname;
+    if (isPlatformHost(h)) {
+      const ext = extractExternalCandidateUrls(url, first.text);
+      extraUrls = [...extraUrls, ...ext];
+    }
+  } catch {
+    /* ignore */
+  }
+  const dedup = [];
+  const seen = new Set();
+  for (const u of extraUrls) {
+    const k = String(u).toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    dedup.push(u);
+  }
   const fetchedUrls = [url];
-  for (const extra of extraUrls.slice(0, 3)) {
+  for (const extra of dedup.slice(0, 4)) {
     const r = await fetchHtmlViaBridge(extra);
     fetchedUrls.push(extra);
     blocks.push(`URL: ${extra}\n${r.text.slice(0, 70000)}`);
