@@ -9,25 +9,55 @@ import { apiBaseUrl, apiKey, stripeCheckoutUrl } from './leadflow-remote-config.
 export const FREE_EMAIL_EXTRACTION_CAP = 500;
 
 /**
- * @returns {Promise<{ email: string, loggedInAt: number } | null>}
+ * @returns {Promise<{ email: string, loggedInAt: number, registeredAt: number } | null>}
  */
 export async function readUserSession() {
   const { [STORAGE_KEYS.USER_SESSION]: raw } = await chrome.storage.local.get(STORAGE_KEYS.USER_SESSION);
   if (!raw || typeof raw !== 'object') return null;
   const email = String(raw.email || '').trim();
   if (!email) return null;
-  return { email, loggedInAt: Number(raw.loggedInAt) || 0 };
+  const registeredAt = Number(raw.registeredAt) || 0;
+  if (!registeredAt) return null;
+  return { email, loggedInAt: Number(raw.loggedInAt) || 0, registeredAt };
 }
 
 /**
+ * Create or update the signed-in MegaLeads account (signup or sign-in on signup.html).
  * @param {string} email
  */
 export async function writeUserSession(email) {
   const trimmed = String(email || '').trim();
   if (!trimmed) return;
+  const now = Date.now();
   await chrome.storage.local.set({
-    [STORAGE_KEYS.USER_SESSION]: { email: trimmed, loggedInAt: Date.now() },
+    [STORAGE_KEYS.USER_SESSION]: { email: trimmed, loggedInAt: now, registeredAt: now },
   });
+}
+
+/** @returns {Promise<boolean>} */
+export async function readSubscriptionUnlimited() {
+  const { [STORAGE_KEYS.SUBSCRIPTION]: raw } = await chrome.storage.local.get(STORAGE_KEYS.SUBSCRIPTION);
+  return Boolean(raw && typeof raw === 'object' && raw.unlimited === true);
+}
+
+/**
+ * @returns {Promise<{ ok: true } | { ok: false, reason: 'needs_account' | 'at_cap' }>}
+ */
+export async function canStartExtractionForFreeTier() {
+  const session = await readUserSession();
+  if (!session) return { ok: false, reason: 'needs_account' };
+  if (await readSubscriptionUnlimited()) return { ok: true };
+  const n = await countUniqueEmailsExtracted();
+  if (n >= FREE_EMAIL_EXTRACTION_CAP) return { ok: false, reason: 'at_cap' };
+  return { ok: true };
+}
+
+export function getSignupPageUrl() {
+  return chrome.runtime.getURL('signup.html');
+}
+
+export function openSignupPageTab() {
+  chrome.tabs.create({ url: getSignupPageUrl(), active: true });
 }
 
 export async function clearUserSession() {

@@ -17,7 +17,12 @@ import {
 } from './constants.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { t, tf, uiLocaleFromUiPrefs } from './i18n.js';
-import { openStripeCheckoutInNewTab } from './account-shared.js';
+import {
+  openStripeCheckoutInNewTab,
+  readUserSession,
+  canStartExtractionForFreeTier,
+  openSignupPageTab,
+} from './account-shared.js';
 
 /** @typedef {'en'} Locale */
 
@@ -77,6 +82,8 @@ function setPopupStatus(text, isError) {
 }
 
 let running = false;
+/** When true, Start stays disabled (no account or free email cap reached). */
+let popupStartBlocked = false;
 
 function bindEls() {
   els.modeFollowers = $('lfModeFollowers');
@@ -155,6 +162,18 @@ function applyPopupLocale() {
     acc.setAttribute('title', t(L, 'popup.account'));
     acc.setAttribute('aria-label', t(L, 'popup.ariaAccount'));
   }
+  const authTitle = document.getElementById('lfPopupAuthTitle');
+  if (authTitle) authTitle.textContent = t(L, 'popup.authBannerTitle');
+  const authBody = document.getElementById('lfPopupAuthBody');
+  if (authBody) authBody.textContent = t(L, 'popup.authBannerBody');
+  const authCta = document.getElementById('lfPopupAuthCta');
+  if (authCta) authCta.textContent = t(L, 'popup.authBannerCta');
+  const capTitle = document.getElementById('lfPopupCapTitle');
+  if (capTitle) capTitle.textContent = t(L, 'popup.atCapBannerTitle');
+  const capBody = document.getElementById('lfPopupCapBody');
+  if (capBody) capBody.textContent = t(L, 'popup.atCapBannerBody');
+  const capBtn = document.getElementById('lfPopupCapUpgrade');
+  if (capBtn) capBtn.textContent = t(L, 'popup.atCapBannerCta');
   const riskText = document.getElementById('lfRiskToastText');
   if (riskText) riskText.textContent = t(L, 'popup.riskToast');
   const hMin = document.getElementById('lfHelpMinFollowers');
@@ -319,7 +338,7 @@ async function reconcileRunningStateFromStorage() {
 }
 
 function syncRunButtons() {
-  els.start.disabled = running;
+  els.start.disabled = running || popupStartBlocked;
   els.stop.disabled = !running;
 }
 
@@ -482,14 +501,50 @@ async function openOrFocusDashboard() {
   }
 }
 
-/** Popup Account: focus dashboard and show the sign-in modal there. */
-async function openDashboardWithLoginPrompt() {
-  await chrome.storage.local.set({ [STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT]: 'login' });
+/** Popup Account: signup tab if logged out; otherwise dashboard + usage modal. */
+async function openAccountEntryFromPopup() {
+  const session = await readUserSession();
+  if (!session) {
+    openSignupPageTab();
+    return;
+  }
+  await chrome.storage.local.set({ [STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT]: 'usage' });
   await openOrFocusDashboard();
+}
+
+async function refreshPopupGates() {
+  const auth = document.getElementById('lfPopupAuthBanner');
+  const cap = document.getElementById('lfPopupCapBanner');
+  const session = await readUserSession();
+  const gate = await canStartExtractionForFreeTier();
+
+  if (!session) {
+    popupStartBlocked = true;
+    if (auth) auth.hidden = false;
+    if (cap) cap.hidden = true;
+  } else if (!gate.ok && gate.reason === 'at_cap') {
+    popupStartBlocked = true;
+    if (auth) auth.hidden = true;
+    if (cap) cap.hidden = false;
+  } else {
+    popupStartBlocked = false;
+    if (auth) auth.hidden = true;
+    if (cap) cap.hidden = true;
+  }
+  syncRunButtons();
 }
 
 async function startExtractionPipeline() {
   setPopupStatus('');
+  const freeGate = await canStartExtractionForFreeTier();
+  if (!freeGate.ok && freeGate.reason === 'needs_account') {
+    setPopupStatus(t(uiLocale, 'popup.statusNeedsAccount'), true);
+    return;
+  }
+  if (!freeGate.ok && freeGate.reason === 'at_cap') {
+    setPopupStatus(t(uiLocale, 'popup.statusAtCap'), true);
+    return;
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) {
     setPopupStatus(t(uiLocale, 'popup.statusNoTab'), true);
@@ -623,7 +678,18 @@ function wireEvents() {
   }
   const accountBtn = document.getElementById('lfAccountBtn');
   if (accountBtn) {
-    accountBtn.addEventListener('click', () => void openDashboardWithLoginPrompt());
+    accountBtn.addEventListener('click', () => void openAccountEntryFromPopup());
+  }
+  const authCta = document.getElementById('lfPopupAuthCta');
+  if (authCta) authCta.addEventListener('click', () => openSignupPageTab());
+  const capUp = document.getElementById('lfPopupCapUpgrade');
+  if (capUp) {
+    capUp.addEventListener('click', () => {
+      void (async () => {
+        const r = await openStripeCheckoutInNewTab();
+        if (!r.ok) setPopupStatus(t(uiLocale, 'popup.stripeMissing'), true);
+      })();
+    });
   }
 
   document.querySelectorAll('.lf-info-btn').forEach((btn) => {
@@ -653,6 +719,15 @@ function wireEvents() {
       const rs = changes[STORAGE_KEYS.RUN_STATE].newValue;
       running = Boolean(rs?.running);
       syncRunButtons();
+      if (!rs?.running) void refreshPopupGates();
+    }
+    if (
+      changes[STORAGE_KEYS.USER_SESSION] ||
+      changes[STORAGE_KEYS.SUBSCRIPTION] ||
+      changes[STORAGE_KEYS.LEADS] ||
+      changes[STORAGE_KEYS.SESSION_HISTORY]
+    ) {
+      void refreshPopupGates();
     }
     const uiNext = changes[STORAGE_KEYS.UI_PREFS]?.newValue;
     if (uiNext && typeof uiNext === 'object') {
@@ -672,6 +747,7 @@ async function init() {
   wireEvents();
 
   await reconcileRunningStateFromStorage();
+  await refreshPopupGates();
 }
 
 void init();

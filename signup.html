@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" class="lf-extension-doc" id="lfRoot">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MegaLeadsAI — Create your account</title>
+    <link rel="stylesheet" href="styles/ui.css" />
+  </head>
+  <body class="lf-ui lf-signup-page">
+    <div class="lf-signup-shell">
+      <header class="lf-signup-header">
+        <img
+          class="lf-logo lf-logo-theme lf-signup-logo"
+          src="Assets/logo2.png"
+          data-logo-light="Assets/logo2.png"
+          data-logo-dark="Assets/logo3.png"
+          alt="MegaLeadsAI"
+          width="220"
+          height="50"
+        />
+      </header>
+
+      <main class="lf-signup-main">
+        <div class="lf-signup-intro">
+          <h1 class="lf-signup-title" id="lfSignupHeroTitle"></h1>
+          <p class="lf-signup-lead" id="lfSignupHeroLead"></p>
+        </div>
+
+        <div class="lf-signup-panels">
+          <section class="lf-signup-card" aria-labelledby="lfSignupCreateTitle">
+            <h2 class="lf-signup-card-title" id="lfSignupCreateTitle"></h2>
+            <p class="lf-signup-card-desc" id="lfSignupCreateDesc"></p>
+            <form class="lf-signup-form" id="lfSignupCreateForm" autocomplete="on">
+              <label class="lf-signup-label">
+                <span id="lfSignupEmailLabel"></span>
+                <input type="email" id="lfSignupEmail" name="email" required autocomplete="email" />
+              </label>
+              <label class="lf-signup-label">
+                <span id="lfSignupPasswordLabel"></span>
+                <input type="password" id="lfSignupPassword" required minlength="8" autocomplete="new-password" />
+              </label>
+              <label class="lf-signup-label">
+                <span id="lfSignupConfirmLabel"></span>
+                <input type="password" id="lfSignupConfirm" required minlength="8" autocomplete="new-password" />
+              </label>
+              <p class="lf-signup-error" id="lfSignupCreateError" hidden role="alert"></p>
+              <button type="submit" class="lf-btn lf-btn-primary lf-signup-submit" id="lfSignupCreateSubmit"></button>
+            </form>
+          </section>
+
+          <section class="lf-signup-card lf-signup-card-secondary" aria-labelledby="lfSigninTitle">
+            <h2 class="lf-signup-card-title" id="lfSigninTitle"></h2>
+            <p class="lf-signup-card-desc" id="lfSigninDesc"></p>
+            <form class="lf-signup-form" id="lfSigninForm" autocomplete="on">
+              <label class="lf-signup-label">
+                <span id="lfSigninEmailLabel"></span>
+                <input type="email" id="lfSigninEmail" required autocomplete="email" />
+              </label>
+              <label class="lf-signup-label">
+                <span id="lfSigninPasswordLabel"></span>
+                <input type="password" id="lfSigninPassword" required minlength="8" autocomplete="current-password" />
+              </label>
+              <p class="lf-signup-error" id="lfSigninError" hidden role="alert"></p>
+              <button type="submit" class="lf-btn lf-btn-ghost lf-signup-submit" id="lfSigninSubmit"></button>
+            </form>
+          </section>
+        </div>
+
+        <p class="lf-signup-success" id="lfSignupSuccess" hidden role="status"></p>
+        <div class="lf-signup-actions" id="lfSignupPostActions" hidden>
+          <button type="button" class="lf-btn lf-btn-primary" id="lfSignupOpenDashboard"></button>
+        </div>
+
+        <footer class="lf-signup-footer">
+          <button type="button" class="lf-btn lf-btn-ghost lf-theme-toggle lf-signup-theme" id="lfSignupThemeToggle" aria-label="">
+            <span class="lf-theme-toggle-icon" aria-hidden="true">☾</span>
+          </button>
+          <span class="lf-signup-footer-note" id="lfSignupFooterNote"></span>
+        </footer>
+      </main>
+    </div>
+
+    <script type="module" src="scripts/signup.js"></script>
+  </body>
+</html>

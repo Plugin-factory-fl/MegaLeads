@@ -6,10 +6,10 @@ import { MSG, STORAGE_KEYS } from './constants.js';
 import {
   FREE_EMAIL_EXTRACTION_CAP,
   readUserSession,
-  writeUserSession,
   clearUserSession,
   countUniqueEmailsExtracted,
   openStripeCheckoutInNewTab,
+  canStartExtractionForFreeTier,
 } from './account-shared.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { extractEmailPhoneFromParts } from './selectors.js';
@@ -202,6 +202,7 @@ function setSessionRunToggleButton(which) {
     els.sessionStop.classList.remove('lf-btn-danger');
     els.sessionStop.classList.add('lf-btn-primary');
   }
+  if (which !== 'stop') void refreshDashboardCapBanner();
 }
 
 /** @param {Record<string, unknown> | undefined} rs */
@@ -299,6 +300,12 @@ async function startExtractionFromDashboardPipeline() {
   const { [STORAGE_KEYS.RUN_STATE]: rs } = await chrome.storage.local.get(STORAGE_KEYS.RUN_STATE);
   if (rs?.running) {
     appendStatusLine(t(uiLocale, 'dashboard.alreadyRunning'));
+    return;
+  }
+  const freeGate = await canStartExtractionForFreeTier();
+  if (!freeGate.ok && freeGate.reason === 'at_cap') {
+    appendStatusLine(t(uiLocale, 'dashboard.startBlockedAtCap'));
+    void refreshDashboardCapBanner();
     return;
   }
   const tabs = await chrome.tabs.query({ url: ['https://www.instagram.com/*', 'https://instagram.com/*'] });
@@ -425,7 +432,7 @@ function applyDashboardLocale() {
     els.langToggle.setAttribute('aria-label', t(L, 'dashboard.langSwitchToEn'));
   }
   syncThemeToggleUi();
-  const hint = document.querySelector('.lf-dashboard-hint');
+  const hint = document.getElementById('lfDashboardHint');
   if (hint) hint.textContent = t(L, 'dashboard.hint');
   const historyLab = document.getElementById('lfHistoryLabel');
   if (historyLab) historyLab.textContent = t(L, 'dashboard.historyLabel');
@@ -1438,6 +1445,14 @@ async function sendJoshChat(userMessage) {
 
 async function runRemoteEnrichPipeline() {
   aiTrace('pipeline_start_clicked');
+  const freeGate = await canStartExtractionForFreeTier();
+  if (!freeGate.ok && freeGate.reason === 'at_cap') {
+    setAiStatus(t(uiLocale, 'dashboard.enrichBlockedAtCap'));
+    appendStatusLine(t(uiLocale, 'dashboard.enrichBlockedAtCap'));
+    void refreshDashboardCapBanner();
+    aiTrace('pipeline_abort_at_cap');
+    return;
+  }
   if (selectedSessionId) {
     const line = t(uiLocale, 'dashboard.aiEnrichNeedLive');
     setAiStatus(line);
@@ -1839,10 +1854,28 @@ async function onJoshSend() {
 }
 
 function closeAccountModals() {
-  const login = document.getElementById('lfAccountLoginWrap');
   const usage = document.getElementById('lfAccountUsageWrap');
-  if (login) login.hidden = true;
   if (usage) usage.hidden = true;
+}
+
+async function refreshDashboardCapBanner() {
+  const el = document.getElementById('lfDashboardCapBanner');
+  const gate = await canStartExtractionForFreeTier();
+  const atCap = !gate.ok && gate.reason === 'at_cap';
+  if (el) {
+    if (atCap) {
+      el.textContent = tf(uiLocale, 'dashboard.capBanner', { cap: FREE_EMAIL_EXTRACTION_CAP });
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+      el.textContent = '';
+    }
+  }
+  if (els.sessionStop && !running) {
+    els.sessionStop.disabled = atCap;
+  } else if (els.sessionStop && running) {
+    els.sessionStop.disabled = false;
+  }
 }
 
 function syncAccountModalLocale() {
@@ -1852,14 +1885,6 @@ function syncAccountModalLocale() {
     const el = q(id);
     if (el) el.textContent = t(L, path);
   };
-  setText('lfAccountLoginTitle', 'dashboard.accountLoginTitle');
-  setText('lfAccountLoginSubtitle', 'dashboard.accountLoginSubtitle');
-  setText('lfAccountLoginEmailLabel', 'dashboard.accountEmail');
-  setText('lfAccountLoginPasswordLabel', 'dashboard.accountPassword');
-  const sub = q('lfAccountLoginSubmit');
-  if (sub) sub.textContent = t(L, 'dashboard.accountSignIn');
-  const cls = q('lfAccountLoginClose');
-  if (cls) cls.textContent = t(L, 'dashboard.accountClose');
   setText('lfAccountUsageTitle', 'dashboard.accountUsageTitle');
   const diamond = q('lfAccountStripeDiamond');
   if (diamond) diamond.setAttribute('aria-label', t(L, 'dashboard.ariaCheckoutDiamond'));
@@ -1875,25 +1900,13 @@ function syncAccountModalLocale() {
   }
 }
 
-async function openLoginAccountModal() {
-  closeAccountModals();
-  const w = document.getElementById('lfAccountLoginWrap');
-  if (!w) return;
-  syncAccountModalLocale();
-  const pw = document.getElementById('lfAccountLoginPassword');
-  const em = document.getElementById('lfAccountLoginEmail');
-  if (pw instanceof HTMLInputElement) pw.value = '';
-  if (em instanceof HTMLInputElement) em.focus();
-  w.hidden = false;
-}
-
 async function openUsageAccountModal() {
   closeAccountModals();
   const w = document.getElementById('lfAccountUsageWrap');
   if (!w) return;
   const session = await readUserSession();
   if (!session) {
-    await openLoginAccountModal();
+    window.location.replace(chrome.runtime.getURL('signup.html'));
     return;
   }
   syncAccountModalLocale();
@@ -1925,39 +1938,24 @@ async function openUsageAccountModal() {
 
 async function onDashboardAccountButtonClick() {
   const session = await readUserSession();
-  if (session) await openUsageAccountModal();
-  else await openLoginAccountModal();
-}
-
-async function onAccountLoginSubmitClick() {
-  const emailEl = document.getElementById('lfAccountLoginEmail');
-  const pwEl = document.getElementById('lfAccountLoginPassword');
-  const email = emailEl instanceof HTMLInputElement ? emailEl.value.trim() : '';
-  const pw = pwEl instanceof HTMLInputElement ? pwEl.value : '';
-  if (!email || !pw) return;
-  await writeUserSession(email);
-  closeAccountModals();
+  if (!session) {
+    window.location.replace(chrome.runtime.getURL('signup.html'));
+    return;
+  }
+  await openUsageAccountModal();
 }
 
 async function consumePendingAccountModal() {
   const key = STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT;
   const { [key]: pend } = await chrome.storage.local.get(key);
-  if (pend === 'login') {
+  if (pend === 'usage') {
     await chrome.storage.local.remove(key);
-    await openLoginAccountModal();
+    await openUsageAccountModal();
   }
 }
 
 function wireAccountModals() {
-  const loginWrap = document.getElementById('lfAccountLoginWrap');
   const usageWrap = document.getElementById('lfAccountUsageWrap');
-  if (loginWrap) {
-    loginWrap.addEventListener('click', (ev) => {
-      if (ev.target === loginWrap) closeAccountModals();
-    });
-    const loginCard = loginWrap.querySelector('.lf-account-modal');
-    if (loginCard) loginCard.addEventListener('click', (ev) => ev.stopPropagation());
-  }
   if (usageWrap) {
     usageWrap.addEventListener('click', (ev) => {
       if (ev.target === usageWrap) closeAccountModals();
@@ -1965,10 +1963,6 @@ function wireAccountModals() {
     const usageCard = usageWrap.querySelector('.lf-account-modal');
     if (usageCard) usageCard.addEventListener('click', (ev) => ev.stopPropagation());
   }
-  const closeL = document.getElementById('lfAccountLoginClose');
-  if (closeL) closeL.addEventListener('click', () => closeAccountModals());
-  const sub = document.getElementById('lfAccountLoginSubmit');
-  if (sub) sub.addEventListener('click', () => void onAccountLoginSubmitClick());
   const closeU = document.getElementById('lfAccountUsageClose');
   if (closeU) closeU.addEventListener('click', () => closeAccountModals());
   const out = document.getElementById('lfAccountUsageLogout');
@@ -2061,9 +2055,9 @@ function wireEvents() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     const pend = changes[STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT];
-    if (pend?.newValue === 'login') {
+    if (pend?.newValue === 'usage') {
       void chrome.storage.local.remove(STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT);
-      void openLoginAccountModal();
+      void openUsageAccountModal();
     }
     const uiNext = changes[STORAGE_KEYS.UI_PREFS]?.newValue;
     if (uiNext && typeof uiNext === 'object') {
@@ -2086,7 +2080,10 @@ function wireEvents() {
     if (changes[STORAGE_KEYS.RUN_STATE]) {
       const rs = changes[STORAGE_KEYS.RUN_STATE].newValue;
       if (rs?.running) setRunningUi(true);
-      else if (rs && rs.running === false) setRunningUi(false);
+      else if (rs && rs.running === false) {
+        setRunningUi(false);
+        void refreshDashboardCapBanner();
+      }
       syncSessionBar(rs);
       syncExportButtonLabels();
       if (typeof rs?.lastStatusLine === 'string') appendStatusLine(rs.lastStatusLine);
@@ -2097,6 +2094,13 @@ function wireEvents() {
         const line = stopReasonText(rs.stopReason);
         if (line) appendStatusLine(line);
       }
+    }
+    if (
+      changes[STORAGE_KEYS.LEADS] ||
+      changes[STORAGE_KEYS.SESSION_HISTORY] ||
+      changes[STORAGE_KEYS.SUBSCRIPTION]
+    ) {
+      void refreshDashboardCapBanner();
     }
   });
 
@@ -2138,6 +2142,12 @@ function wireEvents() {
 }
 
 async function init() {
+  const session = await readUserSession();
+  if (!session) {
+    window.location.replace(chrome.runtime.getURL('signup.html'));
+    return;
+  }
+
   bindEls();
   await loadPrefsUi();
 
@@ -2149,6 +2159,7 @@ async function init() {
   wireTableSort();
   wireEvents();
   await consumePendingAccountModal();
+  await refreshDashboardCapBanner();
   initJoshDrag();
   if (els.joshAvatar) {
     setTimeout(() => {

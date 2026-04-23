@@ -36,9 +36,14 @@ export const STORAGE_KEYS = {
   DELAY_RISK_SNOOZE_UNTIL: 'leadflow_delay_risk_snooze_until',
   /** Stored extraction sessions with lead snapshots (newest first). */
   SESSION_HISTORY: 'leadflow_session_history',
-  /** `{ email, loggedInAt }` when signed in (UI / future API). */
+  /**
+   * `{ email, loggedInAt, registeredAt }` after signup/sign-in on signup.html.
+   * `registeredAt` is required for the app to treat the account as active.
+   */
   USER_SESSION: 'leadflow_user_session',
-  /** Popup → dashboard: show login modal (`'login'`); consumed when dashboard handles it. */
+  /** `{ unlimited: true }` when the user has an active paid plan (set by app / future server sync). */
+  SUBSCRIPTION: 'leadflow_subscription',
+  /** Popup → dashboard: show usage modal (`'usage'`); consumed when dashboard handles it. */
   DASHBOARD_PENDING_ACCOUNT: 'leadflow_dashboard_pending_account',
 };
 

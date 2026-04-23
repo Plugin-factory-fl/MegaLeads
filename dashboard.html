@@ -48,9 +48,10 @@
         </div>
       </header>
 
-      <p class="lf-dashboard-hint">
+      <p class="lf-dashboard-hint" id="lfDashboardHint">
         Progress and results for the current run. Mode, hashtag, and delays are in the toolbar popup.
       </p>
+      <p class="lf-dashboard-cap-banner" id="lfDashboardCapBanner" hidden role="status"></p>
 
       <section class="lf-ai-panel" aria-labelledby="lfAiPanelTitle">
         <div class="lf-ai-panel-head">
@@ -155,30 +156,6 @@
       </div>
 
       <footer class="lf-footer">Created by MegaMix AI, LLC</footer>
-    </div>
-
-    <div class="lf-modal-backdrop lf-account-modal-wrap" id="lfAccountLoginWrap" hidden>
-      <div
-        class="lf-modal-card lf-account-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="lfAccountLoginTitle"
-      >
-        <h3 class="lf-modal-title" id="lfAccountLoginTitle"></h3>
-        <p class="lf-account-modal-desc" id="lfAccountLoginSubtitle"></p>
-        <label class="lf-account-field">
-          <span id="lfAccountLoginEmailLabel"></span>
-          <input type="email" id="lfAccountLoginEmail" autocomplete="username" />
-        </label>
-        <label class="lf-account-field">
-          <span id="lfAccountLoginPasswordLabel"></span>
-          <input type="password" id="lfAccountLoginPassword" autocomplete="current-password" />
-        </label>
-        <div class="lf-account-modal-actions">
-          <button type="button" class="lf-btn lf-btn-primary" id="lfAccountLoginSubmit"></button>
-          <button type="button" class="lf-btn lf-btn-ghost" id="lfAccountLoginClose"></button>
-        </div>
-      </div>
     </div>
 
     <div class="lf-modal-backdrop lf-account-modal-wrap" id="lfAccountUsageWrap" hidden>
