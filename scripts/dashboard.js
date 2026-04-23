@@ -1056,6 +1056,50 @@ async function fetchExpandedContactText(url) {
   return { ok: true, mergedText: blocks.join('\n\n'), fetchedUrls };
 }
 
+/** @param {string} raw */
+function normalizePhoneForPrefetch(raw) {
+  const base = String(raw || '').trim();
+  if (!base) return '';
+  const digits = base.replace(/\D/g, '');
+  if (digits.length < 8 || digits.length > 15) return '';
+  const hasPlus = base.trim().startsWith('+');
+  if (!hasPlus && digits.length > 11) return '';
+  if (!hasPlus && digits.length === 11 && !digits.startsWith('1')) return '';
+  if (/\d{4}[-.\s]\d{4}[-.\s]\d{4}/.test(base)) return '';
+  if (/^\d{1,3}\.\d{3,}\s+\d{1,3}\.\d{3,}/.test(base)) return '';
+  return base;
+}
+
+/**
+ * Extract only high-confidence phone signals from fetched HTML/text.
+ * @param {string} text
+ * @returns {string}
+ */
+function extractHighConfidencePhone(text) {
+  const src = String(text || '');
+  /** @type {string[]} */
+  const cands = [];
+  let m;
+  const telRe = /tel:\s*([+\d][\d\s().-]{7,24}\d)/gi;
+  while ((m = telRe.exec(src))) {
+    const p = normalizePhoneForPrefetch(m[1] || '');
+    if (p) cands.push(p);
+  }
+  const waRe = /(?:wa\.me\/|api\.whatsapp\.com\/send\?phone=)(\d{8,15})/gi;
+  while ((m = waRe.exec(src))) {
+    const p = normalizePhoneForPrefetch(`+${m[1] || ''}`);
+    if (p) cands.push(p);
+  }
+  const ldRe = /"telephone"\s*:\s*"([^"]+)"/gi;
+  while ((m = ldRe.exec(src))) {
+    const p = normalizePhoneForPrefetch(m[1] || '');
+    if (p) cands.push(p);
+  }
+  if (!cands.length) return '';
+  cands.sort((a, b) => b.replace(/\D/g, '').length - a.replace(/\D/g, '').length);
+  return cands[0] || '';
+}
+
 /**
  * Deterministic contact prefetch from lead website URLs.
  * This runs before LLM tool-calls so contact extraction does not depend solely on model fetch decisions.
@@ -1071,13 +1115,14 @@ async function prefetchContactsIntoDtos(dtos) {
     if (/instagram\.com|instagr\.am/i.test(url)) continue;
     visited += 1;
     const expanded = await fetchExpandedContactText(url);
-    const parsed = extractEmailPhoneFromParts([dto.email || '', dto.phone || '', expanded.mergedText || '']);
+    const parsed = extractEmailPhoneFromParts([dto.email || '', expanded.mergedText || '']);
+    const hiPhone = extractHighConfidencePhone(expanded.mergedText || '');
     if (parsed.email && parsed.email !== String(dto.email || '').trim()) {
       dto.email = parsed.email;
       emailAdds += 1;
     }
-    if (parsed.phone && parsed.phone !== String(dto.phone || '').trim()) {
-      dto.phone = parsed.phone;
+    if (hiPhone && hiPhone !== String(dto.phone || '').trim()) {
+      dto.phone = hiPhone;
       phoneAdds += 1;
     }
     aiTrace('prefetch_contact_done', {
@@ -1086,7 +1131,7 @@ async function prefetchContactsIntoDtos(dtos) {
       ok: expanded.ok,
       fetchedUrls: expanded.fetchedUrls.length,
       email: parsed.email || '',
-      phone: parsed.phone || '',
+      phone: hiPhone || '',
     });
   }
   aiTrace('prefetch_contact_summary', { visited, emailAdds, phoneAdds });

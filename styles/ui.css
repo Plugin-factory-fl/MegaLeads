@@ -505,11 +505,11 @@ html.lf-extension-doc body.lf-ui.lf-popup {
 }
 
 body.lf-popup .lf-logo {
-  max-height: 41px;
+  max-height: 49px;
 }
 
 body.lf-dashboard .lf-logo {
-  max-height: 46px;
+  max-height: 55px;
 }
 
 .lf-title-block h1 {
@@ -1127,7 +1127,7 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 /* --- Josh floating helper (dashboard) --- */
 .lf-josh-wrap {
   position: fixed;
-  right: 44px;
+  right: 69px;
   bottom: 72px;
   z-index: 55;
   cursor: grab;

@@ -138,6 +138,10 @@ function normalizePhoneCandidate(raw) {
   if (looksLikeDottedNumericNoise(base)) return '';
   const digits = base.replace(/\D/g, '');
   if (digits.length < 8 || digits.length > 15) return '';
+  const hasPlus = base.trim().startsWith('+');
+  if (!hasPlus && digits.length > 11) return '';
+  if (!hasPlus && digits.length === 11 && !digits.startsWith('1')) return '';
+  if (/\d{4}[-.\s]\d{4}[-.\s]\d{4}/.test(base)) return '';
   if (/^\+?\d+$/.test(base.replace(/\s+/g, ''))) {
     if (!base.trim().startsWith('+')) {
       if (digits.length < 10 || digits.length > 11) return '';
