@@ -91,6 +91,11 @@ const els = {
   aiFetchUrlLabel: null,
   aiExcludeFake: null,
   aiExcludeFakeLabel: null,
+  aiSummaryWrap: null,
+  aiSummaryScraped: null,
+  aiSummaryAdded: null,
+  aiSummaryImproved: null,
+  aiSummaryOk: null,
   sheetsHint: null,
   openSheets: null,
 };
@@ -142,6 +147,11 @@ function bindEls() {
   els.aiFetchUrlLabel = document.getElementById('lfAiFetchUrlLabel');
   els.aiExcludeFake = document.getElementById('lfAiExcludeFake');
   els.aiExcludeFakeLabel = document.getElementById('lfAiExcludeFakeLabel');
+  els.aiSummaryWrap = document.getElementById('lfAiSummaryWrap');
+  els.aiSummaryScraped = document.getElementById('lfAiSummaryScraped');
+  els.aiSummaryAdded = document.getElementById('lfAiSummaryAdded');
+  els.aiSummaryImproved = document.getElementById('lfAiSummaryImproved');
+  els.aiSummaryOk = document.getElementById('lfAiSummaryOk');
   els.sheetsHint = document.getElementById('lfSheetsHint');
   els.openSheets = document.getElementById('lfOpenSheets');
 }
@@ -872,6 +882,30 @@ function setAiStatus(line) {
   if (els.aiStatus) els.aiStatus.textContent = line || '';
 }
 
+/** @param {Lead[]} rows */
+function countRowsWithEmail(rows) {
+  if (!Array.isArray(rows)) return 0;
+  let n = 0;
+  for (const r of rows) {
+    const e = String(r?.email || '').trim();
+    if (e && e.includes('@')) n += 1;
+  }
+  return n;
+}
+
+function closeAiSummaryModal() {
+  if (els.aiSummaryWrap) els.aiSummaryWrap.hidden = true;
+}
+
+function showAiSummaryModal(scrapedCount, afterCount) {
+  if (!els.aiSummaryWrap || !els.aiSummaryScraped || !els.aiSummaryAdded || !els.aiSummaryImproved) return;
+  const added = Math.max(0, Number(afterCount) - Number(scrapedCount));
+  els.aiSummaryScraped.textContent = `Emails extracted by scraping: ${scrapedCount}`;
+  els.aiSummaryAdded.textContent = `Emails added after AI enrichment: ${added}`;
+  els.aiSummaryImproved.textContent = `AI has improved your email list by ${added} emails`;
+  els.aiSummaryWrap.hidden = false;
+}
+
 /** @param {Lead[]} arr @param {number} size */
 function chunkArray(arr, size) {
   const out = [];
@@ -949,11 +983,12 @@ async function processRemoteEnrichBatch(dtos, options) {
         const toolCallId = String(job.toolCallId || '');
         /** @type {{ bridgeOk?: boolean, text?: string, error?: string }} */
         const r = await sendMessageAsync({ type: MSG.HTTP_TEXT_FETCH, url });
-        const text =
+        const pageText =
           r?.bridgeOk && typeof r.text === 'string'
             ? r.text.slice(0, 80000)
             : `Fetch error: ${(r && r.error) || 'unknown'}`;
-        merged.push({ tool_call_id: toolCallId, content: text });
+        const content = `URL: ${url}\n\n${pageText}`;
+        merged.push({ tool_call_id: toolCallId, content, url });
       }
       toolResults = merged;
       toolRound += 1;
@@ -979,6 +1014,7 @@ async function runRemoteEnrichPipeline() {
     setAiStatus(t(uiLocale, 'dashboard.aiEnrichNoLeads'));
     return;
   }
+  const scrapedEmailCount = countRowsWithEmail(list);
   if (els.aiEnrich) els.aiEnrich.disabled = true;
   const useLlm = els.aiLlm ? els.aiLlm.checked : true;
   const useVerify = els.aiVerify ? els.aiVerify.checked : false;
@@ -1001,11 +1037,13 @@ async function runRemoteEnrichPipeline() {
       }
     }
     const order = list.map((r) => r.username.toLowerCase());
-    leads = order.map((k) => byKey.get(k)).filter(Boolean).map(normalizeStoredLead);
+    const updatedSubset = order.map((k) => byKey.get(k)).filter(Boolean).map(normalizeStoredLead);
+    leads = updatedSubset;
     await chrome.storage.local.set({ [STORAGE_KEYS.LEADS]: leads });
     renderTable();
     appendStatusLine(tf(uiLocale, 'dashboard.aiEnrichDone', { n: leads.length }));
     setAiStatus('');
+    showAiSummaryModal(scrapedEmailCount, countRowsWithEmail(updatedSubset));
   } catch (e) {
     const msg = String(e?.message || e);
     appendStatusLine(tf(uiLocale, 'dashboard.aiEnrichFail', { msg }));
@@ -1240,6 +1278,12 @@ function wireEvents() {
   els.exportEmails.addEventListener('click', () => void exportExcelEmails());
   if (els.openSheets) els.openSheets.addEventListener('click', () => void openGoogleSheetsFlow());
   if (els.aiEnrich) els.aiEnrich.addEventListener('click', () => void runRemoteEnrichPipeline());
+  if (els.aiSummaryOk) els.aiSummaryOk.addEventListener('click', closeAiSummaryModal);
+  if (els.aiSummaryWrap) {
+    els.aiSummaryWrap.addEventListener('click', (ev) => {
+      if (ev.target === els.aiSummaryWrap) closeAiSummaryModal();
+    });
+  }
   els.clear.addEventListener('click', () => void clearList());
   if (els.historyToggle && els.historyShell && els.historyBody) {
     els.historyBody.hidden = true;

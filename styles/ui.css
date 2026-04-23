@@ -1067,6 +1067,54 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   padding: 0.4rem 0.55rem;
 }
 
+.lf-ai-summary-wrap {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(9, 12, 20, 0.46);
+  z-index: 40;
+}
+
+.lf-ai-summary-wrap[hidden] {
+  display: none;
+}
+
+.lf-ai-summary-card {
+  width: min(560px, 100%);
+  border: 1px solid var(--lf-border);
+  border-radius: 12px;
+  background: var(--lf-surface);
+  color: var(--lf-text);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+  padding: 1rem 1rem 0.9rem;
+}
+
+.lf-ai-summary-title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.lf-ai-summary-line {
+  margin: 0.35rem 0;
+  font-size: 0.92rem;
+}
+
+.lf-ai-summary-improved {
+  margin: 0.7rem 0 0;
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--lf-accent);
+}
+
+.lf-ai-summary-ok {
+  margin-top: 0.9rem;
+  min-width: 120px;
+}
+
 .lf-seg-cell,
 .lf-qa-cell {
   max-width: 120px;

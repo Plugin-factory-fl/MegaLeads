@@ -144,6 +144,113 @@ function compactLeadsForLlm(leads) {
   }));
 }
 
+const URL_RE = /https?:\/\/[^\s"'<>]+/gi;
+
+/** @param {string} raw */
+function normalizeHost(raw) {
+  return String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '');
+}
+
+/** @param {string} raw */
+function hostFromMaybeUrl(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  try {
+    return normalizeHost(new URL(s).hostname);
+  } catch {
+    try {
+      return normalizeHost(new URL(`https://${s}`).hostname);
+    } catch {
+      return '';
+    }
+  }
+}
+
+/**
+ * @param {string} text
+ * @returns {string[]}
+ */
+function urlsFromText(text) {
+  if (!text || typeof text !== 'string') return [];
+  return text.match(URL_RE) || [];
+}
+
+/**
+ * @param {string} a
+ * @param {string} b
+ */
+function hostsMatch(a, b) {
+  const x = normalizeHost(a);
+  const y = normalizeHost(b);
+  if (!x || !y) return false;
+  return x === y || x.endsWith(`.${y}`) || y.endsWith(`.${x}`);
+}
+
+/**
+ * @param {object} row
+ * @returns {Set<string>}
+ */
+function leadEvidenceHosts(row) {
+  const out = new Set();
+  const fromWebsite = hostFromMaybeUrl(String(row?.websiteUrl || ''));
+  if (fromWebsite) out.add(fromWebsite);
+  for (const u of urlsFromText(String(row?.bio || ''))) {
+    const h = hostFromMaybeUrl(u);
+    if (h) out.add(h);
+  }
+  return out;
+}
+
+/**
+ * @param {object[]} messages
+ * @returns {Map<string, Set<string>>} host -> normalized emails from fetched tool text
+ */
+function fetchedEmailsByHostFromMessages(messages) {
+  /** @type {Map<string, Set<string>>} */
+  const byHost = new Map();
+  for (const msg of messages || []) {
+    if (!msg || msg.role !== 'tool') continue;
+    const text = String(msg.content || '');
+    let host = '';
+    const first = text.match(/^\s*URL:\s*(https?:\/\/\S+)/i);
+    if (first && first[1]) host = hostFromMaybeUrl(first[1]);
+    if (!host) {
+      const firstUrl = urlsFromText(text)[0] || '';
+      host = hostFromMaybeUrl(firstUrl);
+    }
+    const found = emailsFromText(text);
+    for (const raw of found) {
+      const n = normalizeEmailCandidate(raw);
+      if (!n) continue;
+      const k = host || '__unknown_host__';
+      if (!byHost.has(k)) byHost.set(k, new Set());
+      byHost.get(k).add(n);
+    }
+  }
+  return byHost;
+}
+
+/**
+ * @param {object} row
+ * @param {Map<string, Set<string>>} fetchedByHost
+ * @returns {Set<string>}
+ */
+function extraEvidenceEmailsForLead(row, fetchedByHost) {
+  const out = new Set();
+  const hosts = leadEvidenceHosts(row);
+  for (const h of hosts) {
+    for (const [k, emails] of fetchedByHost.entries()) {
+      if (k === '__unknown_host__') continue;
+      if (!hostsMatch(h, k)) continue;
+      for (const e of emails) out.add(e);
+    }
+  }
+  return out;
+}
+
 /**
  * Conservative filter for obvious placeholder/test addresses.
  * @param {string} email
@@ -207,7 +314,15 @@ function itemsArrayToLlmMap(items) {
   return byUser;
 }
 
-const FETCH_URL_TOOL_SYSTEM = `You enrich Instagram lead rows for a CRM export. You may call fetch_url with absolute http(s) URLs to load public HTML (contact pages, link-in-bio sites, about pages). Never use instagram.com or instagr.am. Use fetch only when extra page text would materially improve email or segmentation. When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, segment_primary, segment_tags (array), email_suggested, email_action (keep|replace|clear), email_confidence_0_1, notes. Segments are signal-based heuristics, not census demographics.`;
+const FETCH_URL_TOOL_SYSTEM = `You enrich Instagram lead rows for a CRM export. You may call fetch_url with absolute http(s) URLs to load public HTML (contact pages, link-in-bio sites, about pages). Never use instagram.com or instagr.am. Use fetch only when extra page text would materially improve email or segmentation.
+
+Critical email accuracy rules:
+- Never invent an email.
+- Only suggest email_suggested if the exact address appears in provided lead fields or fetched tool text.
+- Prefer addresses that appear on the same site/domain as the lead's websiteUrl/bio links.
+- If no trustworthy address is found, set email_action="keep" and email_suggested="".
+
+When finished (with or without fetches), reply with ONE JSON object only (no markdown fences), shape: {"items":[...]} where each item has username, segment_primary, segment_tags (array), email_suggested, email_action (keep|replace|clear), email_confidence_0_1, notes. Segments are signal-based heuristics, not census demographics.`;
 
 const FETCH_URL_FUNCTION = {
   type: 'function',
@@ -302,24 +417,12 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
       if (!parsed) throw new Error('openai_final_parse_failed');
       const llmByUser = itemsArrayToLlmMap(parsed.items);
       const doVerify = options.verify === true;
-      /** @type {Set<string>} */
-      const fetchedEvidenceEmails = new Set();
-      for (const msg of messages) {
-        if (!msg || msg.role !== 'tool') continue;
-        const found = emailsFromText(String(msg.content || ''));
-        for (const raw of found) {
-          const normalized = normalizeEmailCandidate(raw);
-          if (!normalized) continue;
-          fetchedEvidenceEmails.add(normalized);
-          if (fetchedEvidenceEmails.size >= 600) break;
-        }
-        if (fetchedEvidenceEmails.size >= 600) break;
-      }
+      const fetchedByHost = fetchedEmailsByHostFromMessages(messages);
       const leadsOut = [];
       for (const row of leadsIn) {
         leadsOut.push(
           await enrichOne(row, llmByUser, doVerify, {
-            extraEvidenceEmails: fetchedEvidenceEmails,
+            extraEvidenceEmails: extraEvidenceEmailsForLead(row, fetchedByHost),
             excludeFakeEmails: options.excludeFakeEmails !== false,
           }),
         );
