@@ -68,6 +68,8 @@ export async function handleStripeCheckoutSession(req, res) {
   /** @type {import('stripe').Stripe.Checkout.SessionCreateParams} */
   const params = {
     mode: 'subscription',
+    /** Shows “Add promotion code” on hosted Checkout (Dashboard → Coupons / Promotion codes). */
+    allow_promotion_codes: true,
     line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
     success_url: urls.success_url,
     cancel_url: urls.cancel_url,
