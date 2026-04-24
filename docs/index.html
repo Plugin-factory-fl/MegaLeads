@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — MegaLeadsAI</title>
+    <meta
+      name="description"
+      content="Privacy Policy for the MegaLeadsAI Chrome extension by MegaMix AI, LLC."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fafafa;
+        --text: #1a1a1a;
+        --muted: #555;
+        --border: #e5e5e5;
+        --accent: #4c1d95;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #121212;
+          --text: #f4f4f5;
+          --muted: #a1a1aa;
+          --border: #27272a;
+          --accent: #c4b5fd;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        font-size: 1rem;
+        line-height: 1.6;
+        color: var(--text);
+        background: var(--bg);
+      }
+      .wrap {
+        max-width: 44rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 1.65rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.25rem;
+        line-height: 1.2;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 2rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1px solid var(--border);
+      }
+      h2 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin: 2rem 0 0.5rem;
+        color: var(--accent);
+      }
+      p {
+        margin: 0 0 0.85rem;
+      }
+      ul {
+        margin: 0 0 0.85rem;
+        padding-left: 1.25rem;
+      }
+      li {
+        margin-bottom: 0.35rem;
+      }
+      a {
+        color: var(--accent);
+      }
+      .footer {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>MegaLeadsAI — Privacy Policy</h1>
+      <p class="meta">
+        <strong>MegaMix AI, LLC</strong> (“we”, “us”) · Effective date: <strong>April 24, 2026</strong><br />
+        This policy describes the MegaLeadsAI <strong>Chrome extension</strong> and optional services you may
+        configure with it.
+      </p>
+
+      <h2>1. What MegaLeadsAI is</h2>
+      <p>
+        MegaLeadsAI is a browser extension that helps you collect and organize <strong>publicly visible</strong>
+        profile-related information from <strong>Instagram</strong> pages you choose to open (for example
+        followers, following, or hashtag-related views), and display results in an in-browser dashboard for review
+        and export. You decide when to run it and on which Instagram pages.
+      </p>
+
+      <h2>2. Data stored on your device</h2>
+      <p>
+        The extension uses Chrome’s <strong>local storage</strong> (for example <code>chrome.storage.local</code>)
+        to keep product data on your machine, including items such as:
+      </p>
+      <ul>
+        <li>Lead rows and related session snapshots you generated;</li>
+        <li>UI preferences (for example theme, pacing, limits);</li>
+        <li>Run state so start/stop and progress work across tabs;</li>
+        <li>If you create an in-extension account: your <strong>account email</strong> and session metadata needed
+          to sign you in;</li>
+        <li>Optional cached status for free-tier usage or subscription flags when you use server-connected features.</li>
+      </ul>
+      <p>
+        We do <strong>not</strong> use this local storage to track browsing on unrelated websites for advertising.
+        Clearing extension data or uninstalling the extension removes locally stored extension data from your
+        browser (subject to how Chrome manages extension storage).
+      </p>
+
+      <h2>3. Data sent to our servers (optional)</h2>
+      <p>
+        Some features only work if you (or your organization) configure the extension to talk to an
+        <strong>HTTPS API</strong> you operate or authorize (for example a hosted “enrich” service, account
+        registration, free-tier usage sync, Stripe checkout, or an assistant chat proxy). When those features are
+        used, the extension may send:
+      </p>
+      <ul>
+        <li>A configured <strong>API key</strong> or bearer token (treat it as a secret; do not share your package
+          publicly);</li>
+        <li>
+          <strong>Lead fields</strong> and related text you submit for processing (for example usernames, bios,
+          emails, phones, URLs you already collected);
+        </li>
+        <li>
+          <strong>Account email</strong> for features tied to your account (registration, subscription status,
+          usage);
+        </li>
+        <li>
+          For optional AI flows: prompts and context you send to your configured service, which may be forwarded to
+          a model provider under <strong>your</strong> configuration and policies.
+        </li>
+      </ul>
+      <p>
+        If you do not configure remote services, the extension does not send the categories above to a
+        developer-operated API. Distribution through the Chrome Web Store is subject to
+        <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Google’s policies</a>.
+      </p>
+
+      <h2>4. Instagram and third-party sites</h2>
+      <p>
+        When you use MegaLeadsAI on Instagram, your browser interacts with <strong>Meta / Instagram</strong> under
+        <em>your</em> Instagram session and Meta’s terms. If you enable features that fetch public web pages (for
+        example a link from a bio), those requests retrieve <strong>publicly available</strong> content you
+        explicitly run through the tool; you are responsible for complying with applicable site terms and laws.
+      </p>
+      <p>
+        If you use <strong>Stripe</strong> for billing, payment flows are subject to
+        <a href="https://stripe.com/privacy" rel="noopener noreferrer">Stripe’s privacy policy</a>.
+      </p>
+
+      <h2>5. How we use information</h2>
+      <p>We use information only to:</p>
+      <ul>
+        <li>Provide, secure, and improve MegaLeadsAI;</li>
+        <li>Operate optional backend features you enable (enrichment, account registry, usage limits, billing);</li>
+        <li>Respond to support requests when you contact us.</li>
+      </ul>
+      <p>
+        We do <strong>not</strong> sell your personal information as a standalone product. We do not use your
+        Instagram lead lists to run unrelated ad profiles on your behalf.
+      </p>
+
+      <h2>6. Retention</h2>
+      <p>
+        Data you keep in the extension remains until you delete it or uninstall. Server-side retention (if any)
+        depends on how your configured API / database is operated; use retention settings and database practices
+        appropriate for your organization and jurisdiction.
+      </p>
+
+      <h2>7. Security</h2>
+      <p>
+        Protect API keys and credentials. Use HTTPS endpoints. Restrict API keys to the minimum permissions needed.
+        Anyone with physical access to your computer or a unpacked extension copy may be able to read values stored
+        in the extension—treat packaged extensions like client-side software.
+      </p>
+
+      <h2>8. Children</h2>
+      <p>
+        MegaLeadsAI is not directed to children under 13 (or the minimum age required in your region). Do not use it
+        to collect data from children.
+      </p>
+
+      <h2>9. Changes</h2>
+      <p>
+        We may update this policy from time to time. The “Effective date” at the top will change when we do.
+        Continued use after updates means you accept the revised policy.
+      </p>
+
+      <h2>10. Contact</h2>
+      <p>
+        Questions about this policy or MegaLeadsAI: use the <strong>support contact</strong> shown on the Chrome
+        Web Store listing for MegaLeadsAI, or email
+        <a href="mailto:privacy@megaleadsai.com">privacy@megaleadsai.com</a>.
+      </p>
+
+      <div class="footer">
+        © MegaMix AI, LLC · MegaLeadsAI
+      </div>
+    </div>
+  </body>
+</html>
