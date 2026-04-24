@@ -244,6 +244,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === 'LF_OPEN_POPUP') {
+    void (async () => {
+      try {
+        if (chrome.action?.openPopup) {
+          await chrome.action.openPopup();
+          sendResponse({ ok: true, mode: 'popup' });
+          return;
+        }
+      } catch {
+        /* fallback below */
+      }
+      try {
+        await chrome.tabs.create({ url: chrome.runtime.getURL('popup.html'), active: true });
+        sendResponse({ ok: true, mode: 'tab' });
+      } catch (e) {
+        sendResponse({ ok: false, error: e?.message || String(e) });
+      }
+    })();
+    return true;
+  }
+
   return false;
 });
 

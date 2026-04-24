@@ -304,9 +304,26 @@ html.lf-extension-doc body.lf-ui.lf-popup {
   justify-content: center;
 }
 
+.lf-header-paid-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 220px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--lf-text);
+}
+
 body.lf-dashboard .lf-header-email-progress {
   max-width: 320px;
   gap: 0.16rem;
+}
+
+body.lf-dashboard .lf-header-paid-title {
+  max-width: 340px;
+  font-size: 1rem;
 }
 
 body.lf-dashboard .lf-header-email-progress-label {
@@ -1394,6 +1411,7 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 }
 
 .lf-josh-avatar-bubble {
+  position: relative;
   width: 74px;
   height: 74px;
   border-radius: 999px;
@@ -1406,6 +1424,13 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
     0 0 26px rgba(124, 58, 237, 0.55),
     0 0 44px rgba(124, 58, 237, 0.35);
   animation: lf-josh-float 4s ease-in-out infinite;
+}
+
+.lf-josh-crown {
+  top: -0.42rem;
+  right: -0.12rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .lf-josh-avatar-img {
@@ -1609,12 +1634,25 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 
 /* --- Header: upgrade + account (popup) / account (dashboard) --- */
 .lf-btn-icon {
+  position: relative;
   flex-shrink: 0;
   padding: 0.35rem 0.45rem;
   min-width: 2.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.lf-paid-crown {
+  position: absolute;
+  width: 0.92rem;
+  height: 0.92rem;
+  filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.65));
+}
+
+.lf-account-crown {
+  top: -0.18rem;
+  right: 0.05rem;
 }
 
 .lf-header-action-icon {
@@ -1646,6 +1684,8 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 
 /* Ensure explicit hidden state wins over component display rules. */
 .lf-header-email-progress[hidden],
+.lf-header-paid-title[hidden],
+.lf-paid-crown[hidden],
 .lf-btn-upgrade-popup[hidden],
 .lf-account-usage-cta-row[hidden],
 .lf-account-usage-bar-wrap[hidden],

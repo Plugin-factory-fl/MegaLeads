@@ -96,7 +96,8 @@ export async function canStartExtractionForFreeTier() {
   const session = await readUserSession();
   if (!session) return { ok: false, reason: 'needs_account' };
   if (await readSubscriptionUnlimited()) return { ok: true };
-  const n = await countUniqueEmailsExtracted();
+  const st = await syncFreeTierStatusFromServer();
+  const n = Number(st?.used);
   if (n >= FREE_EMAIL_EXTRACTION_CAP) return { ok: false, reason: 'at_cap' };
   return { ok: true };
 }
@@ -128,6 +129,13 @@ function rowHasExtractedEmail(row) {
   return em.includes('@');
 }
 
+/** @param {string} raw */
+function normalizeEmailCandidate(raw) {
+  const s = String(raw || '').trim().toLowerCase();
+  if (!s.includes('@') || s.startsWith('@') || s.endsWith('@')) return '';
+  return s;
+}
+
 /**
  * Counts unique (username, email) pairs across current leads and all session snapshots.
  * @returns {Promise<number>}
@@ -151,6 +159,84 @@ export async function countUniqueEmailsExtracted() {
     for (const s of sessions) take(s.leads);
   }
   return set.size;
+}
+
+/**
+ * @returns {Promise<Array<{ username: string, email: string }>>}
+ */
+async function localUniqueEmailPairs() {
+  const bag = await chrome.storage.local.get([STORAGE_KEYS.LEADS, STORAGE_KEYS.SESSION_HISTORY]);
+  /** @type {Map<string, { username: string, email: string }>} */
+  const map = new Map();
+  /** @param {unknown[] | undefined} rows */
+  const take = (rows) => {
+    if (!Array.isArray(rows)) return;
+    for (const r of rows) {
+      if (!rowHasExtractedEmail(r)) continue;
+      const username = String(r?.username || '').trim().toLowerCase();
+      const email = normalizeEmailCandidate(String(r?.email || ''));
+      if (!username || !email) continue;
+      const k = `${username}\u0000${email}`;
+      map.set(k, { username, email });
+    }
+  };
+  take(bag[STORAGE_KEYS.LEADS]);
+  const sessions = bag[STORAGE_KEYS.SESSION_HISTORY];
+  if (Array.isArray(sessions)) {
+    for (const s of sessions) take(s?.leads);
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Sync account-level free-tier status from server ledger.
+ * @returns {Promise<{ used: number, cap: number, remaining: number, atCap: boolean } | null>}
+ */
+export async function syncFreeTierStatusFromServer() {
+  const session = await readUserSession();
+  if (!session?.email) return null;
+  if (await readSubscriptionUnlimited()) return null;
+  const base = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim().replace(/\/$/, '') : '';
+  const bearer = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!base || !bearer) return null;
+  try {
+    const pairs = await localUniqueEmailPairs();
+    const r = await fetch(`${base}/v1/free-tier/status`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: session.email, pairs }),
+    });
+    if (!r.ok) return null;
+    const data = await r.json().catch(() => ({}));
+    const out = {
+      used: Math.max(0, Number(data?.used) || 0),
+      cap: Math.max(1, Number(data?.cap) || FREE_EMAIL_EXTRACTION_CAP),
+      remaining: Math.max(0, Number(data?.remaining) || 0),
+      atCap: Boolean(data?.atCap),
+    };
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.FREE_TIER_STATUS]: {
+        ...out,
+        checkedAt: Date.now(),
+        source: 'server_ledger',
+      },
+    });
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Best-effort account usage count. Prefers server-ledger value, falls back to local device estimate.
+ */
+export async function readEffectiveUsageCount() {
+  const st = await syncFreeTierStatusFromServer();
+  if (st && Number.isFinite(st.used)) return st.used;
+  return countUniqueEmailsExtracted();
 }
 
 export function getStripeCheckoutUrl() {

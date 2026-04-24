@@ -702,3 +702,223 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return false;
 });
+
+// --- Floating Instagram CTA: "Extract Leads Now" ---
+let lfOverlayBtn = null;
+let lfOverlayDrag = null;
+let lfOverlayLastPath = '';
+let lfOverlaySparkleTimer = 0;
+
+function lfEnsureOverlayStyles() {
+  if (document.getElementById('lfOverlayCtaStyle')) return;
+  const style = document.createElement('style');
+  style.id = 'lfOverlayCtaStyle';
+  style.textContent = `
+    .lf-overlay-cta {
+      position: fixed;
+      top: 50px;
+      left: calc(50vw + 200px);
+      z-index: 2147483640;
+      border: 1px solid rgba(167, 139, 250, 0.6);
+      border-radius: 999px;
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6 55%, #a78bfa);
+      color: #fff;
+      font: 700 13px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      letter-spacing: 0.01em;
+      padding: 0.55rem 1rem 0.55rem 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-align: left;
+      box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.28),
+        0 0 14px rgba(124, 58, 237, 0.7),
+        0 0 26px rgba(124, 58, 237, 0.45);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: transform 120ms ease, filter 120ms ease, box-shadow 180ms ease;
+      animation: lf-overlay-float 3.8s ease-in-out infinite;
+    }
+    .lf-overlay-cta:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.06);
+      box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.32),
+        0 0 16px rgba(124, 58, 237, 0.78),
+        0 0 32px rgba(124, 58, 237, 0.52);
+    }
+    .lf-overlay-cta:active {
+      transform: translateY(0) scale(0.99);
+    }
+    .lf-overlay-cta[hidden] {
+      display: none !important;
+    }
+    .lf-overlay-cta-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.18);
+      flex: 0 0 auto;
+      pointer-events: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 35% 30%, #a78bfa, #6d28d9 60%, #4c1d95);
+      overflow: hidden;
+    }
+    .lf-overlay-cta-logo svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+    .lf-overlay-cta-text {
+      white-space: pre-line;
+      color: #fff;
+      font: inherit;
+      letter-spacing: inherit;
+      pointer-events: none;
+    }
+    .lf-overlay-sparkle {
+      position: fixed;
+      z-index: 2147483639;
+      border-radius: 999px;
+      background: radial-gradient(circle, #c084fc 0%, #a855f7 60%, rgba(168, 85, 247, 0.1) 100%);
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.68);
+      pointer-events: none;
+      animation: lf-overlay-sparkle-fall 1.8s linear forwards;
+    }
+    @keyframes lf-overlay-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    @keyframes lf-overlay-sparkle-fall {
+      0% { transform: translateY(0) scale(1); opacity: 0.95; }
+      100% { transform: translateY(180px) scale(0.5); opacity: 0; }
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+}
+
+function lfEligibleOverlayPage() {
+  const info = detectPageMode(document.location);
+  return info.mode === 'profile' || info.mode === 'hashtag';
+}
+
+function lfEnsureOverlayButton() {
+  lfEnsureOverlayStyles();
+  if (lfOverlayBtn && lfOverlayBtn.isConnected) return lfOverlayBtn;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'lf-overlay-cta';
+  const logo = document.createElement('span');
+  logo.className = 'lf-overlay-cta-logo';
+  logo.setAttribute('aria-hidden', 'true');
+  logo.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="16.8" text-anchor="middle" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14.6" font-weight="900" fill="#facc15">ML</text></svg>';
+  const label = document.createElement('span');
+  label.className = 'lf-overlay-cta-text';
+  label.textContent = 'MegaLeads AI\nExtract Leads Now';
+  btn.append(logo, label);
+  btn.setAttribute('aria-label', 'Extract leads now');
+  btn.addEventListener('click', () => {
+    if (lfOverlayDrag && lfOverlayDrag.moved) return;
+    chrome.runtime.sendMessage({ type: MSG.OPEN_POPUP }, () => void chrome.runtime.lastError);
+  });
+  btn.addEventListener('pointerdown', (ev) => {
+    lfOverlayDrag = {
+      id: ev.pointerId,
+      startX: ev.clientX,
+      startY: ev.clientY,
+      moved: false,
+      wasRightAnchored: !btn.style.left,
+    };
+    try {
+      btn.setPointerCapture(ev.pointerId);
+    } catch {
+      /* ignore */
+    }
+  });
+  btn.addEventListener('pointermove', (ev) => {
+    if (!lfOverlayDrag || lfOverlayDrag.id !== ev.pointerId) return;
+    const dx = ev.clientX - lfOverlayDrag.startX;
+    const dy = ev.clientY - lfOverlayDrag.startY;
+    if (!lfOverlayDrag.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+    lfOverlayDrag.moved = true;
+    const rect = btn.getBoundingClientRect();
+    const nextLeft = Math.min(Math.max(8, rect.left + dx), Math.max(8, window.innerWidth - rect.width - 8));
+    const nextTop = Math.min(Math.max(8, rect.top + dy), Math.max(8, window.innerHeight - rect.height - 8));
+    btn.style.left = `${nextLeft}px`;
+    btn.style.top = `${nextTop}px`;
+    btn.style.right = 'auto';
+    lfOverlayDrag.startX = ev.clientX;
+    lfOverlayDrag.startY = ev.clientY;
+  });
+  btn.addEventListener('pointerup', (ev) => {
+    if (!lfOverlayDrag || lfOverlayDrag.id !== ev.pointerId) return;
+    try {
+      btn.releasePointerCapture(ev.pointerId);
+    } catch {
+      /* ignore */
+    }
+    setTimeout(() => {
+      lfOverlayDrag = null;
+    }, 0);
+  });
+  document.documentElement.appendChild(btn);
+  lfOverlayBtn = btn;
+  return btn;
+}
+
+function lfRefreshOverlayButton() {
+  const btn = lfEnsureOverlayButton();
+  if (!btn) return;
+  const show = lfEligibleOverlayPage();
+  btn.hidden = !show;
+  if (show && !btn.style.left) {
+    btn.style.top = '50px';
+    btn.style.left = 'calc(50vw + 200px)';
+    btn.style.right = 'auto';
+  }
+}
+
+function lfSpawnOverlaySparkle() {
+  const btn = lfOverlayBtn;
+  if (!btn || btn.hidden) return;
+  const r = btn.getBoundingClientRect();
+  const el = document.createElement('span');
+  el.className = 'lf-overlay-sparkle';
+  const size = 4 + Math.random() * 7;
+  const startX = r.left + r.width * (0.18 + Math.random() * 0.64);
+  const startY = r.bottom - 2 + Math.random() * 8;
+  el.style.left = `${startX}px`;
+  el.style.top = `${startY}px`;
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.animationDuration = `${1.35 + Math.random() * 1.1}s`;
+  document.documentElement.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+
+function lfStartOverlaySparkles() {
+  if (lfOverlaySparkleTimer) return;
+  lfOverlaySparkleTimer = window.setInterval(() => {
+    if (!lfOverlayBtn || lfOverlayBtn.hidden) return;
+    lfSpawnOverlaySparkle();
+    if (Math.random() > 0.42) lfSpawnOverlaySparkle();
+  }, 160);
+}
+
+function lfInitOverlayButton() {
+  lfRefreshOverlayButton();
+  lfStartOverlaySparkles();
+  setInterval(() => {
+    const key = `${document.location.pathname}|${document.location.search}`;
+    if (key === lfOverlayLastPath) return;
+    lfOverlayLastPath = key;
+    lfRefreshOverlayButton();
+  }, 700);
+}
+
+lfInitOverlayButton();

@@ -44,6 +44,9 @@ const FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS = Math.min(
   8,
   Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS) || 2),
 );
+const FREE_EMAIL_EXTRACTION_CAP = 500;
+/** @type {Map<string, Set<string>>} accountEmail -> Set("username\\u0000email") */
+const FREE_TIER_USAGE_LEDGER = new Map();
 
 function logInfo(msg, extra) {
   if (LOG_LEVEL === 'error' || LOG_LEVEL === 'warn') return;
@@ -83,6 +86,71 @@ function requireBearer(req, res, next) {
     return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing bearer token' });
   }
   next();
+}
+
+/** @param {string} email */
+function normalizeAccountEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+/**
+ * @param {string} email
+ * @returns {Set<string>}
+ */
+function usageSetForAccount(email) {
+  const key = normalizeAccountEmail(email);
+  let set = FREE_TIER_USAGE_LEDGER.get(key);
+  if (!set) {
+    set = new Set();
+    FREE_TIER_USAGE_LEDGER.set(key, set);
+  }
+  return set;
+}
+
+/**
+ * @param {string} email
+ * @param {unknown} pairs
+ */
+function mergeUsagePairs(email, pairs) {
+  const key = normalizeAccountEmail(email);
+  if (!key || !Array.isArray(pairs)) return;
+  const set = usageSetForAccount(key);
+  for (const p of pairs) {
+    if (!p || typeof p !== 'object') continue;
+    const u = String(p.username || '').trim().toLowerCase();
+    const em = normalizeEmailCandidate(String(p.email || ''));
+    if (!u || !em) continue;
+    set.add(`${u}\u0000${em}`);
+  }
+}
+
+/**
+ * @param {string} email
+ */
+function freeTierStatusForEmail(email) {
+  const set = usageSetForAccount(email);
+  const used = set.size;
+  const cap = FREE_EMAIL_EXTRACTION_CAP;
+  const remaining = Math.max(0, cap - used);
+  const atCap = used >= cap;
+  return { used, cap, remaining, atCap };
+}
+
+/**
+ * Account-level free-tier usage status.
+ * Optional `pairs` payload lets the extension sync locally observed unique (username,email) pairs.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+function handleFreeTierStatus(req, res) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const email = normalizeAccountEmail(typeof body.email === 'string' ? body.email : '');
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'bad_request', message: 'Valid email is required.' });
+  }
+  mergeUsagePairs(email, body.pairs);
+  const status = freeTierStatusForEmail(email);
+  return res.json({ ...status, source: 'server_ledger' });
 }
 
 /**
@@ -1501,6 +1569,7 @@ function main() {
   app.post('/v1/leads/enrich', requireBearer, (req, res, next) => {
     handleEnrich(req, res).catch(next);
   });
+  app.post('/v1/free-tier/status', requireBearer, handleFreeTierStatus);
   app.post('/v1/josh/chat', requireBearer, (req, res, next) => {
     handleJoshChat(req, res).catch(next);
   });

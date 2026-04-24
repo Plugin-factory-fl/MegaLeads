@@ -13,6 +13,7 @@ import {
   readUserSession,
   clearUserSession,
   countUniqueEmailsExtracted,
+  readEffectiveUsageCount,
   openStripeCheckoutInNewTab,
   openManageSubscriptionInNewTab,
   canStartExtractionForFreeTier,
@@ -2121,15 +2122,24 @@ async function refreshDashboardCapBanner() {
 
 async function refreshDashboardHeaderProgress() {
   const wrap = document.getElementById('lfDashboardHeaderProgressWrap');
+  const paidTitle = document.getElementById('lfDashboardPaidTitle');
   const label = document.getElementById('lfDashboardFreeTierLabel');
   const countEl = document.getElementById('lfDashboardHeaderProgressCount');
   const fill = document.getElementById('lfDashboardHeaderProgressFill');
   const bar = document.getElementById('lfDashboardHeaderProgressBar');
   const upgradeBtn = els.dashboardUpgrade || document.getElementById('lfDashboardUpgrade');
+  const crown = document.getElementById('lfDashboardAccountCrown');
+  const joshCrown = document.getElementById('lfJoshCrown');
   if (!wrap || !countEl || !fill || !bar) return;
   const unlimited = await readSubscriptionUnlimited();
   if (unlimited) {
     wrap.hidden = true;
+    if (paidTitle) {
+      paidTitle.hidden = false;
+      paidTitle.textContent = t(uiLocale, 'dashboard.unlimitedIgEmailExtraction');
+    }
+    if (crown) crown.hidden = false;
+    if (joshCrown) joshCrown.hidden = false;
     if (upgradeBtn instanceof HTMLElement) {
       upgradeBtn.hidden = true;
       upgradeBtn.style.display = 'none';
@@ -2139,6 +2149,9 @@ async function refreshDashboardHeaderProgress() {
   const session = await readUserSession();
   if (!session) {
     wrap.hidden = true;
+    if (paidTitle) paidTitle.hidden = true;
+    if (crown) crown.hidden = true;
+    if (joshCrown) joshCrown.hidden = true;
     if (upgradeBtn instanceof HTMLElement) {
       upgradeBtn.hidden = false;
       upgradeBtn.style.display = '';
@@ -2149,10 +2162,13 @@ async function refreshDashboardHeaderProgress() {
     upgradeBtn.hidden = false;
     upgradeBtn.style.display = '';
   }
+  if (paidTitle) paidTitle.hidden = true;
+  if (crown) crown.hidden = true;
+  if (joshCrown) joshCrown.hidden = true;
   wrap.hidden = false;
   if (label) label.textContent = t(uiLocale, 'dashboard.freeTierEmailsLabel');
   wrap.setAttribute('aria-label', t(uiLocale, 'dashboard.headerProgressAria'));
-  const count = await countUniqueEmailsExtracted();
+  const count = await readEffectiveUsageCount();
   const cap = FREE_EMAIL_EXTRACTION_CAP;
   bar.classList.remove('is-at-cap', 'is-unlimited');
   const pct = Math.min(100, (count / cap) * 100);
@@ -2233,7 +2249,7 @@ async function openUsageAccountModal() {
   if (titleEl) titleEl.textContent = t(L, 'dashboard.accountUsageTitle');
   if (cntEl) {
     cntEl.hidden = false;
-    const count = await countUniqueEmailsExtracted();
+    const count = await readEffectiveUsageCount();
     cntEl.textContent = tf(L, 'dashboard.accountUsageCount', { count });
     const cap = FREE_EMAIL_EXTRACTION_CAP;
     const pct = Math.min(100, (count / cap) * 100);

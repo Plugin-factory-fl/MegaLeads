@@ -21,6 +21,8 @@ export const MSG = {
   LF_LEADS_REMOTE_ENRICH: 'LF_LEADS_REMOTE_ENRICH',
   /** Dashboard → background: Josh Q&A chat (proxied to Render). */
   LF_JOSH_CHAT: 'LF_JOSH_CHAT',
+  /** Content overlay CTA → background: open extension popup (or fallback tab). */
+  OPEN_POPUP: 'LF_OPEN_POPUP',
 };
 
 /** @type {const} */
@@ -43,6 +45,8 @@ export const STORAGE_KEYS = {
   USER_SESSION: 'leadflow_user_session',
   /** `{ unlimited: true }` when the user has an active paid plan (set by app / future server sync). */
   SUBSCRIPTION: 'leadflow_subscription',
+  /** `{ used, cap, remaining, atCap, checkedAt, source }` from server account-level free-tier status. */
+  FREE_TIER_STATUS: 'leadflow_free_tier_status',
   /** Popup → dashboard: show usage modal (`'usage'`); consumed when dashboard handles it. */
   DASHBOARD_PENDING_ACCOUNT: 'leadflow_dashboard_pending_account',
   /**

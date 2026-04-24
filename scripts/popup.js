@@ -24,6 +24,7 @@ import {
   writeUserSession,
   FREE_EMAIL_EXTRACTION_CAP,
   countUniqueEmailsExtracted,
+  readEffectiveUsageCount,
   readSubscriptionUnlimited,
   clearUserSession,
   syncSubscriptionFromServer,
@@ -185,6 +186,8 @@ function applyPopupLocale() {
   syncPopupAccountUsageModalLocale();
   const freeLab = document.getElementById('lfPopupFreeTierLabel');
   if (freeLab) freeLab.textContent = t(L, 'popup.freeTierEmailsLabel');
+  const paidTitle = document.getElementById('lfPopupPaidTitle');
+  if (paidTitle) paidTitle.textContent = t(L, 'popup.unlimitedIgEmailExtraction');
   const dismiss = document.getElementById('lfLoginToastDismiss');
   if (dismiss) dismiss.setAttribute('aria-label', t(L, 'popup.loginToastDismissAria'));
   syncPopupAuthModalLocale();
@@ -667,7 +670,7 @@ async function openPopupAccountUsageModal() {
   if (titleEl) titleEl.textContent = t(L, 'dashboard.accountUsageTitle');
   if (cntEl) {
     cntEl.hidden = false;
-    const count = await countUniqueEmailsExtracted();
+    const count = await readEffectiveUsageCount();
     const cap = FREE_EMAIL_EXTRACTION_CAP;
     const pct = Math.min(100, (count / cap) * 100);
     cntEl.textContent = tf(L, 'dashboard.accountUsageCount', { count });
@@ -821,15 +824,22 @@ function wirePopupAuthModals() {
 
 async function refreshPopupHeaderProgress() {
   const wrap = document.getElementById('lfPopupHeaderProgressWrap');
+  const paidTitle = document.getElementById('lfPopupPaidTitle');
   const label = document.getElementById('lfPopupFreeTierLabel');
   const countEl = document.getElementById('lfPopupHeaderProgressCount');
   const fill = document.getElementById('lfPopupHeaderProgressFill');
   const bar = document.getElementById('lfPopupHeaderProgressBar');
   const upgradeBtn = document.getElementById('lfUpgrade');
+  const crown = document.getElementById('lfPopupAccountCrown');
   if (!wrap || !countEl || !fill || !bar) return;
   const unlimited = await readSubscriptionUnlimited();
   if (unlimited) {
     wrap.hidden = true;
+    if (paidTitle) {
+      paidTitle.hidden = false;
+      paidTitle.textContent = t(uiLocale, 'popup.unlimitedIgEmailExtraction');
+    }
+    if (crown) crown.hidden = false;
     if (upgradeBtn instanceof HTMLElement) {
       upgradeBtn.hidden = true;
       upgradeBtn.style.display = 'none';
@@ -839,6 +849,8 @@ async function refreshPopupHeaderProgress() {
   const session = await readUserSession();
   if (!session) {
     wrap.hidden = true;
+    if (paidTitle) paidTitle.hidden = true;
+    if (crown) crown.hidden = true;
     if (upgradeBtn instanceof HTMLElement) {
       upgradeBtn.hidden = false;
       upgradeBtn.style.display = '';
@@ -849,10 +861,12 @@ async function refreshPopupHeaderProgress() {
     upgradeBtn.hidden = false;
     upgradeBtn.style.display = '';
   }
+  if (paidTitle) paidTitle.hidden = true;
+  if (crown) crown.hidden = true;
   wrap.hidden = false;
   if (label) label.textContent = t(uiLocale, 'popup.freeTierEmailsLabel');
   wrap.setAttribute('aria-label', t(uiLocale, 'popup.headerProgressAria'));
-  const count = await countUniqueEmailsExtracted();
+  const count = await readEffectiveUsageCount();
   const cap = FREE_EMAIL_EXTRACTION_CAP;
   bar.classList.remove('is-at-cap', 'is-unlimited');
   const pct = Math.min(100, (count / cap) * 100);

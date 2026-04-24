@@ -39,6 +39,7 @@ const MSG = {
   /** Optional-permission SW fetch for bio / link-in-bio HTML (Linktree, etc.). */
   HTTP_TEXT_FETCH: 'LF_HTTP_TEXT_FETCH',
   GET_PAGE_CONTEXT: 'LF_GET_PAGE_CONTEXT',
+  OPEN_POPUP: 'LF_OPEN_POPUP',
 };
 
 const STORAGE_KEYS = {
