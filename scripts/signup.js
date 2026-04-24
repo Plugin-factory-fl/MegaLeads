@@ -3,7 +3,7 @@
  */
 
 import { STORAGE_KEYS } from './constants.js';
-import { writeUserSession } from './account-shared.js';
+import { writeUserSession, syncSubscriptionFromServer } from './account-shared.js';
 import { t } from './i18n.js';
 
 const $ = (id) => {
@@ -204,6 +204,7 @@ async function init() {
     }
     try {
       await writeUserSession(email);
+      await syncSubscriptionFromServer();
       await afterAuthSuccess();
     } catch (e) {
       showCreateError(String(e?.message || e || 'Error'));
@@ -221,6 +222,7 @@ async function init() {
     }
     try {
       await writeUserSession(email);
+      await syncSubscriptionFromServer();
       await afterAuthSuccess();
     } catch (e) {
       showSigninError(String(e?.message || e || 'Error'));

@@ -51,6 +51,45 @@ export async function readSubscriptionUnlimited() {
 }
 
 /**
+ * Refresh paid status from server for current signed-in email.
+ * Stores result in STORAGE_KEYS.SUBSCRIPTION.
+ * @returns {Promise<boolean>} latest unlimited flag
+ */
+export async function syncSubscriptionFromServer() {
+  const session = await readUserSession();
+  if (!session?.email) {
+    await chrome.storage.local.remove(STORAGE_KEYS.SUBSCRIPTION);
+    return false;
+  }
+  const base = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim().replace(/\/$/, '') : '';
+  const bearer = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!base || !bearer) return readSubscriptionUnlimited();
+  try {
+    const r = await fetch(`${base}/v1/stripe/subscription-status`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: session.email }),
+    });
+    if (!r.ok) return readSubscriptionUnlimited();
+    const data = await r.json().catch(() => ({}));
+    const sub = {
+      unlimited: Boolean(data?.unlimited),
+      status: typeof data?.status === 'string' ? data.status : '',
+      email: session.email,
+      checkedAt: Date.now(),
+      source: 'server',
+    };
+    await chrome.storage.local.set({ [STORAGE_KEYS.SUBSCRIPTION]: sub });
+    return Boolean(sub.unlimited);
+  } catch {
+    return readSubscriptionUnlimited();
+  }
+}
+
+/**
  * @returns {Promise<{ ok: true } | { ok: false, reason: 'needs_account' | 'at_cap' }>}
  */
 export async function canStartExtractionForFreeTier() {

@@ -146,6 +146,56 @@ export async function handleStripeCheckoutSession(req, res) {
 }
 
 /**
+ * Returns paid status for a customer email by checking Stripe subscriptions.
+ * Paid = any subscription in `active` or `trialing`.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+export async function handleStripeSubscriptionStatus(req, res) {
+  if (!stripe) {
+    return res.status(503).json({
+      error: 'stripe_misconfigured',
+      message: 'Set STRIPE_SECRET_KEY on the server.',
+    });
+  }
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'bad_request', message: 'Valid email is required.' });
+  }
+  try {
+    const customers = await stripe.customers.list({ email, limit: 20 });
+    const customerIds = customers.data.map((c) => c.id).filter(Boolean);
+    if (!customerIds.length) {
+      return res.json({ unlimited: false, status: 'none', source: 'stripe' });
+    }
+    let unlimited = false;
+    let status = 'none';
+    for (const customer of customerIds) {
+      const subs = await stripe.subscriptions.list({ customer, limit: 100, status: 'all' });
+      for (const sub of subs.data) {
+        const st = String(sub.status || '').toLowerCase();
+        if (st === 'active' || st === 'trialing') {
+          unlimited = true;
+          status = st;
+          break;
+        }
+        if (status === 'none' && st) status = st;
+      }
+      if (unlimited) break;
+    }
+    return res.json({ unlimited, status, source: 'stripe' });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logWarn('subscription_status_failed', { err: msg });
+    return res.status(502).json({
+      error: 'stripe_subscription_lookup_failed',
+      message: 'Could not verify subscription status.',
+    });
+  }
+}
+
+/**
  * Raw body route — must be registered before express.json().
  * @param {import('express').Request} req
  * @param {import('express').Response} res

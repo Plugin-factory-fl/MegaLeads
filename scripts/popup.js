@@ -26,6 +26,7 @@ import {
   countUniqueEmailsExtracted,
   readSubscriptionUnlimited,
   clearUserSession,
+  syncSubscriptionFromServer,
 } from './account-shared.js';
 
 /** @typedef {'en'} Locale */
@@ -604,6 +605,7 @@ async function completePopupAuthSuccess(email) {
       at: Date.now(),
     },
   });
+  await syncSubscriptionFromServer();
   await refreshPopupGates();
   await refreshPopupHeaderProgress();
   void maybeShowLoginToast();
@@ -825,6 +827,12 @@ async function refreshPopupHeaderProgress() {
   countEl.textContent = tf(uiLocale, 'popup.headerEmailsProgress', { count, cap });
   fill.style.width = `${pct}%`;
   if (count >= cap) bar.classList.add('is-at-cap');
+}
+
+async function refreshSubscriptionForSession() {
+  const session = await readUserSession();
+  if (!session) return;
+  void syncSubscriptionFromServer();
 }
 
 function hideLoginToast() {
@@ -1130,6 +1138,7 @@ async function init() {
   wireEvents();
 
   await reconcileRunningStateFromStorage();
+  await refreshSubscriptionForSession();
   await refreshPopupGates();
   await refreshPopupHeaderProgress();
   await maybeShowLoginToast();

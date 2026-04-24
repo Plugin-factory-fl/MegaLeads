@@ -16,6 +16,7 @@ import {
   openStripeCheckoutInNewTab,
   canStartExtractionForFreeTier,
   readSubscriptionUnlimited,
+  syncSubscriptionFromServer,
 } from './account-shared.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { extractEmailPhoneFromParts } from './selectors.js';
@@ -2472,6 +2473,7 @@ async function init() {
     await redirectToSignupFromDashboard();
     return;
   }
+  void syncSubscriptionFromServer();
 
   bindEls();
   await loadPrefsUi();

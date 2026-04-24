@@ -9,6 +9,7 @@ import {
   attachStripeWebhookRoute,
   handleStripeCheckoutSession,
   handleStripeCheckoutReturn,
+  handleStripeSubscriptionStatus,
 } from './stripe.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -1505,6 +1506,9 @@ function main() {
   app.get('/v1/stripe/checkout-return', handleStripeCheckoutReturn);
   app.post('/v1/stripe/checkout-session', requireBearer, (req, res, next) => {
     handleStripeCheckoutSession(req, res).catch(next);
+  });
+  app.post('/v1/stripe/subscription-status', requireBearer, (req, res, next) => {
+    handleStripeSubscriptionStatus(req, res).catch(next);
   });
 
   app.use((err, _req, res, _next) => {
