@@ -9,19 +9,38 @@
   </head>
   <body class="lf-ui lf-dashboard">
     <div class="lf-app">
-      <header class="lf-header">
-        <div class="lf-header-main">
+      <header class="lf-header lf-dashboard-header">
+        <div class="lf-header-main lf-dashboard-header-logo">
           <img
-            class="lf-logo lf-logo-theme"
+            class="lf-logo lf-logo-theme lf-dashboard-header-logo-img"
             src="Assets/logo2.png"
             data-logo-light="Assets/logo2.png"
             data-logo-dark="Assets/logo3.png"
             alt="MegaLeadsAI"
-            width="202"
-            height="46"
+            width="323"
+            height="74"
           />
         </div>
-        <div class="lf-header-actions" role="toolbar" aria-label="Account and theme">
+        <div class="lf-header-email-progress" id="lfDashboardHeaderProgressWrap" hidden role="group">
+          <p class="lf-header-email-progress-label" id="lfDashboardFreeTierLabel"></p>
+          <div class="lf-header-email-progress-top">
+            <span class="lf-header-email-progress-count" id="lfDashboardHeaderProgressCount"></span>
+          </div>
+          <div class="lf-header-email-progress-bar" id="lfDashboardHeaderProgressBar" aria-hidden="true">
+            <div class="lf-header-email-progress-fill" id="lfDashboardHeaderProgressFill"></div>
+          </div>
+        </div>
+        <div class="lf-header-actions" role="toolbar" aria-label="Get Infinite Emails, account, and theme">
+          <button
+            type="button"
+            class="lf-btn lf-btn-ghost lf-btn-upgrade-popup"
+            id="lfDashboardUpgrade"
+            aria-label="Get Infinite Emails (Stripe checkout)"
+            title="Get Infinite Emails"
+          >
+            <span class="lf-upgrade-icon" aria-hidden="true">◇</span>
+            <span class="lf-upgrade-label">Get Infinite Emails</span>
+          </button>
           <button
             type="button"
             class="lf-btn lf-btn-ghost lf-btn-icon lf-account-btn"
@@ -74,7 +93,6 @@
           <button type="button" class="lf-btn lf-btn-primary" id="lfAiEnrich"></button>
         </div>
         <p class="lf-ai-panel-status" id="lfAiStatus" aria-live="polite"></p>
-        <p class="lf-ai-panel-hint" id="lfSheetsHint" hidden></p>
       </section>
 
       <div class="lf-session-bar" id="lfSessionBar">
@@ -94,9 +112,12 @@
             hidden
             >Open source page on Instagram</a>
         </div>
-        <button type="button" class="lf-btn lf-btn-primary lf-session-stop" id="lfDashboardStop">
-          Start extraction
-        </button>
+        <div class="lf-session-aside">
+          <p class="lf-session-running-note" id="lfSessionRunningNote" hidden></p>
+          <button type="button" class="lf-btn lf-btn-primary lf-session-stop" id="lfDashboardStop">
+            Start extraction
+          </button>
+        </div>
       </div>
 
       <div class="lf-progress-wrap">
@@ -133,9 +154,10 @@
         <input type="search" id="lfFilter" placeholder="Filter by username, bio, email, phone, or website…" />
         <button type="button" class="lf-btn lf-btn-ghost" id="lfCopy">Copy selected</button>
         <button type="button" class="lf-btn lf-btn-ghost" id="lfExportProfiles">Export profiles to Excel</button>
-        <button type="button" class="lf-btn lf-btn-ghost" id="lfExportEmails">Export emails to Excel</button>
-        <button type="button" class="lf-btn lf-btn-ghost" id="lfOpenSheets">Google Sheets</button>
-        <button type="button" class="lf-btn lf-btn-ghost" id="lfClear">Clear list</button>
+        <button type="button" class="lf-btn lf-btn-ghost lf-btn-export-emails" id="lfExportEmails">
+          Export emails to Excel
+        </button>
+        <button type="button" class="lf-btn lf-btn-ghost lf-btn-clear-list" id="lfClear">Clear list</button>
       </div>
 
       <div class="lf-table-wrap">
@@ -156,6 +178,25 @@
       </div>
 
       <footer class="lf-footer">Created by MegaMix AI, LLC</footer>
+    </div>
+
+    <div class="lf-modal-backdrop lf-export-format-wrap" id="lfExportFormatWrap" hidden>
+      <div
+        class="lf-modal-card lf-export-format-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lfExportFormatTitle"
+      >
+        <h3 class="lf-modal-title" id="lfExportFormatTitle"></h3>
+        <p class="lf-account-modal-desc" id="lfExportFormatHint"></p>
+        <div class="lf-export-format-actions">
+          <button type="button" class="lf-btn lf-btn-primary" id="lfExportFormatXlsx"></button>
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfExportFormatCsv"></button>
+        </div>
+        <div class="lf-account-modal-actions lf-export-format-footer">
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfExportFormatCancel"></button>
+        </div>
+      </div>
     </div>
 
     <div class="lf-modal-backdrop lf-account-modal-wrap" id="lfAccountUsageWrap" hidden>
@@ -191,7 +232,7 @@
 
     <div class="lf-ai-summary-wrap" id="lfAiSummaryWrap" hidden>
       <div class="lf-ai-summary-card" role="dialog" aria-modal="true" aria-labelledby="lfAiSummaryTitle">
-        <h3 class="lf-ai-summary-title" id="lfAiSummaryTitle">AI Enrichment Summary</h3>
+        <h3 class="lf-ai-summary-title" id="lfAiSummaryTitle">Summary</h3>
         <p class="lf-ai-summary-line" id="lfAiSummaryScraped"></p>
         <p class="lf-ai-summary-line" id="lfAiSummaryAdded"></p>
         <p class="lf-ai-summary-improved" id="lfAiSummaryImproved"></p>

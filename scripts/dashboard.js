@@ -2,7 +2,12 @@
  * MegaLeads - full-tab dashboard: progress, log, results (controls in popup).
  */
 
-import { MSG, STORAGE_KEYS, REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP } from './constants.js';
+import {
+  MSG,
+  STORAGE_KEYS,
+  REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP,
+  SESSION_HISTORY_LIMIT,
+} from './constants.js';
 import {
   FREE_EMAIL_EXTRACTION_CAP,
   readUserSession,
@@ -10,6 +15,7 @@ import {
   countUniqueEmailsExtracted,
   openStripeCheckoutInNewTab,
   canStartExtractionForFreeTier,
+  readSubscriptionUnlimited,
 } from './account-shared.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { extractEmailPhoneFromParts } from './selectors.js';
@@ -20,7 +26,7 @@ const ENRICH_BATCH_SIZE = 40;
 
 async function redirectToSignupFromDashboard() {
   await chrome.storage.local.set({
-    [STORAGE_KEYS.SIGNUP_RETURN]: { url: chrome.runtime.getURL('dashboard.html') },
+    [STORAGE_KEYS.SIGNUP_RETURN]: { mode: 'dashboard_same_tab' },
   });
   window.location.replace(chrome.runtime.getURL('signup.html'));
 }
@@ -105,12 +111,11 @@ const els = {
   aiExcludeFake: null,
   aiExcludeFakeLabel: null,
   aiSummaryWrap: null,
+  aiSummaryTitle: null,
   aiSummaryScraped: null,
   aiSummaryAdded: null,
   aiSummaryImproved: null,
   aiSummaryOk: null,
-  sheetsHint: null,
-  openSheets: null,
   joshAvatar: null,
   joshThoughtWrap: null,
   joshThoughtSimple: null,
@@ -122,6 +127,7 @@ const els = {
   joshThoughtChatSend: null,
   joshAvatarHelp: null,
   dashboardAccountBtn: null,
+  dashboardUpgrade: null,
 };
 
 /** @type {Lead[]} */
@@ -137,6 +143,9 @@ let joshSending = false;
 let joshBubbleIndex = -1;
 const JOSH_BUBBLE_ROTATE_MS = 15000;
 
+/** @type {'profiles' | 'emails' | null} */
+let pendingExportKind = null;
+
 function bindEls() {
   els.progressBar = $('lfProgressBar');
   els.progressFill = $('lfProgressFill');
@@ -151,6 +160,7 @@ function bindEls() {
   els.exportEmails = $('lfExportEmails');
   els.themeToggle = $('lfThemeToggle');
   els.dashboardAccountBtn = $('lfDashboardAccountBtn');
+  els.dashboardUpgrade = document.getElementById('lfDashboardUpgrade');
   els.sessionBar = document.getElementById('lfSessionBar');
   els.sessionTarget = document.getElementById('lfSessionTarget');
   els.sessionMode = document.getElementById('lfSessionMode');
@@ -176,12 +186,11 @@ function bindEls() {
   els.aiExcludeFake = document.getElementById('lfAiExcludeFake');
   els.aiExcludeFakeLabel = document.getElementById('lfAiExcludeFakeLabel');
   els.aiSummaryWrap = document.getElementById('lfAiSummaryWrap');
+  els.aiSummaryTitle = document.getElementById('lfAiSummaryTitle');
   els.aiSummaryScraped = document.getElementById('lfAiSummaryScraped');
   els.aiSummaryAdded = document.getElementById('lfAiSummaryAdded');
   els.aiSummaryImproved = document.getElementById('lfAiSummaryImproved');
   els.aiSummaryOk = document.getElementById('lfAiSummaryOk');
-  els.sheetsHint = document.getElementById('lfSheetsHint');
-  els.openSheets = document.getElementById('lfOpenSheets');
   els.joshAvatar = document.getElementById('lfJoshAvatar');
   els.joshThoughtWrap = document.getElementById('lfJoshThoughtWrap');
   els.joshThoughtSimple = document.getElementById('lfJoshThoughtSimple');
@@ -209,7 +218,10 @@ function setSessionRunToggleButton(which) {
     els.sessionStop.classList.remove('lf-btn-danger');
     els.sessionStop.classList.add('lf-btn-primary');
   }
-  if (which !== 'stop') void refreshDashboardCapBanner();
+  if (which !== 'stop') {
+    void refreshDashboardCapBanner();
+    void refreshDashboardHeaderProgress();
+  }
 }
 
 /** @param {Record<string, unknown> | undefined} rs */
@@ -427,6 +439,79 @@ async function savePrefsUi() {
   });
 }
 
+function syncExportFormatModalStrings() {
+  const L = uiLocale;
+  const hint = document.getElementById('lfExportFormatHint');
+  if (hint) hint.textContent = t(L, 'dashboard.exportFormatHint');
+  const x = document.getElementById('lfExportFormatXlsx');
+  if (x) x.textContent = t(L, 'dashboard.exportFormatXlsxBtn');
+  const c = document.getElementById('lfExportFormatCsv');
+  if (c) c.textContent = t(L, 'dashboard.exportFormatCsvBtn');
+  const cancel = document.getElementById('lfExportFormatCancel');
+  if (cancel) cancel.textContent = t(L, 'dashboard.exportFormatCancel');
+  const title = document.getElementById('lfExportFormatTitle');
+  if (title) {
+    if (pendingExportKind === 'emails') title.textContent = t(L, 'dashboard.exportFormatTitleEmails');
+    else if (pendingExportKind === 'profiles') title.textContent = t(L, 'dashboard.exportFormatTitleProfiles');
+    else title.textContent = t(L, 'dashboard.exportFormatTitleProfiles');
+  }
+}
+
+function tryOpenExportFormatModal(/** @type {'profiles'|'emails'} */ kind) {
+  const rows = getSelectedRows();
+  const active = getActiveLeads();
+  if (kind === 'profiles') {
+    const target = rows.length ? rows : active;
+    if (!target.length) {
+      appendStatusLine(t(uiLocale, 'dashboard.nothingExport'));
+      return;
+    }
+  } else {
+    const base = rows.length ? rows : active;
+    const target = base.filter((r) => String(r.email || '').trim().length > 0);
+    if (!target.length) {
+      appendStatusLine(t(uiLocale, 'dashboard.nothingExportEmails'));
+      return;
+    }
+  }
+  openExportFormatModal(kind);
+}
+
+function openExportFormatModal(/** @type {'profiles'|'emails'} */ kind) {
+  pendingExportKind = kind;
+  syncExportFormatModalStrings();
+  const wrap = document.getElementById('lfExportFormatWrap');
+  if (wrap) wrap.hidden = false;
+}
+
+function closeExportFormatModal() {
+  pendingExportKind = null;
+  const wrap = document.getElementById('lfExportFormatWrap');
+  if (wrap) wrap.hidden = true;
+}
+
+async function runPendingExport(/** @type {'xlsx'|'csv'} */ format) {
+  const kind = pendingExportKind;
+  if (!kind) return;
+  closeExportFormatModal();
+  if (kind === 'emails') await doExportEmails(format);
+  else await doExportProfiles(format);
+}
+
+function wireExportFormatModal() {
+  const wrap = document.getElementById('lfExportFormatWrap');
+  if (wrap) {
+    wrap.addEventListener('click', (ev) => {
+      if (ev.target === wrap) closeExportFormatModal();
+    });
+    const card = wrap.querySelector('.lf-export-format-card');
+    if (card) card.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+  document.getElementById('lfExportFormatCancel')?.addEventListener('click', () => closeExportFormatModal());
+  document.getElementById('lfExportFormatXlsx')?.addEventListener('click', () => void runPendingExport('xlsx'));
+  document.getElementById('lfExportFormatCsv')?.addEventListener('click', () => void runPendingExport('csv'));
+}
+
 function applyDashboardLocale() {
   const L = uiLocale;
   document.documentElement.lang = 'en';
@@ -439,6 +524,14 @@ function applyDashboardLocale() {
     els.langToggle.setAttribute('aria-label', t(L, 'dashboard.langSwitchToEn'));
   }
   syncThemeToggleUi();
+  const dashFree = document.getElementById('lfDashboardFreeTierLabel');
+  if (dashFree) dashFree.textContent = t(L, 'dashboard.freeTierEmailsLabel');
+  if (els.dashboardUpgrade) {
+    els.dashboardUpgrade.setAttribute('title', t(L, 'dashboard.getInfiniteEmails'));
+    els.dashboardUpgrade.setAttribute('aria-label', t(L, 'dashboard.ariaGetInfiniteEmails'));
+    const lab = els.dashboardUpgrade.querySelector('.lf-upgrade-label');
+    if (lab) lab.textContent = t(L, 'dashboard.getInfiniteEmails');
+  }
   const hint = document.getElementById('lfDashboardHint');
   if (hint) hint.textContent = t(L, 'dashboard.hint');
   const historyLab = document.getElementById('lfHistoryLabel');
@@ -457,7 +550,9 @@ function applyDashboardLocale() {
   if (els.aiFetchUrlLabel) els.aiFetchUrlLabel.textContent = t(L, 'dashboard.aiFetchUrlToggle');
   if (els.aiExcludeFakeLabel) els.aiExcludeFakeLabel.textContent = t(L, 'dashboard.aiExcludeFakeToggle');
   if (els.aiEnrich) els.aiEnrich.textContent = t(L, 'dashboard.aiEnrichRun');
-  if (els.openSheets) els.openSheets.textContent = t(L, 'dashboard.openSheets');
+  syncExportFormatModalStrings();
+  const runNote = document.getElementById('lfSessionRunningNote');
+  if (runNote && running) runNote.textContent = t(L, 'dashboard.sessionRunningNote');
 
   const thMap = {
     username: 'dashboard.thUser',
@@ -480,6 +575,7 @@ function applyDashboardLocale() {
   renderTable();
   if (running) setRunningUi(true);
   syncAccountModalLocale();
+  void refreshDashboardHeaderProgress();
 }
 
 async function loadPrefsUi() {
@@ -493,6 +589,11 @@ function setRunningUi(on) {
   running = on;
   const L = uiLocale;
   els.progressBar.classList.toggle('lf-active', on);
+  const runNote = document.getElementById('lfSessionRunningNote');
+  if (runNote) {
+    runNote.hidden = !on;
+    if (on) runNote.textContent = t(L, 'dashboard.sessionRunningNote');
+  }
   if (!on) {
     els.progressBar.classList.remove('lf-progress-determinate');
     els.progressFill.style.width = '100%';
@@ -962,14 +1063,35 @@ function countRowsWithEmail(rows) {
 
 function closeAiSummaryModal() {
   if (els.aiSummaryWrap) els.aiSummaryWrap.hidden = true;
+  if (els.aiSummaryScraped) els.aiSummaryScraped.hidden = false;
+  if (els.aiSummaryAdded) els.aiSummaryAdded.hidden = false;
 }
 
 function showAiSummaryModal(scrapedCount, afterCount) {
   if (!els.aiSummaryWrap || !els.aiSummaryScraped || !els.aiSummaryAdded || !els.aiSummaryImproved) return;
+  const L = uiLocale;
+  if (els.aiSummaryTitle) els.aiSummaryTitle.textContent = t(L, 'dashboard.aiSummaryTitle');
+  if (els.aiSummaryOk) els.aiSummaryOk.textContent = t(L, 'dashboard.extractionSummaryOk');
+  els.aiSummaryScraped.hidden = false;
+  els.aiSummaryAdded.hidden = false;
+  els.aiSummaryImproved.hidden = false;
   const added = Math.max(0, Number(afterCount) - Number(scrapedCount));
-  els.aiSummaryScraped.textContent = `Emails extracted by scraping: ${scrapedCount}`;
-  els.aiSummaryAdded.textContent = `Emails added after AI enrichment: ${added}`;
-  els.aiSummaryImproved.textContent = `AI has improved your email list by ${added} emails`;
+  els.aiSummaryScraped.textContent = tf(L, 'dashboard.aiSummaryScrapedLine', { n: scrapedCount });
+  els.aiSummaryAdded.textContent = tf(L, 'dashboard.aiSummaryAddedLine', { n: added });
+  els.aiSummaryImproved.textContent = tf(L, 'dashboard.aiSummaryImprovedLine', { n: added });
+  els.aiSummaryWrap.hidden = false;
+}
+
+/** @param {number} emailCount rows with a non-empty email address */
+function showExtractionSummaryModal(emailCount) {
+  if (!els.aiSummaryWrap || !els.aiSummaryImproved) return;
+  const L = uiLocale;
+  if (els.aiSummaryTitle) els.aiSummaryTitle.textContent = t(L, 'dashboard.extractionSummaryTitle');
+  if (els.aiSummaryOk) els.aiSummaryOk.textContent = t(L, 'dashboard.extractionSummaryOk');
+  if (els.aiSummaryScraped) els.aiSummaryScraped.hidden = true;
+  if (els.aiSummaryAdded) els.aiSummaryAdded.hidden = true;
+  els.aiSummaryImproved.hidden = false;
+  els.aiSummaryImproved.textContent = tf(L, 'dashboard.extractionSummaryJoshLine', { n: emailCount });
   els.aiSummaryWrap.hidden = false;
 }
 
@@ -1417,15 +1539,133 @@ async function applyJoshActions(actions) {
     if (type === 'export') {
       const kind = String(a.kind || '').toLowerCase();
       if (kind === 'emails') {
-        await exportExcelEmails();
+        await doExportEmails('xlsx');
         notes.push('exported emails');
       } else {
-        await exportExcelProfiles();
+        await doExportProfiles('xlsx');
         notes.push('exported profiles');
       }
     }
   }
   return notes;
+}
+
+/**
+ * Remote LLM + optional FETCH_URL enrich; merges into `leads` storage.
+ * @param {Lead[]} list
+ * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean, excludeFakeEmails?: boolean }} options
+ * @returns {Promise<{ scrapedEmailCount: number, finalEmailCount: number }>}
+ */
+async function runRemoteEnrichOnList(list, options) {
+  const scrapedEmailCount = countRowsWithEmail(list);
+  const batches = chunkArray(list, ENRICH_BATCH_SIZE);
+  aiTrace('pipeline_config', {
+    leads: list.length,
+    batches: batches.length,
+    scrapedEmailCount,
+    options,
+  });
+  const byKey = new Map(list.map((r) => [r.username.toLowerCase(), { ...normalizeStoredLead(r) }]));
+  for (let i = 0; i < batches.length; i++) {
+    aiTrace('batch_loop_start', { batchIndex: i + 1, batchTotal: batches.length, size: batches[i].length });
+    setAiStatus(tf(uiLocale, 'dashboard.aiEnriching', { cur: i + 1, tot: batches.length }));
+    const dtos = batches[i].map(leadToEnrichDto);
+    const returned = await processRemoteEnrichBatch(dtos, options);
+    aiTrace('batch_loop_response', { batchIndex: i + 1, returned: returned.length });
+    for (const row of returned) {
+      if (!row || typeof row !== 'object') continue;
+      const k = String(row.username || '').toLowerCase();
+      if (!byKey.has(k)) continue;
+      const cur = byKey.get(k);
+      byKey.set(k, mergeLeadFromEnrich(cur, /** @type {Record<string, unknown>} */ (row)));
+    }
+  }
+  const order = list.map((r) => r.username.toLowerCase());
+  const updatedSubset = order.map((k) => byKey.get(k)).filter(Boolean).map(normalizeStoredLead);
+  leads = updatedSubset;
+  await chrome.storage.local.set({ [STORAGE_KEYS.LEADS]: leads });
+  renderTable();
+  const finalEmailCount = countRowsWithEmail(updatedSubset);
+  return { scrapedEmailCount, finalEmailCount };
+}
+
+/**
+ * After Instagram API extraction completes: same remote enrich as the AI button, then extraction summary modal.
+ */
+/**
+ * Content script finalizes session history before AI enrich; refresh the newest session row with current LEADS.
+ */
+async function patchLatestSessionHistoryWithCurrentLeads() {
+  const data = await chrome.storage.local.get([STORAGE_KEYS.SESSION_HISTORY, STORAGE_KEYS.LEADS]);
+  const hist = Array.isArray(data[STORAGE_KEYS.SESSION_HISTORY]) ? [...data[STORAGE_KEYS.SESSION_HISTORY]] : [];
+  if (!hist.length) return;
+  const rawLeads = data[STORAGE_KEYS.LEADS] || [];
+  const snapshot = rawLeads.map((r) => {
+    const x = normalizeStoredLead(r);
+    return {
+      username: String(x.username || ''),
+      followerCount: x.followerCount == null ? null : Number(x.followerCount),
+      bio: String(x.bio || ''),
+      email: String(x.email || ''),
+      phone: String(x.phone || ''),
+      websiteUrl: String(x.websiteUrl || ''),
+      scrapedAt: x.scrapedAt ? String(x.scrapedAt) : '',
+    };
+  });
+  const merged = {
+    ...hist[0],
+    leads: snapshot,
+    totals: { ...(hist[0].totals && typeof hist[0].totals === 'object' ? hist[0].totals : {}), gathered: snapshot.length },
+    updatedAt: Date.now(),
+  };
+  const next = [merged, ...hist.slice(1)].slice(0, SESSION_HISTORY_LIMIT);
+  await chrome.storage.local.set({ [STORAGE_KEYS.SESSION_HISTORY]: next });
+  sessions = next;
+  renderHistory();
+}
+
+async function runPostExtractionAiEnrich() {
+  aiTrace('post_extraction_ai_start');
+  if (selectedSessionId) {
+    aiTrace('post_extraction_ai_abort_history');
+    return;
+  }
+  const freeGate = await canStartExtractionForFreeTier();
+  if (!freeGate.ok && freeGate.reason === 'at_cap') {
+    appendStatusLine(t(uiLocale, 'dashboard.enrichBlockedAtCap'));
+    aiTrace('post_extraction_ai_abort_at_cap');
+    return;
+  }
+  await loadLeads();
+  const list = getActiveLeads();
+  if (!list.length) {
+    aiTrace('post_extraction_ai_abort_no_leads');
+    return;
+  }
+  const options = {
+    llm: els.aiLlm ? els.aiLlm.checked : true,
+    verify: false,
+    fetchUrlTool: els.aiFetchUrl ? els.aiFetchUrl.checked : false,
+    excludeFakeEmails: els.aiExcludeFake ? els.aiExcludeFake.checked : true,
+  };
+  if (els.aiEnrich) els.aiEnrich.disabled = true;
+  try {
+    appendStatusLine(t(uiLocale, 'dashboard.postExtractionAiStarting'));
+    const { finalEmailCount } = await runRemoteEnrichOnList(list, options);
+    await patchLatestSessionHistoryWithCurrentLeads();
+    appendStatusLine(tf(uiLocale, 'dashboard.postExtractionAiDone', { n: leads.length }));
+    setAiStatus('');
+    showExtractionSummaryModal(finalEmailCount);
+    aiTrace('post_extraction_ai_done', { finalEmailCount, leads: leads.length });
+  } catch (e) {
+    const msg = String(e?.message || e);
+    appendStatusLine(tf(uiLocale, 'dashboard.postExtractionAiFail', { msg }));
+    setAiStatus(tf(uiLocale, 'dashboard.postExtractionAiFail', { msg }));
+    aiTrace('post_extraction_ai_error', { message: msg });
+  } finally {
+    if (els.aiEnrich) els.aiEnrich.disabled = false;
+    aiTrace('post_extraction_ai_end');
+  }
 }
 
 async function sendJoshChat(userMessage) {
@@ -1475,43 +1715,15 @@ async function runRemoteEnrichPipeline() {
     aiTrace('pipeline_abort_no_leads');
     return;
   }
-  const scrapedEmailCount = countRowsWithEmail(list);
-  if (els.aiEnrich) els.aiEnrich.disabled = true;
   const useLlm = els.aiLlm ? els.aiLlm.checked : true;
   const useFetchUrl = els.aiFetchUrl ? els.aiFetchUrl.checked : false;
   const excludeFakeEmails = els.aiExcludeFake ? els.aiExcludeFake.checked : true;
   const options = { llm: useLlm, verify: false, fetchUrlTool: useFetchUrl, excludeFakeEmails };
-  const batches = chunkArray(list, ENRICH_BATCH_SIZE);
-  aiTrace('pipeline_config', {
-    leads: list.length,
-    batches: batches.length,
-    scrapedEmailCount,
-    options,
-  });
-  const byKey = new Map(list.map((r) => [r.username.toLowerCase(), { ...normalizeStoredLead(r) }]));
+  if (els.aiEnrich) els.aiEnrich.disabled = true;
   try {
-    for (let i = 0; i < batches.length; i++) {
-      aiTrace('batch_loop_start', { batchIndex: i + 1, batchTotal: batches.length, size: batches[i].length });
-      setAiStatus(tf(uiLocale, 'dashboard.aiEnriching', { cur: i + 1, tot: batches.length }));
-      const dtos = batches[i].map(leadToEnrichDto);
-      const returned = await processRemoteEnrichBatch(dtos, options);
-      aiTrace('batch_loop_response', { batchIndex: i + 1, returned: returned.length });
-      for (const row of returned) {
-        if (!row || typeof row !== 'object') continue;
-        const k = String(row.username || '').toLowerCase();
-        if (!byKey.has(k)) continue;
-        const cur = byKey.get(k);
-        byKey.set(k, mergeLeadFromEnrich(cur, /** @type {Record<string, unknown>} */ (row)));
-      }
-    }
-    const order = list.map((r) => r.username.toLowerCase());
-    const updatedSubset = order.map((k) => byKey.get(k)).filter(Boolean).map(normalizeStoredLead);
-    leads = updatedSubset;
-    await chrome.storage.local.set({ [STORAGE_KEYS.LEADS]: leads });
-    renderTable();
+    const { scrapedEmailCount, finalEmailCount } = await runRemoteEnrichOnList(list, options);
     appendStatusLine(tf(uiLocale, 'dashboard.aiEnrichDone', { n: leads.length }));
     setAiStatus('');
-    const finalEmailCount = countRowsWithEmail(updatedSubset);
     showAiSummaryModal(scrapedEmailCount, finalEmailCount);
     aiTrace('pipeline_done', {
       leadsOut: leads.length,
@@ -1526,15 +1738,6 @@ async function runRemoteEnrichPipeline() {
   } finally {
     if (els.aiEnrich) els.aiEnrich.disabled = false;
     aiTrace('pipeline_end');
-  }
-}
-
-async function openGoogleSheetsFlow() {
-  await exportCsv();
-  window.open('https://sheets.new', '_blank', 'noopener,noreferrer');
-  if (els.sheetsHint) {
-    els.sheetsHint.textContent = t(uiLocale, 'dashboard.sheetsHint');
-    els.sheetsHint.hidden = false;
   }
 }
 
@@ -1570,6 +1773,22 @@ function toCsv(rows) {
   return '\uFEFF' + lines.join('\n');
 }
 
+/** @param {Lead[]} rows */
+function toCsvEmails(rows) {
+  const L = uiLocale;
+  const header = [t(L, 'dashboard.thUser'), t(L, 'dashboard.thEmail'), t(L, 'dashboard.thPhone')];
+  const lines = [header.join(',')];
+  for (const r of rows) {
+    const cells = [r.username, r.email || '', r.phone || ''].map((c) => {
+      const s = String(c).replace(/"/g, '""');
+      if (/[",\n]/.test(s)) return `"${s}"`;
+      return s;
+    });
+    lines.push(cells.join(','));
+  }
+  return '\uFEFF' + lines.join('\n');
+}
+
 async function copySelected() {
   const rows = getSelectedRows();
   const active = getActiveLeads();
@@ -1592,7 +1811,7 @@ async function copySelected() {
   }
 }
 
-async function exportCsv() {
+async function doExportProfiles(/** @type {'xlsx'|'csv'} */ format) {
   const rows = getSelectedRows();
   const active = getActiveLeads();
   const target = rows.length ? rows : active;
@@ -1600,30 +1819,23 @@ async function exportCsv() {
     appendStatusLine(t(uiLocale, 'dashboard.nothingExport'));
     return;
   }
-  const fname = await buildExportFilename('csv');
-  const csv = toCsv(target);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fname;
-  a.click();
-  URL.revokeObjectURL(url);
-  appendStatusLine(tf(uiLocale, 'dashboard.exportedCsv', { n: target.length, f: fname }));
-}
-
-async function exportExcelProfiles() {
-  const rows = getSelectedRows();
-  const active = getActiveLeads();
-  const target = rows.length ? rows : active;
-  if (!target.length) {
-    appendStatusLine(t(uiLocale, 'dashboard.nothingExport'));
+  if (format === 'csv') {
+    const fname = await buildExportFilename('csv', 'profiles');
+    const csv = toCsv(target);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    a.click();
+    URL.revokeObjectURL(url);
+    appendStatusLine(tf(uiLocale, 'dashboard.exportedCsv', { n: target.length, f: fname }));
     return;
   }
   const X = typeof globalThis !== 'undefined' && globalThis.XLSX;
   if (!X || typeof X.utils?.json_to_sheet !== 'function' || typeof X.writeFile !== 'function') {
     appendStatusLine(t(uiLocale, 'dashboard.excelFallback'));
-    await exportCsv();
+    await doExportProfiles('csv');
     return;
   }
   const L = uiLocale;
@@ -1646,7 +1858,7 @@ async function exportExcelProfiles() {
   appendStatusLine(tf(uiLocale, 'dashboard.exportedXlsx', { n: target.length, f: fname }));
 }
 
-async function exportExcelEmails() {
+async function doExportEmails(/** @type {'xlsx'|'csv'} */ format) {
   const rows = getSelectedRows();
   const active = getActiveLeads();
   const base = rows.length ? rows : active;
@@ -1655,9 +1867,23 @@ async function exportExcelEmails() {
     appendStatusLine(t(uiLocale, 'dashboard.nothingExportEmails'));
     return;
   }
+  if (format === 'csv') {
+    const fname = await buildExportFilename('csv', 'emails');
+    const csv = toCsvEmails(target);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    a.click();
+    URL.revokeObjectURL(url);
+    appendStatusLine(tf(uiLocale, 'dashboard.exportedCsv', { n: target.length, f: fname }));
+    return;
+  }
   const X = typeof globalThis !== 'undefined' && globalThis.XLSX;
   if (!X || typeof X.utils?.json_to_sheet !== 'function' || typeof X.writeFile !== 'function') {
     appendStatusLine(t(uiLocale, 'dashboard.excelFallback'));
+    await doExportEmails('csv');
     return;
   }
   const L = uiLocale;
@@ -1720,7 +1946,7 @@ function onRuntimeMessage(msg) {
   }
   if (msg.type === MSG.COMPLETE) {
     setRunningUi(false);
-    void loadLeads();
+    void loadLeads().then(() => void runPostExtractionAiEnrich());
   }
   if (msg.type === MSG.ERROR) {
     setRunningUi(false);
@@ -1882,9 +2108,40 @@ async function refreshDashboardCapBanner() {
   }
   if (els.sessionStop && !running) {
     els.sessionStop.disabled = atCap;
-  } else if (els.sessionStop && running) {
+  } else   if (els.sessionStop && running) {
     els.sessionStop.disabled = false;
   }
+}
+
+async function refreshDashboardHeaderProgress() {
+  const wrap = document.getElementById('lfDashboardHeaderProgressWrap');
+  const label = document.getElementById('lfDashboardFreeTierLabel');
+  const countEl = document.getElementById('lfDashboardHeaderProgressCount');
+  const fill = document.getElementById('lfDashboardHeaderProgressFill');
+  const bar = document.getElementById('lfDashboardHeaderProgressBar');
+  if (!wrap || !countEl || !fill || !bar) return;
+  const session = await readUserSession();
+  if (!session) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  if (label) label.textContent = t(uiLocale, 'dashboard.freeTierEmailsLabel');
+  wrap.setAttribute('aria-label', t(uiLocale, 'dashboard.headerProgressAria'));
+  const unlimited = await readSubscriptionUnlimited();
+  const count = await countUniqueEmailsExtracted();
+  const cap = FREE_EMAIL_EXTRACTION_CAP;
+  bar.classList.remove('is-at-cap', 'is-unlimited');
+  if (unlimited) {
+    countEl.textContent = t(uiLocale, 'dashboard.headerEmailsUnlimited');
+    fill.style.width = '100%';
+    bar.classList.add('is-unlimited');
+    return;
+  }
+  const pct = Math.min(100, (count / cap) * 100);
+  countEl.textContent = tf(uiLocale, 'dashboard.headerEmailsProgress', { count, cap });
+  fill.style.width = `${pct}%`;
+  if (count >= cap) bar.classList.add('is-at-cap');
 }
 
 function syncAccountModalLocale() {
@@ -1992,6 +2249,7 @@ async function onStripeDiamondClick() {
 
 function wireEvents() {
   wireAccountModals();
+  wireExportFormatModal();
   if (els.dashboardAccountBtn) {
     els.dashboardAccountBtn.addEventListener('click', () => void onDashboardAccountButtonClick());
   }
@@ -1999,9 +2257,8 @@ function wireEvents() {
   els.filter.addEventListener('input', () => renderTable());
 
   els.copy.addEventListener('click', () => void copySelected());
-  els.exportProfiles.addEventListener('click', () => void exportExcelProfiles());
-  els.exportEmails.addEventListener('click', () => void exportExcelEmails());
-  if (els.openSheets) els.openSheets.addEventListener('click', () => void openGoogleSheetsFlow());
+  els.exportProfiles.addEventListener('click', () => tryOpenExportFormatModal('profiles'));
+  els.exportEmails.addEventListener('click', () => tryOpenExportFormatModal('emails'));
   if (els.aiEnrich) els.aiEnrich.addEventListener('click', () => void runRemoteEnrichPipeline());
   if (els.aiSummaryOk) els.aiSummaryOk.addEventListener('click', closeAiSummaryModal);
   if (els.aiSummaryWrap) {
@@ -2060,6 +2317,15 @@ function wireEvents() {
     void savePrefsUi();
   });
 
+  if (els.dashboardUpgrade) {
+    els.dashboardUpgrade.addEventListener('click', () => {
+      void (async () => {
+        const r = await openStripeCheckoutInNewTab();
+        if (!r.ok) appendStatusLine(t(uiLocale, 'dashboard.stripeMissing'));
+      })();
+    });
+  }
+
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
@@ -2092,6 +2358,7 @@ function wireEvents() {
       else if (rs && rs.running === false) {
         setRunningUi(false);
         void refreshDashboardCapBanner();
+        void refreshDashboardHeaderProgress();
       }
       syncSessionBar(rs);
       syncExportButtonLabels();
@@ -2107,9 +2374,11 @@ function wireEvents() {
     if (
       changes[STORAGE_KEYS.LEADS] ||
       changes[STORAGE_KEYS.SESSION_HISTORY] ||
-      changes[STORAGE_KEYS.SUBSCRIPTION]
+      changes[STORAGE_KEYS.SUBSCRIPTION] ||
+      changes[STORAGE_KEYS.USER_SESSION]
     ) {
       void refreshDashboardCapBanner();
+      void refreshDashboardHeaderProgress();
     }
   });
 
@@ -2162,6 +2431,7 @@ async function init() {
 
   const { [STORAGE_KEYS.RUN_STATE]: rs } = await chrome.storage.local.get(STORAGE_KEYS.RUN_STATE);
   syncSessionBar(rs);
+  if (rs?.running) setRunningUi(true);
 
   await loadLeads();
   await loadSessionHistory();
@@ -2169,6 +2439,7 @@ async function init() {
   wireEvents();
   await consumePendingAccountModal();
   await refreshDashboardCapBanner();
+  await refreshDashboardHeaderProgress();
   initJoshDrag();
   if (els.joshAvatar) {
     setTimeout(() => {
@@ -2179,8 +2450,6 @@ async function init() {
   setInterval(updateJoshBubbleHint, JOSH_BUBBLE_ROTATE_MS);
   showJoshSimple();
   appendJoshMessage('bot', t(uiLocale, 'dashboard.joshWelcome'));
-
-  if (rs?.running) setRunningUi(true);
 }
 
 void init();
