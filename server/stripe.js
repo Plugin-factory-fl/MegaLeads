@@ -268,6 +268,40 @@ export async function handleStripeManageSubscriptionSession(req, res) {
 }
 
 /**
+ * @returns {Promise<Set<string>>}
+ */
+export async function listPaidSubscriberEmails() {
+  /** @type {Set<string>} */
+  const out = new Set();
+  if (!stripe) return out;
+  let startingAfter;
+  for (;;) {
+    const page = await stripe.subscriptions.list({
+      status: 'all',
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+    for (const sub of page.data) {
+      const st = String(sub.status || '').toLowerCase();
+      if (st !== 'active' && st !== 'trialing') continue;
+      const customerId =
+        typeof sub.customer === 'string' ? sub.customer : sub.customer?.id ? String(sub.customer.id) : '';
+      if (!customerId) continue;
+      try {
+        const customer = await stripe.customers.retrieve(customerId);
+        const email = String(customer?.email || '').trim().toLowerCase();
+        if (email.includes('@')) out.add(email);
+      } catch {
+        /* ignore missing customer */
+      }
+    }
+    if (!page.has_more || !page.data.length) break;
+    startingAfter = page.data[page.data.length - 1].id;
+  }
+  return out;
+}
+
+/**
  * Raw body route — must be registered before express.json().
  * @param {import('express').Request} req
  * @param {import('express').Response} res

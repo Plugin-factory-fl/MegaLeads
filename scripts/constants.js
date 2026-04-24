@@ -21,6 +21,8 @@ export const MSG = {
   LF_LEADS_REMOTE_ENRICH: 'LF_LEADS_REMOTE_ENRICH',
   /** Dashboard → background: Josh Q&A chat (proxied to Render). */
   LF_JOSH_CHAT: 'LF_JOSH_CHAT',
+  /** Dashboard admin view: fetch subscriber rows via server. */
+  LF_ADMIN_SUBSCRIBERS: 'LF_ADMIN_SUBSCRIBERS',
   /** Content overlay CTA → background: open extension popup (or fallback tab). */
   OPEN_POPUP: 'LF_OPEN_POPUP',
 };

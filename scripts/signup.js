@@ -3,7 +3,12 @@
  */
 
 import { STORAGE_KEYS } from './constants.js';
-import { writeUserSession, syncSubscriptionFromServer } from './account-shared.js';
+import {
+  ADMIN_EMAIL,
+  isAdminCredentials,
+  writeUserSession,
+  syncSubscriptionFromServer,
+} from './account-shared.js';
 import { t } from './i18n.js';
 
 const $ = (id) => {
@@ -106,7 +111,7 @@ function showSuccess() {
   $('lfSigninSubmit').disabled = true;
 }
 
-async function afterAuthSuccess() {
+async function afterAuthSuccess(isAdmin = false) {
   const key = STORAGE_KEYS.SIGNUP_RETURN;
   const { [key]: ret } = await chrome.storage.local.get(key);
   await chrome.storage.local.remove(key);
@@ -121,7 +126,7 @@ async function afterAuthSuccess() {
   const mode = ret && typeof ret === 'object' && typeof ret.mode === 'string' ? ret.mode : '';
 
   if (mode === 'dashboard_same_tab') {
-    window.location.replace(chrome.runtime.getURL('dashboard.html'));
+    window.location.replace(chrome.runtime.getURL(isAdmin ? 'dashboard.html?admin=1' : 'dashboard.html'));
     return;
   }
 
@@ -203,9 +208,14 @@ async function init() {
       return;
     }
     try {
-      await writeUserSession(email);
+      const isAdmin = email.trim().toLowerCase() === ADMIN_EMAIL;
+      if (isAdmin && !isAdminCredentials(email, pw)) {
+        showCreateError('Invalid admin credentials.');
+        return;
+      }
+      await writeUserSession(email, { isAdmin });
       await syncSubscriptionFromServer();
-      await afterAuthSuccess();
+      await afterAuthSuccess(isAdmin);
     } catch (e) {
       showCreateError(String(e?.message || e || 'Error'));
     }
@@ -221,9 +231,14 @@ async function init() {
       return;
     }
     try {
-      await writeUserSession(email);
+      const isAdmin = email.trim().toLowerCase() === ADMIN_EMAIL;
+      if (isAdmin && !isAdminCredentials(email, pw)) {
+        showSigninError('Invalid admin credentials.');
+        return;
+      }
+      await writeUserSession(email, { isAdmin });
       await syncSubscriptionFromServer();
-      await afterAuthSuccess();
+      await afterAuthSuccess(isAdmin);
     } catch (e) {
       showSigninError(String(e?.message || e || 'Error'));
     }

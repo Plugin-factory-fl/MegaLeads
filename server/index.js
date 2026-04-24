@@ -12,6 +12,7 @@ import {
   handleStripeCheckoutReturn,
   handleStripeSubscriptionStatus,
   handleStripeManageSubscriptionSession,
+  listPaidSubscriberEmails,
 } from './stripe.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -46,6 +47,8 @@ const FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS = Math.min(
   Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS) || 2),
 );
 const FREE_EMAIL_EXTRACTION_CAP = 500;
+const ADMIN_EMAIL = 'admin@megaleadsai.com';
+const ADMIN_PASSWORD = 'Shakeybob3';
 /** @type {Map<string, Set<string>>} accountEmail -> Set("username\\u0000email") */
 const FREE_TIER_USAGE_LEDGER = new Map();
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
@@ -237,6 +240,49 @@ async function handleFreeTierStatus(req, res) {
   mergeUsagePairs(email, body.pairs);
   const status = freeTierStatusForEmail(email);
   return res.json({ ...status, source: 'server_ledger' });
+}
+
+/**
+ * Admin-only subscriber overview.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+async function handleAdminSubscribers(req, res) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const email = normalizeAccountEmail(typeof body.email === 'string' ? body.email : '');
+  const password = String(body.password || '');
+  if (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ error: 'forbidden', message: 'Invalid admin credentials.' });
+  }
+
+  /** @type {Map<string, number>} */
+  const freeUsedByEmail = new Map();
+  if (usagePool) {
+    await ensureUsageTable();
+    const r = await usagePool.query(
+      'SELECT account_email, COUNT(*)::int AS used FROM account_email_usage GROUP BY account_email',
+    );
+    for (const row of r.rows || []) {
+      const em = normalizeAccountEmail(row.account_email);
+      const used = Number(row.used) || 0;
+      if (em) freeUsedByEmail.set(em, used);
+    }
+  } else {
+    for (const [em, set] of FREE_TIER_USAGE_LEDGER.entries()) {
+      freeUsedByEmail.set(normalizeAccountEmail(em), set.size);
+    }
+  }
+
+  const paid = await listPaidSubscriberEmails();
+  /** @type {Array<{ email: string, type: 'paid' | 'free', remaining: number|null }>} */
+  const rows = [];
+  for (const em of paid) rows.push({ email: em, type: 'paid', remaining: null });
+  for (const [em, used] of freeUsedByEmail.entries()) {
+    if (paid.has(em)) continue;
+    rows.push({ email: em, type: 'free', remaining: Math.max(0, FREE_EMAIL_EXTRACTION_CAP - used) });
+  }
+  rows.sort((a, b) => a.email.localeCompare(b.email));
+  return res.json({ rows, cap: FREE_EMAIL_EXTRACTION_CAP });
 }
 
 /**
@@ -1657,6 +1703,9 @@ function main() {
   });
   app.post('/v1/free-tier/status', requireBearer, (req, res, next) => {
     handleFreeTierStatus(req, res).catch(next);
+  });
+  app.post('/v1/admin/subscribers', requireBearer, (req, res, next) => {
+    handleAdminSubscribers(req, res).catch(next);
   });
   app.post('/v1/josh/chat', requireBearer, (req, res, next) => {
     handleJoshChat(req, res).catch(next);

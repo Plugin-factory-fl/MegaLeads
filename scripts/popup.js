@@ -29,6 +29,8 @@ import {
   clearUserSession,
   syncSubscriptionFromServer,
   openManageSubscriptionInNewTab,
+  ADMIN_EMAIL,
+  isAdminCredentials,
 } from './account-shared.js';
 
 /** @typedef {'en'} Locale */
@@ -594,13 +596,17 @@ function openPopupSignupModal() {
   window.setTimeout(() => em?.focus(), 0);
 }
 
-async function completePopupAuthSuccess(email) {
+async function completePopupAuthSuccess(email, password) {
   const trimmed = String(email || '').trim();
   if (!trimmed || !trimmed.includes('@')) {
     return t(uiLocale, 'signup.errSignin');
   }
+  const isAdmin = trimmed.toLowerCase() === ADMIN_EMAIL;
+  if (isAdmin && !isAdminCredentials(trimmed, password)) {
+    return 'Invalid admin credentials.';
+  }
   try {
-    await writeUserSession(trimmed);
+    await writeUserSession(trimmed, { isAdmin });
   } catch (e) {
     return String(e?.message || e || 'Error');
   }
@@ -612,10 +618,21 @@ async function completePopupAuthSuccess(email) {
     },
   });
   await syncSubscriptionFromServer();
+  const session = await readUserSession();
+  if (session?.isAdmin) {
+    await showPopupAdminMode();
+    return null;
+  }
   await refreshPopupGates();
   await refreshPopupHeaderProgress();
   void maybeShowLoginToast();
   return null;
+}
+
+async function showPopupAdminMode() {
+  document.body.classList.add('lf-admin-mode');
+  const wrap = document.getElementById('lfPopupAdminWrap');
+  if (wrap) wrap.hidden = false;
 }
 
 function closePopupAccountUsageModal() {
@@ -788,7 +805,7 @@ function wirePopupAuthModals() {
         setPopupAuthSignupError(t(L, 'signup.errPasswordShort'));
         return;
       }
-      const err = await completePopupAuthSuccess(email);
+      const err = await completePopupAuthSuccess(email, pw);
       if (err) setPopupAuthSignupError(err);
     });
   }
@@ -807,7 +824,7 @@ function wirePopupAuthModals() {
         setPopupAuthLoginError(t(L, 'signup.errSignin'));
         return;
       }
-      const err = await completePopupAuthSuccess(email);
+      const err = await completePopupAuthSuccess(email, pw);
       if (err) setPopupAuthLoginError(err);
     });
   }
@@ -916,6 +933,29 @@ async function openOrFocusDashboard() {
         if (tab.windowId != null) {
           await chrome.windows.update(tab.windowId, { focused: true });
         }
+        return;
+      }
+    } catch {
+      await chrome.storage.local.remove(STORAGE_KEYS.DASHBOARD_TAB_ID);
+    }
+  }
+  const created = await chrome.tabs.create({ url, active: true });
+  if (created?.id != null) {
+    await chrome.storage.local.set({ [STORAGE_KEYS.DASHBOARD_TAB_ID]: created.id });
+  }
+}
+
+async function openOrFocusAdminDashboard() {
+  const url = chrome.runtime.getURL('dashboard.html?admin=1');
+  const { [STORAGE_KEYS.DASHBOARD_TAB_ID]: stored } = await chrome.storage.local.get(
+    STORAGE_KEYS.DASHBOARD_TAB_ID,
+  );
+  if (stored != null) {
+    try {
+      const tab = await chrome.tabs.get(stored);
+      if (tab.id != null) {
+        await chrome.tabs.update(tab.id, { url, active: true });
+        if (tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
         return;
       }
     } catch {
@@ -1124,6 +1164,8 @@ function wireEvents() {
 
   const loginDismiss = document.getElementById('lfLoginToastDismiss');
   if (loginDismiss) loginDismiss.addEventListener('click', () => hideLoginToast());
+  const adminVisit = document.getElementById('lfPopupAdminVisit');
+  if (adminVisit) adminVisit.addEventListener('click', () => void openOrFocusAdminDashboard());
 
   document.querySelectorAll('.lf-info-btn').forEach((btn) => {
     if (!(btn instanceof HTMLElement)) return;
@@ -1182,6 +1224,12 @@ async function init() {
   await loadPrefs();
   await refreshPageContext();
   wireEvents();
+
+  const session = await readUserSession();
+  if (session?.isAdmin) {
+    await showPopupAdminMode();
+    return;
+  }
 
   await reconcileRunningStateFromStorage();
   await refreshSubscriptionForSession();

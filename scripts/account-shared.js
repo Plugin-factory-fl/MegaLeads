@@ -7,6 +7,8 @@ import { apiBaseUrl, apiKey, stripeCheckoutUrl } from './leadflow-remote-config.
 
 /** Free tier cap shown in the account modal (server may enforce separately later). */
 export const FREE_EMAIL_EXTRACTION_CAP = 500;
+export const ADMIN_EMAIL = 'admin@megaleadsai.com';
+export const ADMIN_PASSWORD = 'Shakeybob3';
 
 /**
  * @returns {Promise<{ email: string, loggedInAt: number, registeredAt: number } | null>}
@@ -18,20 +20,30 @@ export async function readUserSession() {
   if (!email) return null;
   const registeredAt = Number(raw.registeredAt) || 0;
   if (!registeredAt) return null;
-  return { email, loggedInAt: Number(raw.loggedInAt) || 0, registeredAt };
+  return {
+    email,
+    loggedInAt: Number(raw.loggedInAt) || 0,
+    registeredAt,
+    isAdmin: raw.isAdmin === true,
+  };
 }
 
 /**
  * Create or update the signed-in MegaLeads account (signup or sign-in on signup.html).
  * @param {string} email
  */
-export async function writeUserSession(email) {
+export async function writeUserSession(email, options) {
   const trimmed = String(email || '').trim();
   if (!trimmed) return;
   const now = Date.now();
+  const isAdmin = Boolean(options && typeof options === 'object' && options.isAdmin === true);
   await chrome.storage.local.set({
-    [STORAGE_KEYS.USER_SESSION]: { email: trimmed, loggedInAt: now, registeredAt: now },
+    [STORAGE_KEYS.USER_SESSION]: { email: trimmed, loggedInAt: now, registeredAt: now, isAdmin },
   });
+}
+
+export function isAdminCredentials(email, password) {
+  return String(email || '').trim().toLowerCase() === ADMIN_EMAIL && String(password || '') === ADMIN_PASSWORD;
 }
 
 /** @returns {Promise<boolean>} */

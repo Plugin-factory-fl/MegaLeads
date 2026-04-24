@@ -243,6 +243,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     void handleJoshChat(message, sendResponse);
     return true;
   }
+  if (message?.type === 'LF_ADMIN_SUBSCRIBERS') {
+    void handleAdminSubscribers(message, sendResponse);
+    return true;
+  }
 
   if (message?.type === 'LF_OPEN_POPUP') {
     void (async () => {
@@ -439,5 +443,50 @@ async function handleJoshChat(message, sendResponse) {
         ? 'Network error — check apiBaseUrl, your connection, and that the Render service is up.'
         : msg,
     });
+  }
+}
+
+/**
+ * Proxy admin subscriber list request to server.
+ * @param {{ adminEmail?: string, adminPassword?: string }} message
+ * @param {(r: unknown) => void} sendResponse
+ */
+async function handleAdminSubscribers(message, sendResponse) {
+  try {
+    const apiBaseUrl = String(storedApiBaseUrl || '')
+      .trim()
+      .replace(/\/$/, '');
+    const apiKey = String(storedApiKey || '').trim();
+    if (!apiBaseUrl || !apiKey) {
+      sendResponse({ ok: false, error: 'apiBaseUrl and apiKey must be set in scripts/leadflow-remote-config.js' });
+      return;
+    }
+    const payload = {
+      email: String(message?.adminEmail || ''),
+      password: String(message?.adminPassword || ''),
+    };
+    const res = await fetch(`${apiBaseUrl}/v1/admin/subscribers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    let json = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok) {
+      sendResponse({ ok: false, error: String(json?.message || json?.error || `HTTP ${res.status}`) });
+      return;
+    }
+    sendResponse({ ok: true, data: json });
+  } catch (e) {
+    sendResponse({ ok: false, error: String(e?.message || e) });
   }
 }

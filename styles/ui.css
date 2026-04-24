@@ -280,6 +280,25 @@ html.lf-extension-doc body.lf-ui.lf-popup {
   gap: 0.5rem;
 }
 
+.lf-popup-admin-wrap {
+  min-height: 520px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.lf-popup-admin-visit {
+  min-width: 220px;
+}
+
+body.lf-popup.lf-admin-mode .lf-popup-admin-wrap {
+  display: flex;
+}
+
+body.lf-popup.lf-admin-mode .lf-popup-inner > :not(.lf-popup-admin-wrap) {
+  display: none !important;
+}
+
 .lf-popup-header {
   margin-bottom: 0;
 }
@@ -1935,6 +1954,46 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 
 .lf-popup-gate-cta {
   width: 100%;
+}
+
+.lf-admin-panel {
+  margin-top: 0.8rem;
+  padding: 0.9rem;
+  border: 1px solid var(--lf-border);
+  border-radius: 12px;
+  background: var(--lf-surface);
+}
+
+.lf-admin-title {
+  margin: 0 0 0.2rem;
+  font-size: 1.08rem;
+}
+
+.lf-admin-subtitle {
+  margin: 0 0 0.7rem;
+  color: var(--lf-muted);
+  font-size: 0.9rem;
+}
+
+.lf-admin-table-wrap {
+  max-height: 62vh;
+  overflow: auto;
+}
+
+.lf-admin-paid-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #064e3b;
+  background: #86efac;
+}
+
+body.lf-dashboard.lf-admin-mode .lf-app > :not(.lf-header):not(.lf-admin-panel) {
+  display: none !important;
 }
 
 /* --- Dashboard: free cap notice --- */

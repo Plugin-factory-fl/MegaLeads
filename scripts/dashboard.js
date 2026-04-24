@@ -9,7 +9,10 @@ import {
   SESSION_HISTORY_LIMIT,
 } from './constants.js';
 import {
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
   FREE_EMAIL_EXTRACTION_CAP,
+  isAdminCredentials,
   readUserSession,
   clearUserSession,
   countUniqueEmailsExtracted,
@@ -32,6 +35,57 @@ async function redirectToSignupFromDashboard() {
     [STORAGE_KEYS.SIGNUP_RETURN]: { mode: 'dashboard_same_tab' },
   });
   window.location.replace(chrome.runtime.getURL('signup.html'));
+}
+
+function renderAdminSubscribers(rows) {
+  const body = document.getElementById('lfAdminTableBody');
+  if (!body) return;
+  body.innerHTML = '';
+  if (!Array.isArray(rows) || !rows.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="3">No subscribers found yet.</td>';
+    body.appendChild(tr);
+    return;
+  }
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    const email = String(row?.email || '');
+    const type = String(row?.type || '');
+    const remaining = type === 'paid' ? '—' : String(Number(row?.remaining) || 0);
+    tr.innerHTML = `
+      <td>${email}</td>
+      <td>${type === 'paid' ? '<span class="lf-admin-paid-tag">PAID</span>' : 'FREE'}</td>
+      <td>${remaining}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
+async function initAdminDashboard(session) {
+  if (!session?.isAdmin || !isAdminCredentials(session.email, ADMIN_PASSWORD)) {
+    await redirectToSignupFromDashboard();
+    return;
+  }
+  document.body.classList.add('lf-admin-mode');
+  const panel = document.getElementById('lfAdminPanel');
+  if (panel) panel.hidden = false;
+  const resp = await sendMessageAsync({
+    type: MSG.LF_ADMIN_SUBSCRIBERS,
+    adminEmail: ADMIN_EMAIL,
+    adminPassword: ADMIN_PASSWORD,
+  });
+  if (!resp?.ok) {
+    renderAdminSubscribers([]);
+    const body = document.getElementById('lfAdminTableBody');
+    if (body) {
+      body.innerHTML = '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="3">Failed to load: ${String(resp?.error || 'Unknown error')}</td>`;
+      body.appendChild(tr);
+    }
+    return;
+  }
+  renderAdminSubscribers(resp?.data?.rows || []);
 }
 
 /** @typedef {{ username: string, followerCount: number|null, bio: string, email: string, phone: string, websiteUrl: string, scrapedAt?: string, contact?: string, email_confidence_0_1?: number, email_action?: string, phone_confidence_0_1?: number, phone_action?: string, email_quality_codes?: string[] }} Lead */
@@ -2517,6 +2571,12 @@ async function init() {
   const session = await readUserSession();
   if (!session) {
     await redirectToSignupFromDashboard();
+    return;
+  }
+  const sp = new URLSearchParams(window.location.search);
+  const wantsAdmin = sp.get('admin') === '1';
+  if (session.isAdmin || wantsAdmin) {
+    await initAdminDashboard(session);
     return;
   }
   void syncSubscriptionFromServer();
