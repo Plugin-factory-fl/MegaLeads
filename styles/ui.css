@@ -1970,9 +1970,25 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 }
 
 .lf-admin-subtitle {
-  margin: 0 0 0.7rem;
+  margin: 0;
   color: var(--lf-muted);
   font-size: 0.9rem;
+}
+
+.lf-admin-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.lf-admin-signout-hint {
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+  color: var(--lf-muted);
+  line-height: 1.4;
 }
 
 .lf-admin-table-wrap {

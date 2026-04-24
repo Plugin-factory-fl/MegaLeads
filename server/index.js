@@ -166,6 +166,22 @@ async function registerAccountEmailGlobally(email) {
 }
 
 /**
+ * @param {import('express').Request} req
+ * @param {(b: Record<string, unknown>) => string} pick
+ */
+async function touchRegistryFromRequestBody(req, pick) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const raw = pick(/** @type {Record<string, unknown>} */ (body));
+  const email = normalizeAccountEmail(typeof raw === 'string' ? raw : '');
+  if (!email) return;
+  try {
+    await registerAccountEmailGlobally(email);
+  } catch (e) {
+    logWarn('account_registry_touch', { err: String(e?.message || e) });
+  }
+}
+
+/**
  * @param {string} email
  * @param {unknown} pairs
  */
@@ -1776,14 +1792,29 @@ function main() {
     handleJoshChat(req, res).catch(next);
   });
   app.get('/v1/stripe/checkout-return', handleStripeCheckoutReturn);
-  app.post('/v1/stripe/checkout-session', requireBearer, (req, res, next) => {
-    handleStripeCheckoutSession(req, res).catch(next);
+  app.post('/v1/stripe/checkout-session', requireBearer, async (req, res, next) => {
+    await touchRegistryFromRequestBody(req, (b) => String(b.customerEmail || ''));
+    try {
+      await handleStripeCheckoutSession(req, res);
+    } catch (e) {
+      next(e);
+    }
   });
-  app.post('/v1/stripe/subscription-status', requireBearer, (req, res, next) => {
-    handleStripeSubscriptionStatus(req, res).catch(next);
+  app.post('/v1/stripe/subscription-status', requireBearer, async (req, res, next) => {
+    await touchRegistryFromRequestBody(req, (b) => String(b.email || ''));
+    try {
+      await handleStripeSubscriptionStatus(req, res);
+    } catch (e) {
+      next(e);
+    }
   });
-  app.post('/v1/stripe/manage-subscription-session', requireBearer, (req, res, next) => {
-    handleStripeManageSubscriptionSession(req, res).catch(next);
+  app.post('/v1/stripe/manage-subscription-session', requireBearer, async (req, res, next) => {
+    await touchRegistryFromRequestBody(req, (b) => String(b.email || ''));
+    try {
+      await handleStripeManageSubscriptionSession(req, res);
+    } catch (e) {
+      next(e);
+    }
   });
 
   app.use((err, _req, res, _next) => {

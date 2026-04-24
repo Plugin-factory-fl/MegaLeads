@@ -23,6 +23,7 @@ import {
   readSubscriptionUnlimited,
   syncSubscriptionFromServer,
   notifyServerAccountRegistered,
+  clearUserSession,
 } from './account-shared.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { extractEmailPhoneFromParts } from './selectors.js';
@@ -91,6 +92,13 @@ async function initAdminDashboard(session) {
     return;
   }
   renderAdminSubscribers(resp?.data?.rows || []);
+  const adminSignOut = document.getElementById('lfAdminSignOut');
+  if (adminSignOut) {
+    adminSignOut.addEventListener('click', async () => {
+      await clearUserSession();
+      window.location.replace(chrome.runtime.getURL('signup.html?signin=1'));
+    });
+  }
 }
 
 /** @typedef {{ username: string, followerCount: number|null, bio: string, email: string, phone: string, websiteUrl: string, scrapedAt?: string, contact?: string, email_confidence_0_1?: number, email_action?: string, phone_confidence_0_1?: number, phone_action?: string, email_quality_codes?: string[] }} Lead */
@@ -2581,7 +2589,9 @@ async function init() {
   void notifyServerAccountRegistered(session.email);
   const sp = new URLSearchParams(window.location.search);
   const wantsAdmin = sp.get('admin') === '1';
-  if (session.isAdmin || wantsAdmin) {
+  const openAdminDashboard =
+    wantsAdmin && session.isAdmin === true && isAdminCredentials(session.email, ADMIN_PASSWORD);
+  if (openAdminDashboard) {
     await initAdminDashboard(session);
     return;
   }
