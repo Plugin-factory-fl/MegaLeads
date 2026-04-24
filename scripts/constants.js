@@ -58,6 +58,11 @@ export const STORAGE_KEYS = {
   SIGNUP_RETURN: 'leadflow_signup_return',
   /** One-shot toast for toolbar popup after signup (`{ text, at }`). */
   LOGIN_TOAST: 'leadflow_login_toast',
+  /**
+   * Emails that failed `POST /v1/account/register` after retries (`{ emails: string[] }`, max ~50).
+   * Flushed on next dashboard/popup load.
+   */
+  PENDING_ACCOUNT_REGISTER: 'leadflow_pending_account_register',
 };
 
 /** Max profiles per session (hard safety cap; UI slider cannot exceed this). */

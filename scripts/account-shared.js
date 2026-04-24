@@ -28,34 +28,134 @@ export async function readUserSession() {
   };
 }
 
+/** @param {number} ms */
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const REGISTER_ATTEMPTS = 4;
+const REGISTER_BACKOFF_MS = 400;
+const PENDING_REGISTER_MAX = 50;
+
+/** @typedef {'success' | 'permanent_failure' | 'transient_exhausted'} RegisterOutcome */
+
+/** @param {string} email */
+function normalizeRegisterEmail(email) {
+  return String(email || '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * POST /v1/account/register with retries. Caller handles enqueue on `transient_exhausted`.
+ * @param {string} email
+ * @returns {Promise<RegisterOutcome>}
+ */
+async function registerAccountEmailOnServer(email) {
+  const em = normalizeRegisterEmail(email);
+  if (!em.includes('@')) return 'permanent_failure';
+  const base = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim().replace(/\/$/, '') : '';
+  const bearer = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!base || !bearer) return 'permanent_failure';
+
+  let permanentFailure = false;
+  for (let attempt = 0; attempt < REGISTER_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`${base}/v1/account/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: em }),
+      });
+      if (res.ok) return 'success';
+      if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) {
+        permanentFailure = true;
+        break;
+      }
+    } catch {
+      /* network — retry */
+    }
+    if (attempt < REGISTER_ATTEMPTS - 1) {
+      await delay(REGISTER_BACKOFF_MS * 2 ** attempt);
+    }
+  }
+  if (permanentFailure) return 'permanent_failure';
+  return 'transient_exhausted';
+}
+
+/**
+ * @param {string} email
+ */
+async function enqueuePendingAccountRegister(email) {
+  const key = normalizeRegisterEmail(email);
+  if (!key || !key.includes('@')) return;
+  try {
+    const { [STORAGE_KEYS.PENDING_ACCOUNT_REGISTER]: raw } = await chrome.storage.local.get(
+      STORAGE_KEYS.PENDING_ACCOUNT_REGISTER,
+    );
+    const prev = raw && typeof raw === 'object' && Array.isArray(raw.emails) ? raw.emails : [];
+    const set = new Set(prev.map((e) => normalizeRegisterEmail(String(e))).filter((e) => e.includes('@')));
+    set.add(key);
+    const emails = Array.from(set).slice(0, PENDING_REGISTER_MAX);
+    await chrome.storage.local.set({ [STORAGE_KEYS.PENDING_ACCOUNT_REGISTER]: { emails } });
+  } catch {
+    /* ignore quota / storage */
+  }
+}
+
+/**
+ * Retry failed server registrations (e.g. offline at signup). Safe to call often.
+ * @returns {Promise<void>}
+ */
+export async function flushPendingAccountRegisters() {
+  let list = [];
+  try {
+    const data = await chrome.storage.local.get(STORAGE_KEYS.PENDING_ACCOUNT_REGISTER);
+    const raw = data[STORAGE_KEYS.PENDING_ACCOUNT_REGISTER];
+    list =
+      raw && typeof raw === 'object' && Array.isArray(raw.emails)
+        ? raw.emails.map((e) => normalizeRegisterEmail(String(e))).filter((e) => e.includes('@'))
+        : [];
+    if (!list.length) return;
+    await chrome.storage.local.remove(STORAGE_KEYS.PENDING_ACCOUNT_REGISTER);
+  } catch {
+    return;
+  }
+  const failed = [];
+  for (const em of list) {
+    const outcome = await registerAccountEmailOnServer(em);
+    if (outcome === 'transient_exhausted') failed.push(em);
+  }
+  if (failed.length) {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.PENDING_ACCOUNT_REGISTER]: { emails: failed.slice(0, PENDING_REGISTER_MAX) },
+    });
+  }
+}
+
+/**
+ * Tells the server this account exists so the admin dashboard can list free-tier users.
+ * Retries on transient errors; enqueues on total failure unless `fromFlush`.
+ * @param {string} email
+ * @param {{ fromFlush?: boolean }} [opts]
+ * @returns {Promise<boolean>} true if server accepted (2xx)
+ */
+export async function notifyServerAccountRegistered(email, opts) {
+  const em = normalizeRegisterEmail(email);
+  const fromFlush = Boolean(opts && opts.fromFlush);
+  const outcome = await registerAccountEmailOnServer(em);
+  if (outcome === 'success') return true;
+  if (outcome === 'permanent_failure') return false;
+  if (!fromFlush) await enqueuePendingAccountRegister(em);
+  return false;
+}
+
 /**
  * Create or update the signed-in MegaLeads account (signup or sign-in on signup.html).
  * @param {string} email
  */
-/**
- * Tells the server this account exists so the admin dashboard can list free-tier users (best-effort).
- * @param {string} email
- */
-export async function notifyServerAccountRegistered(email) {
-  const em = String(email || '').trim();
-  if (!em.includes('@')) return;
-  const base = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim().replace(/\/$/, '') : '';
-  const bearer = typeof apiKey === 'string' ? apiKey.trim() : '';
-  if (!base || !bearer) return;
-  try {
-    await fetch(`${base}/v1/account/register`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email: em }),
-    });
-  } catch {
-    /* offline / misconfig — ignore */
-  }
-}
-
 export async function writeUserSession(email, options) {
   const trimmed = String(email || '').trim();
   if (!trimmed) return;
@@ -64,7 +164,7 @@ export async function writeUserSession(email, options) {
   await chrome.storage.local.set({
     [STORAGE_KEYS.USER_SESSION]: { email: trimmed, loggedInAt: now, registeredAt: now, isAdmin },
   });
-  void notifyServerAccountRegistered(trimmed);
+  await notifyServerAccountRegistered(trimmed);
 }
 
 export function isAdminCredentials(email, password) {

@@ -27,6 +27,8 @@ import {
   readEffectiveUsageCount,
   readSubscriptionUnlimited,
   clearUserSession,
+  flushPendingAccountRegisters,
+  notifyServerAccountRegistered,
   syncSubscriptionFromServer,
   openManageSubscriptionInNewTab,
   ADMIN_EMAIL,
@@ -37,6 +39,17 @@ import {
 
 /** @type {Locale} */
 let uiLocale = 'en';
+
+/** @param {{ email?: string } | null | undefined} session */
+function sessionIsMegaleadsAdminEmail(session) {
+  const a = String(session?.email || '')
+    .trim()
+    .toLowerCase();
+  const b = String(ADMIN_EMAIL || '')
+    .trim()
+    .toLowerCase();
+  return Boolean(a && b && a === b);
+}
 
 const $ = (id) => {
   const el = document.getElementById(id);
@@ -619,7 +632,7 @@ async function completePopupAuthSuccess(email, password) {
   });
   await syncSubscriptionFromServer();
   const session = await readUserSession();
-  if (session?.isAdmin) {
+  if (sessionIsMegaleadsAdminEmail(session)) {
     await showPopupAdminMode();
     return null;
   }
@@ -975,6 +988,11 @@ async function openAccountEntryFromPopup() {
     openPopupSignupModal();
     return;
   }
+  if (sessionIsMegaleadsAdminEmail(session)) {
+    await clearUserSession();
+    window.location.reload();
+    return;
+  }
   await openPopupAccountUsageModal();
 }
 
@@ -1166,6 +1184,13 @@ function wireEvents() {
   if (loginDismiss) loginDismiss.addEventListener('click', () => hideLoginToast());
   const adminVisit = document.getElementById('lfPopupAdminVisit');
   if (adminVisit) adminVisit.addEventListener('click', () => void openOrFocusAdminDashboard());
+  const adminSignOut = document.getElementById('lfPopupAdminSignOut');
+  if (adminSignOut) {
+    adminSignOut.addEventListener('click', async () => {
+      await clearUserSession();
+      window.location.reload();
+    });
+  }
 
   document.querySelectorAll('.lf-info-btn').forEach((btn) => {
     if (!(btn instanceof HTMLElement)) return;
@@ -1226,9 +1251,14 @@ async function init() {
   wireEvents();
 
   const session = await readUserSession();
-  if (session?.isAdmin) {
+  if (sessionIsMegaleadsAdminEmail(session)) {
     await showPopupAdminMode();
     return;
+  }
+
+  await flushPendingAccountRegisters();
+  if (session?.email) {
+    await notifyServerAccountRegistered(session.email);
   }
 
   await reconcileRunningStateFromStorage();

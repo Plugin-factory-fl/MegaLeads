@@ -287,6 +287,14 @@ html.lf-extension-doc body.lf-ui.lf-popup {
   justify-content: center;
 }
 
+.lf-popup-admin-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  width: min(100%, 260px);
+}
+
 .lf-popup-admin-visit {
   min-width: 220px;
 }
@@ -2021,7 +2029,18 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   border: 1px solid rgba(234, 179, 8, 0.65);
 }
 
-body.lf-dashboard.lf-admin-mode .lf-app > :not(.lf-header):not(.lf-admin-panel) {
+/* Must beat `html.lf-extension-doc body.lf-ui.lf-dashboard .lf-app > …` layout rules (higher specificity). */
+html.lf-extension-doc body.lf-ui.lf-dashboard.lf-admin-mode .lf-app > :not(.lf-header):not(.lf-admin-panel) {
+  display: none !important;
+}
+
+html.lf-extension-doc body.lf-ui.lf-dashboard.lf-admin-mode #lfJoshAvatar {
+  display: none !important;
+}
+
+html.lf-extension-doc body.lf-ui.lf-dashboard.lf-admin-mode .lf-header .lf-btn-upgrade-popup,
+html.lf-extension-doc body.lf-ui.lf-dashboard.lf-admin-mode .lf-header .lf-header-email-progress,
+html.lf-extension-doc body.lf-ui.lf-dashboard.lf-admin-mode .lf-header .lf-header-paid-title {
   display: none !important;
 }
 

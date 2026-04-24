@@ -12,7 +12,6 @@ import {
   ADMIN_EMAIL,
   ADMIN_PASSWORD,
   FREE_EMAIL_EXTRACTION_CAP,
-  isAdminCredentials,
   readUserSession,
   clearUserSession,
   countUniqueEmailsExtracted,
@@ -23,7 +22,7 @@ import {
   readSubscriptionUnlimited,
   syncSubscriptionFromServer,
   notifyServerAccountRegistered,
-  clearUserSession,
+  flushPendingAccountRegisters,
 } from './account-shared.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { extractEmailPhoneFromParts } from './selectors.js';
@@ -31,6 +30,38 @@ import { t, tf, translateSessionMode, uiLocaleFromUiPrefs } from './i18n.js';
 
 /** Max rows per POST to the enrich API (must be ≤ server cap). */
 const ENRICH_BATCH_SIZE = 40;
+
+/**
+ * Admin dashboard is keyed off the admin email, not only `session.isAdmin`
+ * (older sessions may lack that flag after sign-in).
+ * @param {{ email?: string } | null | undefined} session
+ */
+function sessionIsMegaleadsAdminEmail(session) {
+  const a = String(session?.email || '')
+    .trim()
+    .toLowerCase();
+  const b = String(ADMIN_EMAIL || '')
+    .trim()
+    .toLowerCase();
+  return Boolean(a && b && a === b);
+}
+
+/** Force-hide extraction chrome under `.lf-app` (layout CSS can beat a weak admin-only rule). */
+function hideDashboardExtractionShellForAdmin() {
+  const app = document.querySelector('.lf-app');
+  if (!app) return;
+  for (const el of Array.from(app.children)) {
+    if (!(el instanceof HTMLElement)) continue;
+    if (el.classList.contains('lf-header') || el.classList.contains('lf-admin-panel')) continue;
+    el.hidden = true;
+    el.setAttribute('aria-hidden', 'true');
+  }
+  const josh = document.getElementById('lfJoshAvatar');
+  if (josh instanceof HTMLElement) {
+    josh.hidden = true;
+    josh.setAttribute('aria-hidden', 'true');
+  }
+}
 
 async function redirectToSignupFromDashboard() {
   await chrome.storage.local.set({
@@ -68,13 +99,32 @@ function renderAdminSubscribers(rows) {
 }
 
 async function initAdminDashboard(session) {
-  if (!session?.isAdmin || !isAdminCredentials(session.email, ADMIN_PASSWORD)) {
-    await redirectToSignupFromDashboard();
+  if (!sessionIsMegaleadsAdminEmail(session)) {
+    window.location.replace(chrome.runtime.getURL('dashboard.html'));
     return;
   }
   document.body.classList.add('lf-admin-mode');
   const panel = document.getElementById('lfAdminPanel');
   if (panel) panel.hidden = false;
+  hideDashboardExtractionShellForAdmin();
+
+  ensureAdminAccountLogoutModalWired();
+  const accBtn = document.getElementById('lfDashboardAccountBtn');
+  if (accBtn && !accBtn.dataset.lfAdminAccountBound) {
+    accBtn.dataset.lfAdminAccountBound = '1';
+    accBtn.setAttribute('aria-label', 'Sign out');
+    accBtn.title = 'Sign out';
+    accBtn.addEventListener('click', () => void onDashboardAccountButtonClick());
+  }
+  const adminSignOut = document.getElementById('lfAdminSignOut');
+  if (adminSignOut && !adminSignOut.dataset.lfBound) {
+    adminSignOut.dataset.lfBound = '1';
+    adminSignOut.addEventListener('click', async () => {
+      await clearUserSession();
+      window.location.replace(chrome.runtime.getURL('signup.html?signin=1'));
+    });
+  }
+
   const resp = await sendMessageAsync({
     type: MSG.LF_ADMIN_SUBSCRIBERS,
     adminEmail: ADMIN_EMAIL,
@@ -92,13 +142,6 @@ async function initAdminDashboard(session) {
     return;
   }
   renderAdminSubscribers(resp?.data?.rows || []);
-  const adminSignOut = document.getElementById('lfAdminSignOut');
-  if (adminSignOut) {
-    adminSignOut.addEventListener('click', async () => {
-      await clearUserSession();
-      window.location.replace(chrome.runtime.getURL('signup.html?signin=1'));
-    });
-  }
 }
 
 /** @typedef {{ username: string, followerCount: number|null, bio: string, email: string, phone: string, websiteUrl: string, scrapedAt?: string, contact?: string, email_confidence_0_1?: number, email_action?: string, phone_confidence_0_1?: number, phone_action?: string, email_quality_codes?: string[] }} Lead */
@@ -2165,6 +2208,8 @@ async function onJoshSend() {
 function closeAccountModals() {
   const usage = document.getElementById('lfAccountUsageWrap');
   if (usage) usage.hidden = true;
+  const adminOnly = document.getElementById('lfAdminAccountOnlyWrap');
+  if (adminOnly) adminOnly.hidden = true;
 }
 
 async function refreshDashboardCapBanner() {
@@ -2347,16 +2392,59 @@ async function openUsageAccountModal() {
   w.hidden = false;
 }
 
+async function openAdminAccountLogoutModal() {
+  const session = await readUserSession();
+  if (!sessionIsMegaleadsAdminEmail(session)) return;
+  closeAccountModals();
+  const wrap = document.getElementById('lfAdminAccountOnlyWrap');
+  const desc = document.getElementById('lfAdminAccountOnlyDesc');
+  if (desc) desc.textContent = session.email;
+  if (wrap) wrap.hidden = false;
+}
+
+/** @type {boolean} */
+let adminAccountLogoutModalWired = false;
+
+function ensureAdminAccountLogoutModalWired() {
+  if (adminAccountLogoutModalWired) return;
+  adminAccountLogoutModalWired = true;
+  const wrap = document.getElementById('lfAdminAccountOnlyWrap');
+  if (wrap) {
+    wrap.addEventListener('click', (ev) => {
+      if (ev.target === wrap) closeAccountModals();
+    });
+    const card = wrap.querySelector('.lf-account-modal');
+    if (card) card.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+  const signOut = document.getElementById('lfAdminAccountOnlySignOut');
+  if (signOut) {
+    signOut.addEventListener('click', async () => {
+      await clearUserSession();
+      closeAccountModals();
+      window.location.replace(chrome.runtime.getURL('signup.html?signin=1'));
+    });
+  }
+}
+
 async function onDashboardAccountButtonClick() {
   const session = await readUserSession();
   if (!session) {
     await redirectToSignupFromDashboard();
     return;
   }
+  if (sessionIsMegaleadsAdminEmail(session)) {
+    await openAdminAccountLogoutModal();
+    return;
+  }
   await openUsageAccountModal();
 }
 
 async function consumePendingAccountModal() {
+  const session = await readUserSession();
+  if (sessionIsMegaleadsAdminEmail(session)) {
+    await chrome.storage.local.remove(STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT);
+    return;
+  }
   const key = STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT;
   const { [key]: pend } = await chrome.storage.local.get(key);
   if (pend === 'usage') {
@@ -2586,12 +2674,19 @@ async function init() {
     await redirectToSignupFromDashboard();
     return;
   }
-  void notifyServerAccountRegistered(session.email);
+  await flushPendingAccountRegisters();
   const sp = new URLSearchParams(window.location.search);
   const wantsAdmin = sp.get('admin') === '1';
-  const openAdminDashboard =
-    wantsAdmin && session.isAdmin === true && isAdminCredentials(session.email, ADMIN_PASSWORD);
-  if (openAdminDashboard) {
+  if (sessionIsMegaleadsAdminEmail(session) && !wantsAdmin) {
+    window.location.replace(chrome.runtime.getURL('dashboard.html?admin=1'));
+    return;
+  }
+  await notifyServerAccountRegistered(session.email);
+  if (wantsAdmin && !sessionIsMegaleadsAdminEmail(session)) {
+    window.location.replace(chrome.runtime.getURL('dashboard.html'));
+    return;
+  }
+  if (wantsAdmin && sessionIsMegaleadsAdminEmail(session)) {
     await initAdminDashboard(session);
     return;
   }
