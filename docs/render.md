@@ -26,7 +26,7 @@ You need **two different secrets** on Render (do not replace one with the other)
 | `EMAIL_VERIFICATION_PROVIDER` | Optional | `zerobounce` enables a basic ZeroBounce `v2/validate` integration; other values are ignored until wired. |
 | `LEADFLOW_MAX_LEADS_PER_REQUEST` | Optional | Cap per request (default `75`, hard max `200`). |
 | `LEADFLOW_LOG_LEVEL` | Optional | `info`, `warn`, or `error` (reduces console noise). |
-| `MEGALEADS_FETCH_TOOL_MAX_ROUNDS` | Optional | When **FETCH_URL** is on, the server issues **new browser fetches** only while `toolRound <` this value (default `12`, cap `24`). When the cap is reached, the next request is finalized in **one** OpenAI call (no tool loop), then the batch returns. Raise this for deeper crawling (slower). |
+| `MEGALEADS_FETCH_TOOL_MAX_ROUNDS` | Optional | When **FETCH_URL** is on, the server issues **new browser fetches** only while `toolRound <` this value (default `6`, cap `24`). When the cap is reached, the next request is finalized in **one** OpenAI call (no tool loop), then the batch returns. Raise this for deeper crawling (slower). |
 | `MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND` | Optional | Max URLs the model may request per round before the rest are answered with “skipped” (default `5`, cap `12`). |
 | `MEGALEADS_FETCH_TOOL_MAX_PER_LEAD` | Optional | Max browser fetches **per username** per enrich batch across all rounds (default `2`, cap `8`). Extra `fetch_url` calls are prefilled as skipped. |
 | `MEGALEADS_FETCH_TOOL_MAX_OPENAI_TOOL_CHARS` | Optional | For **FETCH_URL**, max characters per **recent** tool result sent to OpenAI after HTML stripping (default `26000`, cap `100000`). Older tool rounds are condensed further. |
