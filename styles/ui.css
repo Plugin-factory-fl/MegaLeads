@@ -1644,6 +1644,17 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   color: var(--lf-accent);
 }
 
+/* Ensure explicit hidden state wins over component display rules. */
+.lf-header-email-progress[hidden],
+.lf-btn-upgrade-popup[hidden],
+.lf-account-usage-cta-row[hidden],
+.lf-account-usage-bar-wrap[hidden],
+.lf-account-modal-line[hidden],
+.lf-account-modal-desc[hidden],
+.lf-account-modal-warn[hidden] {
+  display: none !important;
+}
+
 .lf-upgrade-icon {
   font-size: 0.95rem;
   line-height: 1;

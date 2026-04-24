@@ -643,6 +643,7 @@ async function openPopupAccountUsageModal() {
     if (cntEl) cntEl.hidden = true;
     if (barWrap) {
       barWrap.hidden = true;
+      if (barWrap instanceof HTMLElement) barWrap.style.display = 'none';
       barWrap.classList.remove('is-at-cap');
     }
     if (note) {
@@ -650,7 +651,10 @@ async function openPopupAccountUsageModal() {
       note.textContent = t(L, 'dashboard.accountUsagePlusRoyalty');
     }
     if (atCap) atCap.hidden = true;
-    if (ctaRow) ctaRow.hidden = true;
+    if (ctaRow instanceof HTMLElement) {
+      ctaRow.hidden = true;
+      ctaRow.style.display = 'none';
+    }
     w.hidden = false;
     return;
   }
@@ -677,9 +681,13 @@ async function openPopupAccountUsageModal() {
     }
     if (barWrap) {
       barWrap.hidden = false;
+      if (barWrap instanceof HTMLElement) barWrap.style.display = '';
       barWrap.classList.toggle('is-at-cap', capped);
     }
-    if (ctaRow) ctaRow.hidden = false;
+    if (ctaRow instanceof HTMLElement) {
+      ctaRow.hidden = false;
+      ctaRow.style.display = '';
+    }
   }
   w.hidden = false;
 }
@@ -807,16 +815,25 @@ async function refreshPopupHeaderProgress() {
   const unlimited = await readSubscriptionUnlimited();
   if (unlimited) {
     wrap.hidden = true;
-    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = true;
+    if (upgradeBtn instanceof HTMLElement) {
+      upgradeBtn.hidden = true;
+      upgradeBtn.style.display = 'none';
+    }
     return;
   }
   const session = await readUserSession();
   if (!session) {
     wrap.hidden = true;
-    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
+    if (upgradeBtn instanceof HTMLElement) {
+      upgradeBtn.hidden = false;
+      upgradeBtn.style.display = '';
+    }
     return;
   }
-  if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
+  if (upgradeBtn instanceof HTMLElement) {
+    upgradeBtn.hidden = false;
+    upgradeBtn.style.display = '';
+  }
   wrap.hidden = false;
   if (label) label.textContent = t(uiLocale, 'popup.freeTierEmailsLabel');
   wrap.setAttribute('aria-label', t(uiLocale, 'popup.headerProgressAria'));

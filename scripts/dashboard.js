@@ -2129,16 +2129,25 @@ async function refreshDashboardHeaderProgress() {
   const unlimited = await readSubscriptionUnlimited();
   if (unlimited) {
     wrap.hidden = true;
-    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = true;
+    if (upgradeBtn instanceof HTMLElement) {
+      upgradeBtn.hidden = true;
+      upgradeBtn.style.display = 'none';
+    }
     return;
   }
   const session = await readUserSession();
   if (!session) {
     wrap.hidden = true;
-    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
+    if (upgradeBtn instanceof HTMLElement) {
+      upgradeBtn.hidden = false;
+      upgradeBtn.style.display = '';
+    }
     return;
   }
-  if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
+  if (upgradeBtn instanceof HTMLElement) {
+    upgradeBtn.hidden = false;
+    upgradeBtn.style.display = '';
+  }
   wrap.hidden = false;
   if (label) label.textContent = t(uiLocale, 'dashboard.freeTierEmailsLabel');
   wrap.setAttribute('aria-label', t(uiLocale, 'dashboard.headerProgressAria'));
@@ -2200,6 +2209,7 @@ async function openUsageAccountModal() {
     if (cntEl) cntEl.hidden = true;
     if (barWrap) {
       barWrap.hidden = true;
+      if (barWrap instanceof HTMLElement) barWrap.style.display = 'none';
       barWrap.classList.remove('is-at-cap');
     }
     if (note) {
@@ -2207,7 +2217,10 @@ async function openUsageAccountModal() {
       note.textContent = t(L, 'dashboard.accountUsagePlusRoyalty');
     }
     if (atCap) atCap.hidden = true;
-    if (ctaRow) ctaRow.hidden = true;
+    if (ctaRow instanceof HTMLElement) {
+      ctaRow.hidden = true;
+      ctaRow.style.display = 'none';
+    }
     w.hidden = false;
     return;
   }
@@ -2234,9 +2247,13 @@ async function openUsageAccountModal() {
     }
     if (barWrap) {
       barWrap.hidden = false;
+      if (barWrap instanceof HTMLElement) barWrap.style.display = '';
       barWrap.classList.toggle('is-at-cap', capped);
     }
-    if (ctaRow) ctaRow.hidden = false;
+    if (ctaRow instanceof HTMLElement) {
+      ctaRow.hidden = false;
+      ctaRow.style.display = '';
+    }
   }
   w.hidden = false;
 }
