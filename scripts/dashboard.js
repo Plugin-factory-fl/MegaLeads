@@ -140,8 +140,14 @@ let running = false;
 /** @type {number|null} */
 let sessionGoalMax = null;
 let joshSending = false;
-let joshBubbleIndex = -1;
-const JOSH_BUBBLE_ROTATE_MS = 15000;
+/** Josh hint bubble: 15s idle, ~15s visible (with fade), then alternate between two messages. */
+const JOSH_BUBBLE_IDLE_MS = 15000;
+const JOSH_BUBBLE_DISPLAY_MS = 15000;
+const JOSH_BUBBLE_FADE_MS = 500;
+
+let joshBubbleMessageIndex = 0;
+/** @type {ReturnType<typeof setTimeout>[]} */
+let joshBubbleTimers = [];
 
 /** @type {'profiles' | 'emails' | null} */
 let pendingExportKind = null;
@@ -575,7 +581,16 @@ function applyDashboardLocale() {
   renderTable();
   if (running) setRunningUi(true);
   syncAccountModalLocale();
+  syncJoshBubbleLineIfVisible();
   void refreshDashboardHeaderProgress();
+}
+
+function syncJoshBubbleLineIfVisible() {
+  if (!els.joshAvatarThought || !els.joshThoughtSimple) return;
+  if (els.joshThoughtSimple.classList.contains('lf-josh-thought-bubble-hidden')) return;
+  const lines = getJoshBubbleLines();
+  const line = lines[joshBubbleMessageIndex % lines.length];
+  if (line) els.joshAvatarThought.textContent = line;
 }
 
 async function loadPrefsUi() {
@@ -618,7 +633,8 @@ function applyProgressFromMessage(msg) {
     const cur = Math.max(0, Number(msg.enrichCurrent) || 0);
     const tot = Number(msg.enrichTotal) || 1;
     els.progressBar.classList.add('lf-progress-determinate');
-    const pct = Math.min(100, (100 * cur) / tot);
+    /** Cap at 85% so the last 15% represents post-extraction AI enrichment on the dashboard. */
+    const pct = Math.min(85, (100 * cur) / tot);
     els.progressFill.style.width = `${pct}%`;
     if (els.progressLabel) {
       els.progressLabel.textContent = tf(L, 'dashboard.progressEnrich', { cur, tot });
@@ -642,6 +658,23 @@ function applyProgressFromMessage(msg) {
     } else {
       els.progressLabel.textContent = t(L, 'dashboard.progressGather');
     }
+  }
+}
+
+/**
+ * Progress bar for automated post-extraction AI (batches), maps into 85–100%.
+ * @param {number} cur 1-based batch index
+ * @param {number} tot batch count
+ */
+function applyPostExtractionAiBatchProgress(cur, tot) {
+  if (!running) return;
+  const L = uiLocale;
+  els.progressBar.classList.add('lf-progress-determinate');
+  const safeTot = Math.max(1, tot);
+  const pct = Math.min(100, 85 + (15 * cur) / safeTot);
+  els.progressFill.style.width = `${pct}%`;
+  if (els.progressLabel) {
+    els.progressLabel.textContent = tf(L, 'dashboard.progressAiEnrich', { cur, tot: safeTot });
   }
 }
 
@@ -1554,9 +1587,10 @@ async function applyJoshActions(actions) {
  * Remote LLM + optional FETCH_URL enrich; merges into `leads` storage.
  * @param {Lead[]} list
  * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean, excludeFakeEmails?: boolean }} options
+ * @param {boolean} [showPostExtractionProgress] advance dashboard bar 85→100% across batches
  * @returns {Promise<{ scrapedEmailCount: number, finalEmailCount: number }>}
  */
-async function runRemoteEnrichOnList(list, options) {
+async function runRemoteEnrichOnList(list, options, showPostExtractionProgress = false) {
   const scrapedEmailCount = countRowsWithEmail(list);
   const batches = chunkArray(list, ENRICH_BATCH_SIZE);
   aiTrace('pipeline_config', {
@@ -1579,6 +1613,9 @@ async function runRemoteEnrichOnList(list, options) {
       const cur = byKey.get(k);
       byKey.set(k, mergeLeadFromEnrich(cur, /** @type {Record<string, unknown>} */ (row)));
     }
+    if (showPostExtractionProgress) {
+      applyPostExtractionAiBatchProgress(i + 1, batches.length);
+    }
   }
   const order = list.map((r) => r.username.toLowerCase());
   const updatedSubset = order.map((k) => byKey.get(k)).filter(Boolean).map(normalizeStoredLead);
@@ -1589,9 +1626,6 @@ async function runRemoteEnrichOnList(list, options) {
   return { scrapedEmailCount, finalEmailCount };
 }
 
-/**
- * After Instagram API extraction completes: same remote enrich as the AI button, then extraction summary modal.
- */
 /**
  * Content script finalizes session history before AI enrich; refresh the newest session row with current LEADS.
  */
@@ -1626,22 +1660,27 @@ async function patchLatestSessionHistoryWithCurrentLeads() {
 
 async function runPostExtractionAiEnrich() {
   aiTrace('post_extraction_ai_start');
+  const runNote = document.getElementById('lfSessionRunningNote');
   if (selectedSessionId) {
     aiTrace('post_extraction_ai_abort_history');
+    setRunningUi(false);
     return;
   }
   const freeGate = await canStartExtractionForFreeTier();
   if (!freeGate.ok && freeGate.reason === 'at_cap') {
     appendStatusLine(t(uiLocale, 'dashboard.enrichBlockedAtCap'));
     aiTrace('post_extraction_ai_abort_at_cap');
+    setRunningUi(false);
     return;
   }
   await loadLeads();
   const list = getActiveLeads();
   if (!list.length) {
     aiTrace('post_extraction_ai_abort_no_leads');
+    setRunningUi(false);
     return;
   }
+  if (runNote) runNote.textContent = t(uiLocale, 'dashboard.sessionRunningNoteAi');
   const options = {
     llm: els.aiLlm ? els.aiLlm.checked : true,
     verify: false,
@@ -1651,7 +1690,7 @@ async function runPostExtractionAiEnrich() {
   if (els.aiEnrich) els.aiEnrich.disabled = true;
   try {
     appendStatusLine(t(uiLocale, 'dashboard.postExtractionAiStarting'));
-    const { finalEmailCount } = await runRemoteEnrichOnList(list, options);
+    const { finalEmailCount } = await runRemoteEnrichOnList(list, options, true);
     await patchLatestSessionHistoryWithCurrentLeads();
     appendStatusLine(tf(uiLocale, 'dashboard.postExtractionAiDone', { n: leads.length }));
     setAiStatus('');
@@ -1664,6 +1703,7 @@ async function runPostExtractionAiEnrich() {
     aiTrace('post_extraction_ai_error', { message: msg });
   } finally {
     if (els.aiEnrich) els.aiEnrich.disabled = false;
+    setRunningUi(false);
     aiTrace('post_extraction_ai_end');
   }
 }
@@ -1945,7 +1985,7 @@ function onRuntimeMessage(msg) {
     appendStatusLine(msg.line);
   }
   if (msg.type === MSG.COMPLETE) {
-    setRunningUi(false);
+    /** Leave `running` true until post-extraction AI finishes (do not call setRunningUi(false) here). */
     void loadLeads().then(() => void runPostExtractionAiEnrich());
   }
   if (msg.type === MSG.ERROR) {
@@ -1965,33 +2005,101 @@ function appendJoshMessage(role, text) {
   els.joshThoughtMessages.scrollTop = els.joshThoughtMessages.scrollHeight;
 }
 
-function showJoshSimple() {
+function isJoshChatOpen() {
+  return Boolean(els.joshThoughtChat && !els.joshThoughtChat.classList.contains('hidden'));
+}
+
+function clearJoshBubbleTimers() {
+  for (const id of joshBubbleTimers) clearTimeout(id);
+  joshBubbleTimers = [];
+}
+
+/** @param {() => void} fn @param {number} delay */
+function scheduleJoshBubble(fn, delay) {
+  const id = setTimeout(() => {
+    joshBubbleTimers = joshBubbleTimers.filter((t) => t !== id);
+    fn();
+  }, delay);
+  joshBubbleTimers.push(id);
+}
+
+function setJoshThoughtBubbleHidden(hidden) {
+  if (!els.joshThoughtSimple) return;
+  els.joshThoughtSimple.classList.toggle('lf-josh-thought-bubble-hidden', hidden);
+  if (els.joshAvatarThought) {
+    els.joshAvatarThought.tabIndex = hidden ? -1 : 0;
+  }
+}
+
+function stopJoshBubbleRotation() {
+  clearJoshBubbleTimers();
+  if (els.joshAvatarThought) els.joshAvatarThought.textContent = '';
+  setJoshThoughtBubbleHidden(true);
+}
+
+function getJoshBubbleLines() {
+  return [t(uiLocale, 'dashboard.joshBubbleLineDrag'), t(uiLocale, 'dashboard.joshBubbleLineMegaLeadsHelp')].filter(
+    Boolean,
+  );
+}
+
+function runJoshBubbleIdlePhase() {
+  if (!els.joshAvatarThought || !els.joshThoughtSimple || !els.joshThoughtWrap) return;
+  if (isJoshChatOpen()) return;
+  els.joshAvatarThought.textContent = '';
+  setJoshThoughtBubbleHidden(true);
+  scheduleJoshBubble(() => runJoshBubbleShowPhase(), JOSH_BUBBLE_IDLE_MS);
+}
+
+function runJoshBubbleShowPhase() {
+  if (!els.joshAvatarThought || !els.joshThoughtSimple || !els.joshThoughtWrap) return;
+  if (isJoshChatOpen()) return;
+  const lines = getJoshBubbleLines();
+  if (!lines.length) return;
+  const line = lines[joshBubbleMessageIndex % lines.length];
+  els.joshAvatarThought.textContent = line;
+  requestAnimationFrame(() => {
+    if (isJoshChatOpen()) return;
+    setJoshThoughtBubbleHidden(false);
+  });
+  scheduleJoshBubble(() => runJoshBubbleHidePhase(), JOSH_BUBBLE_DISPLAY_MS);
+}
+
+function runJoshBubbleHidePhase() {
+  if (isJoshChatOpen()) return;
+  setJoshThoughtBubbleHidden(true);
+  scheduleJoshBubble(() => {
+    joshBubbleMessageIndex = (joshBubbleMessageIndex + 1) % 2;
+    runJoshBubbleIdlePhase();
+  }, JOSH_BUBBLE_FADE_MS);
+}
+
+function startJoshBubbleRotation() {
+  clearJoshBubbleTimers();
+  if (!els.joshAvatarThought || !els.joshThoughtSimple) return;
+  runJoshBubbleIdlePhase();
+}
+
+function restartJoshBubbleRotationFromSimpleView() {
+  if (isJoshChatOpen()) return;
+  startJoshBubbleRotation();
+}
+
+/** @param {{ resumeBubble?: boolean }} [opts] */
+function showJoshSimple(opts = {}) {
+  const resumeBubble = opts.resumeBubble !== false;
   if (!els.joshThoughtSimple || !els.joshThoughtChat) return;
   els.joshThoughtSimple.classList.remove('hidden');
   els.joshThoughtChat.classList.add('hidden');
+  if (resumeBubble) restartJoshBubbleRotationFromSimpleView();
 }
 
 function showJoshChat() {
   if (!els.joshThoughtSimple || !els.joshThoughtChat) return;
+  stopJoshBubbleRotation();
   els.joshThoughtSimple.classList.add('hidden');
   els.joshThoughtChat.classList.remove('hidden');
   if (els.joshThoughtChatInput) els.joshThoughtChatInput.focus();
-}
-
-function updateJoshBubbleHint() {
-  if (!els.joshAvatarThought || !els.joshThoughtWrap || !els.joshThoughtChat) return;
-  if (!els.joshThoughtChat.classList.contains('hidden')) return;
-  const lines = [
-    t(uiLocale, 'dashboard.joshBubbleLineDrag'),
-    t(uiLocale, 'dashboard.joshBubbleLineSheets'),
-    t(uiLocale, 'dashboard.joshBubbleLineAskAnything'),
-    t(uiLocale, 'dashboard.joshBubbleLineFilter'),
-    t(uiLocale, 'dashboard.joshBubbleLineSort'),
-  ].filter(Boolean);
-  if (!lines.length) return;
-  joshBubbleIndex = (joshBubbleIndex + 1) % lines.length;
-  els.joshAvatarThought.textContent = lines[joshBubbleIndex];
-  els.joshThoughtWrap.classList.remove('lf-josh-bubble-empty');
 }
 
 function spawnJoshSparkle(x, y) {
@@ -2019,7 +2127,12 @@ function initJoshDrag() {
   let pointerId = -1;
   let sparkleAt = 0;
   function onPointerDown(ev) {
-    if (ev.target instanceof HTMLElement && ev.target.closest('button,input,.lf-josh-thought-chat')) return;
+    if (
+      ev.target instanceof HTMLElement &&
+      ev.target.closest('button,input,.lf-josh-thought-chat,.lf-josh-avatar-thought,.lf-josh-thought-simple')
+    ) {
+      return;
+    }
     ev.preventDefault();
     const r = wrap.getBoundingClientRect();
     startX = ev.clientX;
@@ -2386,9 +2499,18 @@ function wireEvents() {
     els.sessionStop.addEventListener('click', () => void onDashboardRunToggleClick());
   }
 
+  if (els.joshThoughtSimple) {
+    els.joshThoughtSimple.addEventListener('click', (ev) => {
+      if (els.joshThoughtSimple.classList.contains('lf-josh-thought-bubble-hidden')) return;
+      if ((ev.target instanceof HTMLElement && ev.target.closest('.lf-josh-thought-chat')) || isJoshChatOpen()) {
+        return;
+      }
+      showJoshChat();
+    });
+  }
   if (els.joshAvatarThought) {
-    els.joshAvatarThought.addEventListener('click', () => showJoshChat());
     els.joshAvatarThought.addEventListener('keydown', (ev) => {
+      if (els.joshThoughtSimple?.classList.contains('lf-josh-thought-bubble-hidden')) return;
       if (ev.key === 'Enter' || ev.key === ' ') {
         ev.preventDefault();
         showJoshChat();
@@ -2444,11 +2566,10 @@ async function init() {
   if (els.joshAvatar) {
     setTimeout(() => {
       els.joshAvatar?.classList.add('lf-josh-visible');
+      startJoshBubbleRotation();
     }, 3000);
   }
-  updateJoshBubbleHint();
-  setInterval(updateJoshBubbleHint, JOSH_BUBBLE_ROTATE_MS);
-  showJoshSimple();
+  showJoshSimple({ resumeBubble: false });
   appendJoshMessage('bot', t(uiLocale, 'dashboard.joshWelcome'));
 }
 
