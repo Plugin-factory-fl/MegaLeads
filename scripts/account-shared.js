@@ -141,22 +141,32 @@ function normalizeEmailCandidate(raw) {
  * @returns {Promise<number>}
  */
 export async function countUniqueEmailsExtracted() {
+  const session = await readUserSession();
+  const cutoff = Number(session?.registeredAt) || 0;
   const bag = await chrome.storage.local.get([STORAGE_KEYS.LEADS, STORAGE_KEYS.SESSION_HISTORY]);
   const set = new Set();
-  /** @param {unknown[] | undefined} rows */
-  const take = (rows) => {
+  /** @param {unknown[] | undefined} rows @param {number} [sessionStartedAt] */
+  const take = (rows, sessionStartedAt) => {
+    if (cutoff > 0 && sessionStartedAt != null && sessionStartedAt < cutoff) return;
     if (!Array.isArray(rows)) return;
     for (const r of rows) {
       if (!rowHasExtractedEmail(r)) continue;
+      if (cutoff > 0) {
+        const scrapedAtMs = Date.parse(String(r?.scrapedAt || ''));
+        if (Number.isFinite(scrapedAtMs) && scrapedAtMs > 0 && scrapedAtMs < cutoff) continue;
+      }
       const u = String(r.username || '').trim().toLowerCase();
       const em = String(r.email || '').trim().toLowerCase();
       set.add(`${u}\u0000${em}`);
     }
   };
-  take(bag[STORAGE_KEYS.LEADS]);
+  take(bag[STORAGE_KEYS.LEADS], Date.now());
   const sessions = bag[STORAGE_KEYS.SESSION_HISTORY];
   if (Array.isArray(sessions)) {
-    for (const s of sessions) take(s.leads);
+    for (const s of sessions) {
+      const started = Number(s?.startedAt || s?.updatedAt || 0);
+      take(s?.leads, started);
+    }
   }
   return set.size;
 }
@@ -165,14 +175,21 @@ export async function countUniqueEmailsExtracted() {
  * @returns {Promise<Array<{ username: string, email: string }>>}
  */
 async function localUniqueEmailPairs() {
+  const session = await readUserSession();
+  const cutoff = Number(session?.registeredAt) || 0;
   const bag = await chrome.storage.local.get([STORAGE_KEYS.LEADS, STORAGE_KEYS.SESSION_HISTORY]);
   /** @type {Map<string, { username: string, email: string }>} */
   const map = new Map();
-  /** @param {unknown[] | undefined} rows */
-  const take = (rows) => {
+  /** @param {unknown[] | undefined} rows @param {number} [sessionStartedAt] */
+  const take = (rows, sessionStartedAt) => {
+    if (cutoff > 0 && sessionStartedAt != null && sessionStartedAt < cutoff) return;
     if (!Array.isArray(rows)) return;
     for (const r of rows) {
       if (!rowHasExtractedEmail(r)) continue;
+      if (cutoff > 0) {
+        const scrapedAtMs = Date.parse(String(r?.scrapedAt || ''));
+        if (Number.isFinite(scrapedAtMs) && scrapedAtMs > 0 && scrapedAtMs < cutoff) continue;
+      }
       const username = String(r?.username || '').trim().toLowerCase();
       const email = normalizeEmailCandidate(String(r?.email || ''));
       if (!username || !email) continue;
@@ -180,10 +197,13 @@ async function localUniqueEmailPairs() {
       map.set(k, { username, email });
     }
   };
-  take(bag[STORAGE_KEYS.LEADS]);
+  take(bag[STORAGE_KEYS.LEADS], Date.now());
   const sessions = bag[STORAGE_KEYS.SESSION_HISTORY];
   if (Array.isArray(sessions)) {
-    for (const s of sessions) take(s?.leads);
+    for (const s of sessions) {
+      const started = Number(s?.startedAt || s?.updatedAt || 0);
+      take(s?.leads, started);
+    }
   }
   return Array.from(map.values());
 }

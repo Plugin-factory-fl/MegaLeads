@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import pg from 'pg';
 import { pickBestEmail, normalizeEmailCandidate, EMAIL_RE } from '../scripts/email-quality.js';
 import {
   attachStripeWebhookRoute,
@@ -47,6 +48,19 @@ const FETCH_TOOL_OPENAI_FULL_DETAIL_LAST_TOOLS = Math.min(
 const FREE_EMAIL_EXTRACTION_CAP = 500;
 /** @type {Map<string, Set<string>>} accountEmail -> Set("username\\u0000email") */
 const FREE_TIER_USAGE_LEDGER = new Map();
+const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
+const { Pool } = pg;
+/** @type {import('pg').Pool | null} */
+const usagePool = DATABASE_URL
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl:
+        DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1')
+          ? false
+          : { rejectUnauthorized: false },
+    })
+  : null;
+let usageTableReady = false;
 
 function logInfo(msg, extra) {
   if (LOG_LEVEL === 'error' || LOG_LEVEL === 'warn') return;
@@ -107,6 +121,20 @@ function usageSetForAccount(email) {
   return set;
 }
 
+async function ensureUsageTable() {
+  if (!usagePool || usageTableReady) return;
+  await usagePool.query(`
+    CREATE TABLE IF NOT EXISTS account_email_usage (
+      account_email TEXT NOT NULL,
+      username TEXT NOT NULL,
+      email TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (account_email, username, email)
+    )
+  `);
+  usageTableReady = true;
+}
+
 /**
  * @param {string} email
  * @param {unknown} pairs
@@ -126,10 +154,59 @@ function mergeUsagePairs(email, pairs) {
 
 /**
  * @param {string} email
+ * @param {unknown} pairs
+ */
+async function mergeUsagePairsDb(email, pairs) {
+  const key = normalizeAccountEmail(email);
+  if (!usagePool || !key || !Array.isArray(pairs) || !pairs.length) return;
+  await ensureUsageTable();
+  /** @type {Array<[string, string, string]>} */
+  const rows = [];
+  for (const p of pairs) {
+    if (!p || typeof p !== 'object') continue;
+    const u = String(p.username || '').trim().toLowerCase();
+    const em = normalizeEmailCandidate(String(p.email || ''));
+    if (!u || !em) continue;
+    rows.push([key, u, em]);
+  }
+  if (!rows.length) return;
+  const values = [];
+  const params = [];
+  let i = 1;
+  for (const r of rows) {
+    values.push(`($${i}, $${i + 1}, $${i + 2})`);
+    params.push(r[0], r[1], r[2]);
+    i += 3;
+  }
+  await usagePool.query(
+    `INSERT INTO account_email_usage (account_email, username, email)
+     VALUES ${values.join(',')}
+     ON CONFLICT (account_email, username, email) DO NOTHING`,
+    params,
+  );
+}
+
+/**
+ * @param {string} email
  */
 function freeTierStatusForEmail(email) {
   const set = usageSetForAccount(email);
   const used = set.size;
+  const cap = FREE_EMAIL_EXTRACTION_CAP;
+  const remaining = Math.max(0, cap - used);
+  const atCap = used >= cap;
+  return { used, cap, remaining, atCap };
+}
+
+/**
+ * @param {string} email
+ */
+async function freeTierStatusForEmailDb(email) {
+  const key = normalizeAccountEmail(email);
+  if (!usagePool || !key) return null;
+  await ensureUsageTable();
+  const r = await usagePool.query('SELECT COUNT(*)::int AS used FROM account_email_usage WHERE account_email = $1', [key]);
+  const used = Number(r.rows?.[0]?.used) || 0;
   const cap = FREE_EMAIL_EXTRACTION_CAP;
   const remaining = Math.max(0, cap - used);
   const atCap = used >= cap;
@@ -142,11 +219,20 @@ function freeTierStatusForEmail(email) {
  * @param {import('express').Request} req
  * @param {import('express').Response} res
  */
-function handleFreeTierStatus(req, res) {
+async function handleFreeTierStatus(req, res) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const email = normalizeAccountEmail(typeof body.email === 'string' ? body.email : '');
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'bad_request', message: 'Valid email is required.' });
+  }
+  try {
+    if (usagePool) {
+      await mergeUsagePairsDb(email, body.pairs);
+      const statusDb = await freeTierStatusForEmailDb(email);
+      if (statusDb) return res.json({ ...statusDb, source: 'postgres' });
+    }
+  } catch (e) {
+    logWarn('free_tier_status_db_failed', { err: String(e?.message || e) });
   }
   mergeUsagePairs(email, body.pairs);
   const status = freeTierStatusForEmail(email);
@@ -1569,7 +1655,9 @@ function main() {
   app.post('/v1/leads/enrich', requireBearer, (req, res, next) => {
     handleEnrich(req, res).catch(next);
   });
-  app.post('/v1/free-tier/status', requireBearer, handleFreeTierStatus);
+  app.post('/v1/free-tier/status', requireBearer, (req, res, next) => {
+    handleFreeTierStatus(req, res).catch(next);
+  });
   app.post('/v1/josh/chat', requireBearer, (req, res, next) => {
     handleJoshChat(req, res).catch(next);
   });
