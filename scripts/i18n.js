@@ -256,6 +256,8 @@ export const I18N = {
       accountUsageAtCap: 'You have reached the free email limit. Get Infinite Emails to continue extracting.',
       accountUsagePlusRoyalty:
         "You're a MegaLeads AI Plus user. You're royalty.",
+      manageSubscription: 'Manage subscription',
+      manageSubscriptionMissing: 'Could not open subscription management right now.',
       accountLogout: 'Sign out',
       accountCheckoutDiamond: 'Get Infinite Emails',
       ariaCheckoutDiamond: 'Open checkout to Get Infinite Emails',

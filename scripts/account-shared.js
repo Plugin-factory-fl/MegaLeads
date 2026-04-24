@@ -203,3 +203,34 @@ export async function openStripeCheckoutInNewTab(options) {
   chrome.tabs.create({ url, active: true });
   return { ok: true };
 }
+
+/**
+ * Opens Stripe Billing Portal in a new tab for the logged-in user.
+ * @returns {Promise<{ ok: true } | { ok: false, reason: 'missing_url' }>}
+ */
+export async function openManageSubscriptionInNewTab() {
+  const session = await readUserSession();
+  const email = String(session?.email || '').trim();
+  const base = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim().replace(/\/$/, '') : '';
+  const bearer = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (base && bearer && email.includes('@')) {
+    try {
+      const r = await fetch(`${base}/v1/stripe/manage-subscription-session`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      const data = r.ok ? await r.json().catch(() => ({})) : {};
+      if (data && typeof data.url === 'string' && data.url.startsWith('http')) {
+        chrome.tabs.create({ url: data.url, active: true });
+        return { ok: true };
+      }
+    } catch {
+      /* no-op */
+    }
+  }
+  return { ok: false, reason: 'missing_url' };
+}

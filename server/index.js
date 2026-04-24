@@ -10,6 +10,7 @@ import {
   handleStripeCheckoutSession,
   handleStripeCheckoutReturn,
   handleStripeSubscriptionStatus,
+  handleStripeManageSubscriptionSession,
 } from './stripe.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -1510,6 +1511,9 @@ function main() {
   app.post('/v1/stripe/subscription-status', requireBearer, (req, res, next) => {
     handleStripeSubscriptionStatus(req, res).catch(next);
   });
+  app.post('/v1/stripe/manage-subscription-session', requireBearer, (req, res, next) => {
+    handleStripeManageSubscriptionSession(req, res).catch(next);
+  });
 
   app.use((err, _req, res, _next) => {
     logWarn('unhandled', { err: String(err?.message || err) });
@@ -1521,6 +1525,7 @@ function main() {
       health: ['/', '/health'],
       enrich: 'POST /v1/leads/enrich',
       stripeCheckout: 'POST /v1/stripe/checkout-session',
+      stripeManageSubscription: 'POST /v1/stripe/manage-subscription-session',
       stripeWebhook: 'POST /v1/stripe/webhook',
     });
   });

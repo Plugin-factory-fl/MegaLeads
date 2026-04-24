@@ -196,6 +196,78 @@ export async function handleStripeSubscriptionStatus(req, res) {
 }
 
 /**
+ * Creates a Stripe Billing Portal session for a customer email.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+export async function handleStripeManageSubscriptionSession(req, res) {
+  if (!stripe) {
+    return res.status(503).json({
+      error: 'stripe_misconfigured',
+      message: 'Set STRIPE_SECRET_KEY on the server.',
+    });
+  }
+  const base = publicBaseUrl();
+  if (!base) {
+    return res.status(503).json({
+      error: 'stripe_misconfigured',
+      message: 'Set PUBLIC_BASE_URL (or rely on RENDER_EXTERNAL_URL on Render).',
+    });
+  }
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'bad_request', message: 'Valid email is required.' });
+  }
+  try {
+    const customers = await stripe.customers.list({ email, limit: 20 });
+    if (!customers.data.length) {
+      return res.status(404).json({
+        error: 'customer_not_found',
+        message: 'No Stripe customer found for this email.',
+      });
+    }
+    let selectedCustomerId = '';
+    for (const customer of customers.data) {
+      const subs = await stripe.subscriptions.list({ customer: customer.id, limit: 100, status: 'all' });
+      const hasManageable = subs.data.some((s) => {
+        const st = String(s.status || '').toLowerCase();
+        return st !== 'incomplete_expired' && st !== 'canceled';
+      });
+      if (hasManageable) {
+        selectedCustomerId = customer.id;
+        break;
+      }
+    }
+    if (!selectedCustomerId) selectedCustomerId = customers.data[0]?.id || '';
+    if (!selectedCustomerId) {
+      return res.status(404).json({
+        error: 'customer_not_found',
+        message: 'No Stripe customer found for this email.',
+      });
+    }
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: selectedCustomerId,
+      return_url: `${base}/v1/stripe/checkout-return`,
+    });
+    if (!portal.url) {
+      return res.status(502).json({
+        error: 'stripe_no_url',
+        message: 'Billing portal session had no URL.',
+      });
+    }
+    return res.json({ url: portal.url });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logWarn('manage_subscription_session_failed', { err: msg });
+    return res.status(502).json({
+      error: 'stripe_billing_portal_failed',
+      message: 'Could not create Stripe Billing Portal session.',
+    });
+  }
+}
+
+/**
  * Raw body route — must be registered before express.json().
  * @param {import('express').Request} req
  * @param {import('express').Response} res

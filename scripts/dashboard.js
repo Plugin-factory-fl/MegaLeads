@@ -14,6 +14,7 @@ import {
   clearUserSession,
   countUniqueEmailsExtracted,
   openStripeCheckoutInNewTab,
+  openManageSubscriptionInNewTab,
   canStartExtractionForFreeTier,
   readSubscriptionUnlimited,
   syncSubscriptionFromServer,
@@ -2174,6 +2175,8 @@ function syncAccountModalLocale() {
   if (dlab) dlab.textContent = t(L, 'dashboard.accountCheckoutDiamond');
   const lo = q('lfAccountUsageLogout');
   if (lo) lo.textContent = t(L, 'dashboard.accountLogout');
+  const manage = q('lfManageSubscription');
+  if (manage) manage.textContent = t(L, 'dashboard.manageSubscription');
   const ucls = q('lfAccountUsageClose');
   if (ucls) ucls.textContent = t(L, 'dashboard.accountClose');
   if (els.dashboardAccountBtn) {
@@ -2201,6 +2204,7 @@ async function openUsageAccountModal() {
   const atCap = document.getElementById('lfAccountUsageAtCap');
   const barWrap = w.querySelector('.lf-account-usage-bar-wrap');
   const ctaRow = w.querySelector('.lf-account-usage-cta-row');
+  const manageBtn = document.getElementById('lfManageSubscription');
 
   if (signed) signed.textContent = tf(L, 'dashboard.accountUsageSignedInAs', { email: session.email });
 
@@ -2221,6 +2225,7 @@ async function openUsageAccountModal() {
       ctaRow.hidden = true;
       ctaRow.style.display = 'none';
     }
+    if (manageBtn instanceof HTMLElement) manageBtn.hidden = false;
     w.hidden = false;
     return;
   }
@@ -2255,6 +2260,7 @@ async function openUsageAccountModal() {
       ctaRow.style.display = '';
     }
   }
+  if (manageBtn instanceof HTMLElement) manageBtn.hidden = true;
   w.hidden = false;
 }
 
@@ -2289,6 +2295,8 @@ function wireAccountModals() {
   if (closeU) closeU.addEventListener('click', () => closeAccountModals());
   const out = document.getElementById('lfAccountUsageLogout');
   if (out) out.addEventListener('click', () => void onAccountLogoutClick());
+  const manage = document.getElementById('lfManageSubscription');
+  if (manage) manage.addEventListener('click', () => void onManageSubscriptionClick());
   const diamond = document.getElementById('lfAccountStripeDiamond');
   if (diamond) diamond.addEventListener('click', () => void onStripeDiamondClick());
 }
@@ -2301,6 +2309,11 @@ async function onAccountLogoutClick() {
 async function onStripeDiamondClick() {
   const r = await openStripeCheckoutInNewTab();
   if (!r.ok) appendStatusLine(t(uiLocale, 'dashboard.stripeMissing'));
+}
+
+async function onManageSubscriptionClick() {
+  const r = await openManageSubscriptionInNewTab();
+  if (!r.ok) appendStatusLine(t(uiLocale, 'dashboard.manageSubscriptionMissing'));
 }
 
 function wireEvents() {

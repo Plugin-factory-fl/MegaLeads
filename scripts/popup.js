@@ -27,6 +27,7 @@ import {
   readSubscriptionUnlimited,
   clearUserSession,
   syncSubscriptionFromServer,
+  openManageSubscriptionInNewTab,
 } from './account-shared.js';
 
 /** @typedef {'en'} Locale */
@@ -503,6 +504,8 @@ function syncPopupAccountUsageModalLocale() {
   if (dlab) dlab.textContent = t(L, 'dashboard.accountCheckoutDiamond');
   const lo = q('lfPopupAccountUsageLogout');
   if (lo) lo.textContent = t(L, 'dashboard.accountLogout');
+  const manage = q('lfPopupManageSubscription');
+  if (manage) manage.textContent = t(L, 'dashboard.manageSubscription');
   const ucls = q('lfPopupAccountUsageClose');
   if (ucls) ucls.textContent = t(L, 'dashboard.accountClose');
 }
@@ -635,6 +638,7 @@ async function openPopupAccountUsageModal() {
   const atCap = document.getElementById('lfPopupAccountUsageAtCap');
   const barWrap = document.getElementById('lfPopupAccountUsageBarWrap');
   const ctaRow = w.querySelector('.lf-account-usage-cta-row');
+  const manageBtn = document.getElementById('lfPopupManageSubscription');
 
   if (signed) signed.textContent = tf(L, 'dashboard.accountUsageSignedInAs', { email: session.email });
 
@@ -655,6 +659,7 @@ async function openPopupAccountUsageModal() {
       ctaRow.hidden = true;
       ctaRow.style.display = 'none';
     }
+    if (manageBtn instanceof HTMLElement) manageBtn.hidden = false;
     w.hidden = false;
     return;
   }
@@ -689,6 +694,7 @@ async function openPopupAccountUsageModal() {
       ctaRow.style.display = '';
     }
   }
+  if (manageBtn instanceof HTMLElement) manageBtn.hidden = true;
   w.hidden = false;
 }
 
@@ -712,6 +718,15 @@ function wirePopupAccountUsageModal() {
   if (closeB) closeB.addEventListener('click', () => closePopupAccountUsageModal());
   const out = document.getElementById('lfPopupAccountUsageLogout');
   if (out) out.addEventListener('click', () => void onPopupAccountLogout());
+  const manage = document.getElementById('lfPopupManageSubscription');
+  if (manage) {
+    manage.addEventListener('click', () => {
+      void (async () => {
+        const r = await openManageSubscriptionInNewTab();
+        if (!r.ok) setPopupStatus(t(uiLocale, 'dashboard.manageSubscriptionMissing'), true);
+      })();
+    });
+  }
   const diamond = document.getElementById('lfPopupAccountStripeDiamond');
   if (diamond) {
     diamond.addEventListener('click', () => {
