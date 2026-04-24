@@ -1992,6 +1992,19 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   background: #86efac;
 }
 
+.lf-admin-free-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #713f12;
+  background: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.65);
+}
+
 body.lf-dashboard.lf-admin-mode .lf-app > :not(.lf-header):not(.lf-admin-panel) {
   display: none !important;
 }

@@ -51,6 +51,8 @@ const ADMIN_EMAIL = 'admin@megaleadsai.com';
 const ADMIN_PASSWORD = 'Shakeybob3';
 /** @type {Map<string, Set<string>>} accountEmail -> Set("username\\u0000email") */
 const FREE_TIER_USAGE_LEDGER = new Map();
+/** When Postgres is off, admin still sees emails registered this process lifetime. */
+const IN_MEMORY_REGISTERED_EMAILS = new Set();
 /** Prefer this on hosts where `DATABASE_URL` is inherited from another app (e.g. MegaMix). */
 const MEGALEADS_DATABASE_URL = String(process.env.MEGALEADS_DATABASE_URL || '').trim();
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
@@ -138,7 +140,29 @@ async function ensureUsageTable() {
       PRIMARY KEY (account_email, username, email)
     )
   `);
+  await usagePool.query(`
+    CREATE TABLE IF NOT EXISTS megaleads_account_registry (
+      account_email TEXT PRIMARY KEY,
+      registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
   usageTableReady = true;
+}
+
+/**
+ * Records that an account email exists (signup, sign-in, or free-tier sync) for admin subscriber list.
+ * @param {string} email
+ */
+async function registerAccountEmailGlobally(email) {
+  const key = normalizeAccountEmail(email);
+  if (!key) return;
+  IN_MEMORY_REGISTERED_EMAILS.add(key);
+  if (!usagePool) return;
+  await ensureUsageTable();
+  await usagePool.query(
+    `INSERT INTO megaleads_account_registry (account_email) VALUES ($1) ON CONFLICT (account_email) DO NOTHING`,
+    [key],
+  );
 }
 
 /**
@@ -232,6 +256,11 @@ async function handleFreeTierStatus(req, res) {
     return res.status(400).json({ error: 'bad_request', message: 'Valid email is required.' });
   }
   try {
+    await registerAccountEmailGlobally(email);
+  } catch (e) {
+    logWarn('account_registry_touch_failed', { err: String(e?.message || e) });
+  }
+  try {
     if (usagePool) {
       await mergeUsagePairsDb(email, body.pairs);
       const statusDb = await freeTierStatusForEmailDb(email);
@@ -243,6 +272,26 @@ async function handleFreeTierStatus(req, res) {
   mergeUsagePairs(email, body.pairs);
   const status = freeTierStatusForEmail(email);
   return res.json({ ...status, source: 'server_ledger' });
+}
+
+/**
+ * Best-effort: record account email for admin dashboard (same Bearer as enrich).
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+async function handleAccountRegister(req, res) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const email = normalizeAccountEmail(typeof body.email === 'string' ? body.email : '');
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'bad_request', message: 'Valid email is required.' });
+  }
+  try {
+    await registerAccountEmailGlobally(email);
+  } catch (e) {
+    logWarn('account_register_failed', { err: String(e?.message || e) });
+    return res.status(500).json({ error: 'internal', message: 'Could not record account.' });
+  }
+  return res.json({ ok: true });
 }
 
 /**
@@ -260,8 +309,15 @@ async function handleAdminSubscribers(req, res) {
 
   /** @type {Map<string, number>} */
   const freeUsedByEmail = new Map();
+  /** @type {Set<string>} */
+  const registeredEmails = new Set(IN_MEMORY_REGISTERED_EMAILS);
   if (usagePool) {
     await ensureUsageTable();
+    const reg = await usagePool.query('SELECT account_email FROM megaleads_account_registry');
+    for (const row of reg.rows || []) {
+      const em = normalizeAccountEmail(row.account_email);
+      if (em) registeredEmails.add(em);
+    }
     const r = await usagePool.query(
       'SELECT account_email, COUNT(*)::int AS used FROM account_email_usage GROUP BY account_email',
     );
@@ -280,8 +336,11 @@ async function handleAdminSubscribers(req, res) {
   /** @type {Array<{ email: string, type: 'paid' | 'free', remaining: number|null }>} */
   const rows = [];
   for (const em of paid) rows.push({ email: em, type: 'paid', remaining: null });
-  for (const [em, used] of freeUsedByEmail.entries()) {
+  /** Registered accounts and anyone with usage rows, minus paid. */
+  const freeCandidateEmails = new Set([...registeredEmails, ...freeUsedByEmail.keys()]);
+  for (const em of freeCandidateEmails) {
     if (paid.has(em)) continue;
+    const used = freeUsedByEmail.get(em) || 0;
     rows.push({ email: em, type: 'free', remaining: Math.max(0, FREE_EMAIL_EXTRACTION_CAP - used) });
   }
   rows.sort((a, b) => a.email.localeCompare(b.email));
@@ -1706,6 +1765,9 @@ function main() {
   });
   app.post('/v1/free-tier/status', requireBearer, (req, res, next) => {
     handleFreeTierStatus(req, res).catch(next);
+  });
+  app.post('/v1/account/register', requireBearer, (req, res, next) => {
+    handleAccountRegister(req, res).catch(next);
   });
   app.post('/v1/admin/subscribers', requireBearer, (req, res, next) => {
     handleAdminSubscribers(req, res).catch(next);

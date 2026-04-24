@@ -32,6 +32,30 @@ export async function readUserSession() {
  * Create or update the signed-in MegaLeads account (signup or sign-in on signup.html).
  * @param {string} email
  */
+/**
+ * Tells the server this account exists so the admin dashboard can list free-tier users (best-effort).
+ * @param {string} email
+ */
+export async function notifyServerAccountRegistered(email) {
+  const em = String(email || '').trim();
+  if (!em.includes('@')) return;
+  const base = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim().replace(/\/$/, '') : '';
+  const bearer = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!base || !bearer) return;
+  try {
+    await fetch(`${base}/v1/account/register`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: em }),
+    });
+  } catch {
+    /* offline / misconfig — ignore */
+  }
+}
+
 export async function writeUserSession(email, options) {
   const trimmed = String(email || '').trim();
   if (!trimmed) return;
@@ -40,6 +64,7 @@ export async function writeUserSession(email, options) {
   await chrome.storage.local.set({
     [STORAGE_KEYS.USER_SESSION]: { email: trimmed, loggedInAt: now, registeredAt: now, isAdmin },
   });
+  void notifyServerAccountRegistered(trimmed);
 }
 
 export function isAdminCredentials(email, password) {

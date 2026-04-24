@@ -22,6 +22,7 @@ import {
   canStartExtractionForFreeTier,
   readSubscriptionUnlimited,
   syncSubscriptionFromServer,
+  notifyServerAccountRegistered,
 } from './account-shared.js';
 import { buildScrapePayloadFromUiPrefs } from './scrape-payload.js';
 import { extractEmailPhoneFromParts } from './selectors.js';
@@ -51,10 +52,14 @@ function renderAdminSubscribers(rows) {
     const tr = document.createElement('tr');
     const email = String(row?.email || '');
     const type = String(row?.type || '');
-    const remaining = type === 'paid' ? '—' : String(Number(row?.remaining) || 0);
+    const remaining = type === 'paid' ? '—' : String(Number(row?.remaining) ?? 0);
     tr.innerHTML = `
       <td>${email}</td>
-      <td>${type === 'paid' ? '<span class="lf-admin-paid-tag">PAID</span>' : 'FREE'}</td>
+      <td>${
+        type === 'paid'
+          ? '<span class="lf-admin-paid-tag">PAID</span>'
+          : '<span class="lf-admin-free-tag">FREE</span>'
+      }</td>
       <td>${remaining}</td>
     `;
     body.appendChild(tr);
@@ -2573,6 +2578,7 @@ async function init() {
     await redirectToSignupFromDashboard();
     return;
   }
+  void notifyServerAccountRegistered(session.email);
   const sp = new URLSearchParams(window.location.search);
   const wantsAdmin = sp.get('admin') === '1';
   if (session.isAdmin || wantsAdmin) {
