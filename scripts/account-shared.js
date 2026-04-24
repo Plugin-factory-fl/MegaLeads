@@ -37,7 +37,17 @@ export async function writeUserSession(email) {
 /** @returns {Promise<boolean>} */
 export async function readSubscriptionUnlimited() {
   const { [STORAGE_KEYS.SUBSCRIPTION]: raw } = await chrome.storage.local.get(STORAGE_KEYS.SUBSCRIPTION);
-  return Boolean(raw && typeof raw === 'object' && raw.unlimited === true);
+  if (!raw || typeof raw !== 'object') return false;
+  const sub = /** @type {Record<string, unknown>} */ (raw);
+  if (sub.unlimited === true) return true;
+  if (sub.active === true) return true;
+  if (sub.isPaid === true) return true;
+  if (sub.plan === 'plus' || sub.plan === 'pro' || sub.plan === 'paid') return true;
+  const status = String(sub.status || '').toLowerCase();
+  if (status === 'active' || status === 'trialing' || status === 'paid') return true;
+  const expiresAt = Number(sub.expiresAt || sub.expires_at || 0);
+  if (Number.isFinite(expiresAt) && expiresAt > Date.now()) return true;
+  return false;
 }
 
 /**
@@ -112,22 +122,32 @@ export function getStripeCheckoutUrl() {
 /**
  * Opens Stripe Checkout: prefers server `POST /v1/stripe/checkout-session` (Render + your Stripe env),
  * then falls back to `stripeCheckoutUrl` in leadflow-remote-config.js if the API does not return a URL.
+ * @param {{ promotionCode?: string }} [options] If `promotionCode` is set, the server pre-applies that
+ *   Stripe **promotion** code on the session (case-sensitive). Omit to use Checkout’s “Add promotion code” field.
  * @returns {Promise<{ ok: true } | { ok: false, reason: 'missing_url' }>}
  */
-export async function openStripeCheckoutInNewTab() {
+export async function openStripeCheckoutInNewTab(options) {
+  const promotionCode =
+    options && typeof options === 'object' && typeof options.promotionCode === 'string'
+      ? options.promotionCode.trim()
+      : '';
   const base = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim().replace(/\/$/, '') : '';
   const bearer = typeof apiKey === 'string' ? apiKey.trim() : '';
   if (base && bearer) {
     try {
       const session = await readUserSession();
       const customerEmail = session?.email && session.email.includes('@') ? session.email : undefined;
+      /** @type {Record<string, string>} */
+      const bodyPayload = {};
+      if (customerEmail) bodyPayload.customerEmail = customerEmail;
+      if (promotionCode) bodyPayload.promotionCode = promotionCode;
       const r = await fetch(`${base}/v1/stripe/checkout-session`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${bearer}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(customerEmail ? { customerEmail } : {}),
+        body: JSON.stringify(bodyPayload),
       });
       const data = r.ok ? await r.json().catch(() => ({})) : {};
       if (data && typeof data.url === 'string' && data.url.startsWith('http')) {

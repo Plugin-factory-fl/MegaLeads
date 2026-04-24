@@ -2,6 +2,14 @@
  * Stripe Checkout + webhook — uses Render env:
  * STRIPE_SECRET_KEY, STRIPE_PRICE_ID, STRIPE_WEBHOOK_SECRET,
  * PUBLIC_BASE_URL or RENDER_EXTERNAL_URL for return URLs.
+ *
+ * Promotion codes at hosted Checkout:
+ * - Customers must enter a **Promotion code** (Billing → Coupons → pick coupon → Promotion codes),
+ *   not the Coupon API id (e.g. `25OFF`). The customer-facing `code` string is what Checkout expects.
+ * - If the coupon is limited to **specific products**, that list must include the **Product** linked to
+ *   `STRIPE_PRICE_ID` (see `checkout_price_product_id` on the Checkout Session in the Dashboard).
+ * - Test-mode promotion codes only work with test keys; live with live.
+ * - `allow_promotion_codes` cannot be combined with a pre-applied `discounts` entry on the same session.
  */
 
 import express from 'express';
@@ -64,12 +72,11 @@ export async function handleStripeCheckoutSession(req, res) {
 
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const customerEmail = typeof body.customerEmail === 'string' ? body.customerEmail.trim() : '';
+  const rawPromo = typeof body.promotionCode === 'string' ? body.promotionCode.trim() : '';
 
   /** @type {import('stripe').Stripe.Checkout.SessionCreateParams} */
   const params = {
     mode: 'subscription',
-    /** Shows “Add promotion code” on hosted Checkout (Dashboard → Coupons / Promotion codes). */
-    allow_promotion_codes: true,
     line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
     success_url: urls.success_url,
     cancel_url: urls.cancel_url,
@@ -78,6 +85,43 @@ export async function handleStripeCheckoutSession(req, res) {
       ...(STRIPE_PRODUCT_ID ? { product_id: STRIPE_PRODUCT_ID } : {}),
     },
   };
+
+  try {
+    const price = await stripe.prices.retrieve(STRIPE_PRICE_ID);
+    const pid = typeof price.product === 'string' ? price.product : price.product?.id;
+    if (typeof pid === 'string' && pid) {
+      params.metadata = { ...params.metadata, checkout_price_product_id: pid };
+    }
+  } catch (e) {
+    logWarn('price_retrieve_for_metadata', { err: String(e?.message || e) });
+  }
+
+  if (rawPromo) {
+    /** Pre-apply one code (mutually exclusive with `allow_promotion_codes` in Stripe). */
+    let listed;
+    try {
+      listed = await stripe.promotionCodes.list({ code: rawPromo, active: true, limit: 10 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logWarn('promotion_code_list_failed', { err: msg });
+      return res.status(400).json({
+        error: 'promotion_code_lookup_failed',
+        message: 'Could not look up that promotion code in Stripe.',
+      });
+    }
+    const promo = listed.data[0];
+    if (!promo) {
+      return res.status(400).json({
+        error: 'promotion_code_not_found',
+        message:
+          'No active Stripe promotion code matches that value (match is case-sensitive). Create a Promotion code on the coupon in the Dashboard, and use Test/Live mode that matches this server.',
+      });
+    }
+    params.discounts = [{ promotion_code: promo.id }];
+  } else {
+    params.allow_promotion_codes = true;
+  }
+
   if (customerEmail.includes('@')) {
     params.customer_email = customerEmail;
   }
@@ -89,10 +133,14 @@ export async function handleStripeCheckoutSession(req, res) {
     }
     return res.json({ url: session.url });
   } catch (e) {
-    logWarn('checkout_session_failed', { err: String(e?.message || e) });
+    const errMsg = e instanceof Error ? e.message : String(e);
+    logWarn('checkout_session_failed', { err: errMsg });
+    const stripeDetail =
+      e && typeof e === 'object' && 'raw' in e && /** @type {{ message?: string }} */ (e.raw)?.message;
     return res.status(502).json({
       error: 'stripe_checkout_failed',
       message: 'Could not create Stripe Checkout session.',
+      ...(typeof stripeDetail === 'string' && stripeDetail ? { detail: stripeDetail } : {}),
     });
   }
 }

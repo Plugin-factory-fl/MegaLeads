@@ -802,16 +802,16 @@ async function refreshPopupHeaderProgress() {
   const bar = document.getElementById('lfPopupHeaderProgressBar');
   const upgradeBtn = document.getElementById('lfUpgrade');
   if (!wrap || !countEl || !fill || !bar) return;
-  const session = await readUserSession();
-  if (!session) {
-    wrap.hidden = true;
-    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
-    return;
-  }
   const unlimited = await readSubscriptionUnlimited();
   if (unlimited) {
     wrap.hidden = true;
     if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = true;
+    return;
+  }
+  const session = await readUserSession();
+  if (!session) {
+    wrap.hidden = true;
+    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
     return;
   }
   if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
