@@ -1478,112 +1478,6 @@ async function processRemoteEnrichBatch(dtos, options) {
 }
 
 /**
- * @param {string} raw
- * @returns {keyof Lead | '' }
- */
-function mapJoshSortKey(raw) {
-  const k = String(raw || '').trim();
-  const allowed = new Set([
-    'username',
-    'followerCount',
-    'bio',
-    'email',
-    'phone',
-    'websiteUrl',
-  ]);
-  return allowed.has(k) ? /** @type {keyof Lead} */ (k) : '';
-}
-
-/**
- * @param {unknown[]} actions
- * @returns {Promise<string[]>}
- */
-async function applyJoshActions(actions) {
-  /** @type {string[]} */
-  const notes = [];
-  for (const a of actions || []) {
-    if (!a || typeof a !== 'object') continue;
-    const type = String(a.type || '').trim();
-    if (!type) continue;
-    if (type === 'set_filter') {
-      const query = String(a.query || '');
-      if (els.filter) els.filter.value = query;
-      renderTable();
-      notes.push(`filter set to "${query}"`);
-      continue;
-    }
-    if (type === 'sort') {
-      const mapped = mapJoshSortKey(a.key);
-      const dirRaw = String(a.direction || '').toLowerCase();
-      if (mapped) {
-        sortKey = mapped;
-        sortDir = dirRaw === 'desc' ? -1 : 1;
-        renderTable();
-        notes.push(`sorted by ${mapped} (${sortDir === 1 ? 'asc' : 'desc'})`);
-      }
-      continue;
-    }
-    if (type === 'select') {
-      renderTable();
-      const mode = String(a.mode || 'none');
-      const count = Math.max(1, Number(a.count) || 1);
-      if (mode === 'none') {
-        setSelectedRowsByUsernames([]);
-        notes.push('selection cleared');
-      } else if (mode === 'all') {
-        setSelectedRowsByUsernames(getVisibleUsernames());
-        notes.push('selected all visible rows');
-      } else if (mode === 'with_email') {
-        const map = new Map(getActiveLeads().map((r) => [String(r.username || '').toLowerCase(), r]));
-        const picks = getVisibleUsernames().filter((u) => {
-          const row = map.get(u.toLowerCase());
-          return String(row?.email || '').includes('@');
-        });
-        setSelectedRowsByUsernames(picks);
-        notes.push(`selected ${picks.length} rows with email`);
-      } else if (mode === 'top_n') {
-        setSelectedRowsByUsernames(getVisibleUsernames().slice(0, count));
-        notes.push(`selected top ${count} visible rows`);
-      }
-      continue;
-    }
-    if (type === 'delete_selected') {
-      const rows = getSelectedRows();
-      const drop = new Set(rows.map((r) => String(r.username || '').toLowerCase()));
-      if (drop.size) {
-        await persistLeadsAndRender(leads.filter((r) => !drop.has(String(r.username || '').toLowerCase())));
-        notes.push(`deleted ${drop.size} selected rows`);
-      }
-      continue;
-    }
-    if (type === 'delete_filtered') {
-      const visible = new Set(getVisibleUsernames().map((u) => u.toLowerCase()));
-      if (visible.size) {
-        await persistLeadsAndRender(leads.filter((r) => !visible.has(String(r.username || '').toLowerCase())));
-        notes.push(`deleted ${visible.size} filtered rows`);
-      }
-      continue;
-    }
-    if (type === 'clear_all') {
-      await persistLeadsAndRender([]);
-      notes.push('cleared all leads');
-      continue;
-    }
-    if (type === 'export') {
-      const kind = String(a.kind || '').toLowerCase();
-      if (kind === 'emails') {
-        await doExportEmails('xlsx');
-        notes.push('exported emails');
-      } else {
-        await doExportProfiles('xlsx');
-        notes.push('exported profiles');
-      }
-    }
-  }
-  return notes;
-}
-
-/**
  * Remote LLM + optional FETCH_URL enrich; merges into `leads` storage.
  * @param {Lead[]} list
  * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean, excludeFakeEmails?: boolean }} options
@@ -1727,9 +1621,7 @@ async function sendJoshChat(userMessage) {
   const resp = await sendMessageAsync(payload);
   if (!resp?.ok) throw new Error(resp?.error || 'Josh request failed');
   const reply = String(resp?.data?.reply || '').trim();
-  const actions = Array.isArray(resp?.data?.actions) ? resp.data.actions : [];
-  const notes = await applyJoshActions(actions);
-  return { reply, notes };
+  return { reply, notes: [] };
 }
 
 async function runRemoteEnrichPipeline() {
@@ -2184,12 +2076,11 @@ async function onJoshSend() {
   appendJoshMessage('user', text);
   appendJoshMessage('bot', t(uiLocale, 'dashboard.joshTyping'));
   try {
-    const { reply, notes } = await sendJoshChat(text);
+    const { reply } = await sendJoshChat(text);
     if (els.joshThoughtMessages?.lastElementChild) {
       els.joshThoughtMessages.lastElementChild.remove();
     }
-    const full = notes.length ? `${reply}\n\nDone: ${notes.join('; ')}.` : reply;
-    appendJoshMessage('bot', full || t(uiLocale, 'dashboard.joshNetworkError'));
+    appendJoshMessage('bot', reply || t(uiLocale, 'dashboard.joshNetworkError'));
   } catch (e) {
     if (els.joshThoughtMessages?.lastElementChild) {
       els.joshThoughtMessages.lastElementChild.remove();
@@ -2232,25 +2123,27 @@ async function refreshDashboardHeaderProgress() {
   const countEl = document.getElementById('lfDashboardHeaderProgressCount');
   const fill = document.getElementById('lfDashboardHeaderProgressFill');
   const bar = document.getElementById('lfDashboardHeaderProgressBar');
+  const upgradeBtn = els.dashboardUpgrade || document.getElementById('lfDashboardUpgrade');
   if (!wrap || !countEl || !fill || !bar) return;
   const session = await readUserSession();
   if (!session) {
     wrap.hidden = true;
+    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
     return;
   }
+  const unlimited = await readSubscriptionUnlimited();
+  if (unlimited) {
+    wrap.hidden = true;
+    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = true;
+    return;
+  }
+  if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
   wrap.hidden = false;
   if (label) label.textContent = t(uiLocale, 'dashboard.freeTierEmailsLabel');
   wrap.setAttribute('aria-label', t(uiLocale, 'dashboard.headerProgressAria'));
-  const unlimited = await readSubscriptionUnlimited();
   const count = await countUniqueEmailsExtracted();
   const cap = FREE_EMAIL_EXTRACTION_CAP;
   bar.classList.remove('is-at-cap', 'is-unlimited');
-  if (unlimited) {
-    countEl.textContent = t(uiLocale, 'dashboard.headerEmailsUnlimited');
-    fill.style.width = '100%';
-    bar.classList.add('is-unlimited');
-    return;
-  }
   const pct = Math.min(100, (count / cap) * 100);
   countEl.textContent = tf(uiLocale, 'dashboard.headerEmailsProgress', { count, cap });
   fill.style.width = `${pct}%`;
@@ -2290,28 +2183,60 @@ async function openUsageAccountModal() {
   }
   syncAccountModalLocale();
   const L = uiLocale;
-  const count = await countUniqueEmailsExtracted();
-  const cap = FREE_EMAIL_EXTRACTION_CAP;
-  const pct = Math.min(100, (count / cap) * 100);
-
+  const unlimited = await readSubscriptionUnlimited();
+  const titleEl = document.getElementById('lfAccountUsageTitle');
   const signed = document.getElementById('lfAccountUsageSignedIn');
-  if (signed) signed.textContent = tf(L, 'dashboard.accountUsageSignedInAs', { email: session.email });
   const cntEl = document.getElementById('lfAccountUsageCount');
-  if (cntEl) cntEl.textContent = tf(L, 'dashboard.accountUsageCount', { count });
-  const barFill = document.getElementById('lfAccountUsageBarFill');
-  if (barFill) barFill.style.width = `${pct}%`;
-  const barLab = document.getElementById('lfAccountUsageBarLabel');
-  if (barLab) barLab.textContent = tf(L, 'dashboard.accountUsageProgress', { count, cap });
   const note = document.getElementById('lfAccountUsageCapNote');
-  if (note) note.textContent = tf(L, 'dashboard.accountUsageCapNote', { cap });
   const atCap = document.getElementById('lfAccountUsageAtCap');
   const barWrap = w.querySelector('.lf-account-usage-bar-wrap');
-  const capped = count >= cap;
-  if (atCap) {
-    atCap.hidden = !capped;
-    if (capped) atCap.textContent = t(L, 'dashboard.accountUsageAtCap');
+  const ctaRow = w.querySelector('.lf-account-usage-cta-row');
+
+  if (signed) signed.textContent = tf(L, 'dashboard.accountUsageSignedInAs', { email: session.email });
+
+  if (unlimited) {
+    if (titleEl) titleEl.textContent = t(L, 'dashboard.accountUsageTitle');
+    if (cntEl) cntEl.hidden = true;
+    if (barWrap) {
+      barWrap.hidden = true;
+      barWrap.classList.remove('is-at-cap');
+    }
+    if (note) {
+      note.hidden = false;
+      note.textContent = t(L, 'dashboard.accountUsagePlusRoyalty');
+    }
+    if (atCap) atCap.hidden = true;
+    if (ctaRow) ctaRow.hidden = true;
+    w.hidden = false;
+    return;
   }
-  if (barWrap) barWrap.classList.toggle('is-at-cap', capped);
+
+  if (titleEl) titleEl.textContent = t(L, 'dashboard.accountUsageTitle');
+  if (cntEl) {
+    cntEl.hidden = false;
+    const count = await countUniqueEmailsExtracted();
+    cntEl.textContent = tf(L, 'dashboard.accountUsageCount', { count });
+    const cap = FREE_EMAIL_EXTRACTION_CAP;
+    const pct = Math.min(100, (count / cap) * 100);
+    const barFill = document.getElementById('lfAccountUsageBarFill');
+    if (barFill) barFill.style.width = `${pct}%`;
+    const barLab = document.getElementById('lfAccountUsageBarLabel');
+    if (barLab) barLab.textContent = tf(L, 'dashboard.accountUsageProgress', { count, cap });
+    if (note) {
+      note.hidden = false;
+      note.textContent = tf(L, 'dashboard.accountUsageCapNote', { cap });
+    }
+    const capped = count >= cap;
+    if (atCap) {
+      atCap.hidden = !capped;
+      if (capped) atCap.textContent = t(L, 'dashboard.accountUsageAtCap');
+    }
+    if (barWrap) {
+      barWrap.hidden = false;
+      barWrap.classList.toggle('is-at-cap', capped);
+    }
+    if (ctaRow) ctaRow.hidden = false;
+  }
   w.hidden = false;
 }
 

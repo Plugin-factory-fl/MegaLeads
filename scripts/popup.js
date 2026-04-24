@@ -21,7 +21,11 @@ import {
   openStripeCheckoutInNewTab,
   readUserSession,
   canStartExtractionForFreeTier,
-  openSignupPageTab,
+  writeUserSession,
+  FREE_EMAIL_EXTRACTION_CAP,
+  countUniqueEmailsExtracted,
+  readSubscriptionUnlimited,
+  clearUserSession,
 } from './account-shared.js';
 
 /** @typedef {'en'} Locale */
@@ -156,6 +160,8 @@ function applyPopupLocale() {
   if (up) {
     up.setAttribute('title', t(L, 'popup.upgrade'));
     up.setAttribute('aria-label', t(L, 'popup.ariaUpgrade'));
+    const lab = up.querySelector('.lf-upgrade-label');
+    if (lab) lab.textContent = t(L, 'popup.upgrade');
   }
   const acc = document.getElementById('lfAccountBtn');
   if (acc) {
@@ -174,6 +180,12 @@ function applyPopupLocale() {
   if (capBody) capBody.textContent = t(L, 'popup.atCapBannerBody');
   const capBtn = document.getElementById('lfPopupCapUpgrade');
   if (capBtn) capBtn.textContent = t(L, 'popup.atCapBannerCta');
+  syncPopupAccountUsageModalLocale();
+  const freeLab = document.getElementById('lfPopupFreeTierLabel');
+  if (freeLab) freeLab.textContent = t(L, 'popup.freeTierEmailsLabel');
+  const dismiss = document.getElementById('lfLoginToastDismiss');
+  if (dismiss) dismiss.setAttribute('aria-label', t(L, 'popup.loginToastDismissAria'));
+  syncPopupAuthModalLocale();
   const riskText = document.getElementById('lfRiskToastText');
   if (riskText) riskText.textContent = t(L, 'popup.riskToast');
   const hMin = document.getElementById('lfHelpMinFollowers');
@@ -476,6 +488,367 @@ async function refreshPageContext() {
   }
 }
 
+function syncPopupAccountUsageModalLocale() {
+  const L = uiLocale;
+  const q = (id) => document.getElementById(id);
+  const setText = (id, path) => {
+    const el = q(id);
+    if (el) el.textContent = t(L, path);
+  };
+  setText('lfPopupAccountUsageTitle', 'dashboard.accountUsageTitle');
+  const diamond = q('lfPopupAccountStripeDiamond');
+  if (diamond) diamond.setAttribute('aria-label', t(L, 'dashboard.ariaCheckoutDiamond'));
+  const dlab = q('lfPopupAccountStripeDiamondLabel');
+  if (dlab) dlab.textContent = t(L, 'dashboard.accountCheckoutDiamond');
+  const lo = q('lfPopupAccountUsageLogout');
+  if (lo) lo.textContent = t(L, 'dashboard.accountLogout');
+  const ucls = q('lfPopupAccountUsageClose');
+  if (ucls) ucls.textContent = t(L, 'dashboard.accountClose');
+}
+
+function syncPopupAuthModalLocale() {
+  const L = uiLocale;
+  const q = (id) => document.getElementById(id);
+  const setText = (id, path) => {
+    const el = q(id);
+    if (el) el.textContent = t(L, path);
+  };
+  setText('lfPopupAuthSignupTitle', 'popup.authBannerTitle');
+  const suLead = q('lfPopupAuthSignupLead');
+  if (suLead) suLead.textContent = t(L, 'popup.authBannerBody');
+  setText('lfPopupAuthSignupEmailLabel', 'signup.email');
+  setText('lfPopupAuthSignupPasswordLabel', 'signup.password');
+  setText('lfPopupAuthSignupConfirmLabel', 'signup.confirmPassword');
+  setText('lfPopupAuthSignupSubmit', 'signup.createSubmit');
+  const suLog = q('lfPopupAuthSignupSwitchLogin');
+  if (suLog) suLog.textContent = t(L, 'popup.authModalLogInBtn');
+  const suCls = q('lfPopupAuthSignupClose');
+  if (suCls) suCls.textContent = t(L, 'dashboard.accountClose');
+  setText('lfPopupAuthLoginTitle', 'signup.signinTitle');
+  const liLead = q('lfPopupAuthLoginLead');
+  if (liLead) liLead.textContent = t(L, 'signup.signinDesc');
+  setText('lfPopupAuthLoginEmailLabel', 'signup.email');
+  setText('lfPopupAuthLoginPasswordLabel', 'signup.password');
+  setText('lfPopupAuthLoginSubmit', 'signup.signinSubmit');
+  const liCr = q('lfPopupAuthLoginSwitchSignup');
+  if (liCr) liCr.textContent = t(L, 'popup.authModalCreateAccountBtn');
+  const liCls = q('lfPopupAuthLoginClose');
+  if (liCls) liCls.textContent = t(L, 'dashboard.accountClose');
+}
+
+function setPopupAuthSignupError(msg) {
+  const el = document.getElementById('lfPopupAuthSignupError');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+function setPopupAuthLoginError(msg) {
+  const el = document.getElementById('lfPopupAuthLoginError');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+function closePopupAuthModals() {
+  const su = document.getElementById('lfPopupAuthSignupWrap');
+  const li = document.getElementById('lfPopupAuthLoginWrap');
+  if (su) su.hidden = true;
+  if (li) li.hidden = true;
+  setPopupAuthSignupError('');
+  setPopupAuthLoginError('');
+}
+
+function openPopupLoginModal() {
+  syncPopupAuthModalLocale();
+  const su = document.getElementById('lfPopupAuthSignupWrap');
+  const li = document.getElementById('lfPopupAuthLoginWrap');
+  if (su) su.hidden = true;
+  if (li) li.hidden = false;
+  setPopupAuthSignupError('');
+  setPopupAuthLoginError('');
+  const em = document.getElementById('lfPopupAuthLoginEmail');
+  window.setTimeout(() => em?.focus(), 0);
+}
+
+function openPopupSignupModal() {
+  syncPopupAuthModalLocale();
+  const su = document.getElementById('lfPopupAuthSignupWrap');
+  const li = document.getElementById('lfPopupAuthLoginWrap');
+  if (li) li.hidden = true;
+  if (su) su.hidden = false;
+  setPopupAuthSignupError('');
+  setPopupAuthLoginError('');
+  const f = document.getElementById('lfPopupAuthSignupForm');
+  if (f instanceof HTMLFormElement) f.reset();
+  const lf = document.getElementById('lfPopupAuthLoginForm');
+  if (lf instanceof HTMLFormElement) lf.reset();
+  const em = document.getElementById('lfPopupAuthSignupEmail');
+  window.setTimeout(() => em?.focus(), 0);
+}
+
+async function completePopupAuthSuccess(email) {
+  const trimmed = String(email || '').trim();
+  if (!trimmed || !trimmed.includes('@')) {
+    return t(uiLocale, 'signup.errSignin');
+  }
+  try {
+    await writeUserSession(trimmed);
+  } catch (e) {
+    return String(e?.message || e || 'Error');
+  }
+  closePopupAuthModals();
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.LOGIN_TOAST]: {
+      text: t(uiLocale, 'popup.loggedInToast'),
+      at: Date.now(),
+    },
+  });
+  await refreshPopupGates();
+  await refreshPopupHeaderProgress();
+  void maybeShowLoginToast();
+  return null;
+}
+
+function closePopupAccountUsageModal() {
+  const w = document.getElementById('lfPopupAccountUsageWrap');
+  if (w) w.hidden = true;
+}
+
+async function openPopupAccountUsageModal() {
+  const w = document.getElementById('lfPopupAccountUsageWrap');
+  if (!w) return;
+  const session = await readUserSession();
+  if (!session) {
+    openPopupSignupModal();
+    return;
+  }
+  syncPopupAccountUsageModalLocale();
+  const L = uiLocale;
+  const unlimited = await readSubscriptionUnlimited();
+  const titleEl = document.getElementById('lfPopupAccountUsageTitle');
+  const signed = document.getElementById('lfPopupAccountUsageSignedIn');
+  const cntEl = document.getElementById('lfPopupAccountUsageCount');
+  const note = document.getElementById('lfPopupAccountUsageCapNote');
+  const atCap = document.getElementById('lfPopupAccountUsageAtCap');
+  const barWrap = document.getElementById('lfPopupAccountUsageBarWrap');
+  const ctaRow = w.querySelector('.lf-account-usage-cta-row');
+
+  if (signed) signed.textContent = tf(L, 'dashboard.accountUsageSignedInAs', { email: session.email });
+
+  if (unlimited) {
+    if (titleEl) titleEl.textContent = t(L, 'dashboard.accountUsageTitle');
+    if (cntEl) cntEl.hidden = true;
+    if (barWrap) {
+      barWrap.hidden = true;
+      barWrap.classList.remove('is-at-cap');
+    }
+    if (note) {
+      note.hidden = false;
+      note.textContent = t(L, 'dashboard.accountUsagePlusRoyalty');
+    }
+    if (atCap) atCap.hidden = true;
+    if (ctaRow) ctaRow.hidden = true;
+    w.hidden = false;
+    return;
+  }
+
+  if (titleEl) titleEl.textContent = t(L, 'dashboard.accountUsageTitle');
+  if (cntEl) {
+    cntEl.hidden = false;
+    const count = await countUniqueEmailsExtracted();
+    const cap = FREE_EMAIL_EXTRACTION_CAP;
+    const pct = Math.min(100, (count / cap) * 100);
+    cntEl.textContent = tf(L, 'dashboard.accountUsageCount', { count });
+    const barFill = document.getElementById('lfPopupAccountUsageBarFill');
+    if (barFill) barFill.style.width = `${pct}%`;
+    const barLab = document.getElementById('lfPopupAccountUsageBarLabel');
+    if (barLab) barLab.textContent = tf(L, 'dashboard.accountUsageProgress', { count, cap });
+    if (note) {
+      note.hidden = false;
+      note.textContent = tf(L, 'dashboard.accountUsageCapNote', { cap });
+    }
+    const capped = count >= cap;
+    if (atCap) {
+      atCap.hidden = !capped;
+      if (capped) atCap.textContent = t(L, 'dashboard.accountUsageAtCap');
+    }
+    if (barWrap) {
+      barWrap.hidden = false;
+      barWrap.classList.toggle('is-at-cap', capped);
+    }
+    if (ctaRow) ctaRow.hidden = false;
+  }
+  w.hidden = false;
+}
+
+async function onPopupAccountLogout() {
+  await clearUserSession();
+  closePopupAccountUsageModal();
+  await refreshPopupGates();
+  await refreshPopupHeaderProgress();
+}
+
+function wirePopupAccountUsageModal() {
+  const wrap = document.getElementById('lfPopupAccountUsageWrap');
+  if (wrap) {
+    wrap.addEventListener('click', (ev) => {
+      if (ev.target === wrap) closePopupAccountUsageModal();
+    });
+    const card = wrap.querySelector('.lf-popup-account-usage-card');
+    if (card) card.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+  const closeB = document.getElementById('lfPopupAccountUsageClose');
+  if (closeB) closeB.addEventListener('click', () => closePopupAccountUsageModal());
+  const out = document.getElementById('lfPopupAccountUsageLogout');
+  if (out) out.addEventListener('click', () => void onPopupAccountLogout());
+  const diamond = document.getElementById('lfPopupAccountStripeDiamond');
+  if (diamond) {
+    diamond.addEventListener('click', () => {
+      void (async () => {
+        const r = await openStripeCheckoutInNewTab();
+        if (!r.ok) setPopupStatus(t(uiLocale, 'popup.stripeMissing'), true);
+      })();
+    });
+  }
+}
+
+function wirePopupAuthModals() {
+  const signupWrap = document.getElementById('lfPopupAuthSignupWrap');
+  const loginWrap = document.getElementById('lfPopupAuthLoginWrap');
+  if (signupWrap) {
+    signupWrap.addEventListener('click', (ev) => {
+      if (ev.target === signupWrap) closePopupAuthModals();
+    });
+    const card = signupWrap.querySelector('.lf-popup-auth-signup-card');
+    if (card) card.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+  if (loginWrap) {
+    loginWrap.addEventListener('click', (ev) => {
+      if (ev.target === loginWrap) closePopupAuthModals();
+    });
+    const card = loginWrap.querySelector('.lf-popup-auth-login-card');
+    if (card) card.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+
+  document.getElementById('lfPopupAuthSignupClose')?.addEventListener('click', () => closePopupAuthModals());
+  document.getElementById('lfPopupAuthLoginClose')?.addEventListener('click', () => closePopupAuthModals());
+  document.getElementById('lfPopupAuthSignupSwitchLogin')?.addEventListener('click', () => openPopupLoginModal());
+  document.getElementById('lfPopupAuthLoginSwitchSignup')?.addEventListener('click', () => openPopupSignupModal());
+
+  const signupForm = document.getElementById('lfPopupAuthSignupForm');
+  if (signupForm instanceof HTMLFormElement) {
+    signupForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      setPopupAuthSignupError('');
+      const L = uiLocale;
+      const emailEl = document.getElementById('lfPopupAuthSignupEmail');
+      const pwEl = document.getElementById('lfPopupAuthSignupPassword');
+      const cfEl = document.getElementById('lfPopupAuthSignupConfirm');
+      const email = emailEl instanceof HTMLInputElement ? emailEl.value.trim() : '';
+      const pw = pwEl instanceof HTMLInputElement ? pwEl.value : '';
+      const confirm = cfEl instanceof HTMLInputElement ? cfEl.value : '';
+      if (!email) {
+        setPopupAuthSignupError(t(L, 'signup.errSignin'));
+        return;
+      }
+      if (pw !== confirm) {
+        setPopupAuthSignupError(t(L, 'signup.errPasswordMismatch'));
+        return;
+      }
+      if (pw.length < 8) {
+        setPopupAuthSignupError(t(L, 'signup.errPasswordShort'));
+        return;
+      }
+      const err = await completePopupAuthSuccess(email);
+      if (err) setPopupAuthSignupError(err);
+    });
+  }
+
+  const loginForm = document.getElementById('lfPopupAuthLoginForm');
+  if (loginForm instanceof HTMLFormElement) {
+    loginForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      setPopupAuthLoginError('');
+      const L = uiLocale;
+      const emailEl = document.getElementById('lfPopupAuthLoginEmail');
+      const pwEl = document.getElementById('lfPopupAuthLoginPassword');
+      const email = emailEl instanceof HTMLInputElement ? emailEl.value.trim() : '';
+      const pw = pwEl instanceof HTMLInputElement ? pwEl.value : '';
+      if (!email || pw.length < 8) {
+        setPopupAuthLoginError(t(L, 'signup.errSignin'));
+        return;
+      }
+      const err = await completePopupAuthSuccess(email);
+      if (err) setPopupAuthLoginError(err);
+    });
+  }
+
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    const su = document.getElementById('lfPopupAuthSignupWrap');
+    const li = document.getElementById('lfPopupAuthLoginWrap');
+    const authOpen = (su && !su.hidden) || (li && !li.hidden);
+    if (!authOpen) return;
+    closePopupAuthModals();
+  });
+}
+
+async function refreshPopupHeaderProgress() {
+  const wrap = document.getElementById('lfPopupHeaderProgressWrap');
+  const label = document.getElementById('lfPopupFreeTierLabel');
+  const countEl = document.getElementById('lfPopupHeaderProgressCount');
+  const fill = document.getElementById('lfPopupHeaderProgressFill');
+  const bar = document.getElementById('lfPopupHeaderProgressBar');
+  const upgradeBtn = document.getElementById('lfUpgrade');
+  if (!wrap || !countEl || !fill || !bar) return;
+  const session = await readUserSession();
+  if (!session) {
+    wrap.hidden = true;
+    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
+    return;
+  }
+  const unlimited = await readSubscriptionUnlimited();
+  if (unlimited) {
+    wrap.hidden = true;
+    if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = true;
+    return;
+  }
+  if (upgradeBtn instanceof HTMLElement) upgradeBtn.hidden = false;
+  wrap.hidden = false;
+  if (label) label.textContent = t(uiLocale, 'popup.freeTierEmailsLabel');
+  wrap.setAttribute('aria-label', t(uiLocale, 'popup.headerProgressAria'));
+  const count = await countUniqueEmailsExtracted();
+  const cap = FREE_EMAIL_EXTRACTION_CAP;
+  bar.classList.remove('is-at-cap', 'is-unlimited');
+  const pct = Math.min(100, (count / cap) * 100);
+  countEl.textContent = tf(uiLocale, 'popup.headerEmailsProgress', { count, cap });
+  fill.style.width = `${pct}%`;
+  if (count >= cap) bar.classList.add('is-at-cap');
+}
+
+function hideLoginToast() {
+  const wrap = document.getElementById('lfLoginToast');
+  if (wrap) wrap.hidden = true;
+}
+
+async function maybeShowLoginToast() {
+  const { [STORAGE_KEYS.LOGIN_TOAST]: raw } = await chrome.storage.local.get(STORAGE_KEYS.LOGIN_TOAST);
+  if (!raw || typeof raw !== 'object') return;
+  const text = String(raw.text || '').trim();
+  const at = Number(raw.at) || 0;
+  if (!text || Date.now() - at > 120000) {
+    await chrome.storage.local.remove(STORAGE_KEYS.LOGIN_TOAST);
+    return;
+  }
+  await chrome.storage.local.remove(STORAGE_KEYS.LOGIN_TOAST);
+  const wrap = document.getElementById('lfLoginToast');
+  const te = document.getElementById('lfLoginToastText');
+  if (!wrap || !te) return;
+  te.textContent = text;
+  wrap.hidden = false;
+}
+
 async function openOrFocusDashboard() {
   const url = chrome.runtime.getURL('dashboard.html');
   const { [STORAGE_KEYS.DASHBOARD_TAB_ID]: stored } = await chrome.storage.local.get(
@@ -501,15 +874,14 @@ async function openOrFocusDashboard() {
   }
 }
 
-/** Popup Account: signup tab if logged out; otherwise dashboard + usage modal. */
+/** Popup Account: signup tab if logged out; otherwise same usage modal as dashboard. */
 async function openAccountEntryFromPopup() {
   const session = await readUserSession();
   if (!session) {
-    openSignupPageTab();
+    openPopupSignupModal();
     return;
   }
-  await chrome.storage.local.set({ [STORAGE_KEYS.DASHBOARD_PENDING_ACCOUNT]: 'usage' });
-  await openOrFocusDashboard();
+  await openPopupAccountUsageModal();
 }
 
 async function refreshPopupGates() {
@@ -532,6 +904,7 @@ async function refreshPopupGates() {
     if (cap) cap.hidden = true;
   }
   syncRunButtons();
+  void refreshPopupHeaderProgress();
 }
 
 async function startExtractionPipeline() {
@@ -681,7 +1054,7 @@ function wireEvents() {
     accountBtn.addEventListener('click', () => void openAccountEntryFromPopup());
   }
   const authCta = document.getElementById('lfPopupAuthCta');
-  if (authCta) authCta.addEventListener('click', () => openSignupPageTab());
+  if (authCta) authCta.addEventListener('click', () => openPopupSignupModal());
   const capUp = document.getElementById('lfPopupCapUpgrade');
   if (capUp) {
     capUp.addEventListener('click', () => {
@@ -691,6 +1064,12 @@ function wireEvents() {
       })();
     });
   }
+
+  wirePopupAccountUsageModal();
+  wirePopupAuthModals();
+
+  const loginDismiss = document.getElementById('lfLoginToastDismiss');
+  if (loginDismiss) loginDismiss.addEventListener('click', () => hideLoginToast());
 
   document.querySelectorAll('.lf-info-btn').forEach((btn) => {
     if (!(btn instanceof HTMLElement)) return;
@@ -721,6 +1100,9 @@ function wireEvents() {
       syncRunButtons();
       if (!rs?.running) void refreshPopupGates();
     }
+    if (changes[STORAGE_KEYS.LOGIN_TOAST]) {
+      void maybeShowLoginToast();
+    }
     if (
       changes[STORAGE_KEYS.USER_SESSION] ||
       changes[STORAGE_KEYS.SUBSCRIPTION] ||
@@ -728,6 +1110,7 @@ function wireEvents() {
       changes[STORAGE_KEYS.SESSION_HISTORY]
     ) {
       void refreshPopupGates();
+      void refreshPopupHeaderProgress();
     }
     const uiNext = changes[STORAGE_KEYS.UI_PREFS]?.newValue;
     if (uiNext && typeof uiNext === 'object') {
@@ -748,6 +1131,8 @@ async function init() {
 
   await reconcileRunningStateFromStorage();
   await refreshPopupGates();
+  await refreshPopupHeaderProgress();
+  await maybeShowLoginToast();
 }
 
 void init();

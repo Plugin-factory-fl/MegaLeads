@@ -56,7 +56,16 @@ export function getSignupPageUrl() {
   return chrome.runtime.getURL('signup.html');
 }
 
-export function openSignupPageTab() {
+/**
+ * Opens the signup tab. Pass a payload to store as `SIGNUP_RETURN` until signup succeeds.
+ * @param {Record<string, unknown> | null | undefined} signupReturnPayload
+ */
+export async function openSignupPageTab(signupReturnPayload) {
+  if (signupReturnPayload != null && typeof signupReturnPayload === 'object') {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SIGNUP_RETURN]: signupReturnPayload,
+    });
+  }
   chrome.tabs.create({ url: getSignupPageUrl(), active: true });
 }
 

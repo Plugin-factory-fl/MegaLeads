@@ -8,7 +8,7 @@
   <body class="lf-ui lf-popup">
     <div class="lf-popup-inner">
       <div class="lf-header lf-popup-header">
-        <div class="lf-header-main">
+        <div class="lf-header-main lf-popup-header-logo">
           <img
             class="lf-logo lf-logo-theme"
             src="Assets/logo2.png"
@@ -19,16 +19,25 @@
             height="41"
           />
         </div>
-        <div class="lf-header-actions" role="toolbar" aria-label="Upgrade, account, and theme">
+        <div class="lf-header-email-progress" id="lfPopupHeaderProgressWrap" hidden role="group">
+          <p class="lf-header-email-progress-label" id="lfPopupFreeTierLabel"></p>
+          <div class="lf-header-email-progress-top">
+            <span class="lf-header-email-progress-count" id="lfPopupHeaderProgressCount"></span>
+          </div>
+          <div class="lf-header-email-progress-bar" id="lfPopupHeaderProgressBar" aria-hidden="true">
+            <div class="lf-header-email-progress-fill" id="lfPopupHeaderProgressFill"></div>
+          </div>
+        </div>
+        <div class="lf-header-actions" role="toolbar" aria-label="Get Infinite Emails, account, and theme">
           <button
             type="button"
             class="lf-btn lf-btn-ghost lf-btn-upgrade-popup"
             id="lfUpgrade"
-            aria-label="Upgrade — unlimited email extractions (Stripe)"
-            title="Upgrade"
+            aria-label="Get Infinite Emails (Stripe checkout)"
+            title="Get Infinite Emails"
           >
             <span class="lf-upgrade-icon" aria-hidden="true">◇</span>
-            <span class="lf-upgrade-label">Upgrade</span>
+            <span class="lf-upgrade-label">Get Infinite Emails</span>
           </button>
           <button
             type="button"
@@ -54,6 +63,11 @@
             <span class="lf-theme-toggle-icon" aria-hidden="true">☾</span>
           </button>
         </div>
+      </div>
+
+      <div class="lf-login-toast" id="lfLoginToast" hidden role="status">
+        <span class="lf-login-toast-text" id="lfLoginToastText"></span>
+        <button type="button" class="lf-login-toast-dismiss" id="lfLoginToastDismiss" aria-label="Dismiss">×</button>
       </div>
 
       <div class="lf-popup-gate-banner" id="lfPopupAuthBanner" hidden role="region" aria-labelledby="lfPopupAuthTitle">
@@ -230,6 +244,115 @@
       <div class="lf-actions-top">
         <button type="button" class="lf-btn lf-btn-primary lf-btn-start" id="lfStart">Start extraction</button>
         <button type="button" class="lf-btn lf-btn-danger" id="lfStop" disabled>Stop</button>
+      </div>
+    </div>
+
+    <div class="lf-modal-backdrop lf-popup-auth-modal-wrap" id="lfPopupAuthSignupWrap" hidden>
+      <div
+        class="lf-modal-card lf-popup-auth-signup-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lfPopupAuthSignupTitle"
+      >
+        <h3 class="lf-modal-title" id="lfPopupAuthSignupTitle"></h3>
+        <p class="lf-account-modal-desc" id="lfPopupAuthSignupLead"></p>
+        <form id="lfPopupAuthSignupForm">
+          <div class="lf-account-field">
+            <label for="lfPopupAuthSignupEmail" id="lfPopupAuthSignupEmailLabel"></label>
+            <input type="email" id="lfPopupAuthSignupEmail" autocomplete="email" required />
+          </div>
+          <div class="lf-account-field">
+            <label for="lfPopupAuthSignupPassword" id="lfPopupAuthSignupPasswordLabel"></label>
+            <input
+              type="password"
+              id="lfPopupAuthSignupPassword"
+              autocomplete="new-password"
+              required
+              minlength="8"
+            />
+          </div>
+          <div class="lf-account-field">
+            <label for="lfPopupAuthSignupConfirm" id="lfPopupAuthSignupConfirmLabel"></label>
+            <input
+              type="password"
+              id="lfPopupAuthSignupConfirm"
+              autocomplete="new-password"
+              required
+              minlength="8"
+            />
+          </div>
+          <p class="lf-account-modal-warn" id="lfPopupAuthSignupError" hidden></p>
+          <button type="submit" class="lf-btn lf-btn-primary lf-popup-auth-submit" id="lfPopupAuthSignupSubmit"></button>
+        </form>
+        <div class="lf-account-modal-actions">
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfPopupAuthSignupSwitchLogin"></button>
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfPopupAuthSignupClose"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lf-modal-backdrop lf-popup-auth-modal-wrap" id="lfPopupAuthLoginWrap" hidden>
+      <div
+        class="lf-modal-card lf-popup-auth-login-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lfPopupAuthLoginTitle"
+      >
+        <h3 class="lf-modal-title" id="lfPopupAuthLoginTitle"></h3>
+        <p class="lf-account-modal-desc" id="lfPopupAuthLoginLead"></p>
+        <form id="lfPopupAuthLoginForm">
+          <div class="lf-account-field">
+            <label for="lfPopupAuthLoginEmail" id="lfPopupAuthLoginEmailLabel"></label>
+            <input type="email" id="lfPopupAuthLoginEmail" autocomplete="email" required />
+          </div>
+          <div class="lf-account-field">
+            <label for="lfPopupAuthLoginPassword" id="lfPopupAuthLoginPasswordLabel"></label>
+            <input
+              type="password"
+              id="lfPopupAuthLoginPassword"
+              autocomplete="current-password"
+              required
+              minlength="8"
+            />
+          </div>
+          <p class="lf-account-modal-warn" id="lfPopupAuthLoginError" hidden></p>
+          <button type="submit" class="lf-btn lf-btn-primary lf-popup-auth-submit" id="lfPopupAuthLoginSubmit"></button>
+        </form>
+        <div class="lf-account-modal-actions">
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfPopupAuthLoginSwitchSignup"></button>
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfPopupAuthLoginClose"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lf-modal-backdrop lf-popup-account-modal-wrap" id="lfPopupAccountUsageWrap" hidden>
+      <div
+        class="lf-modal-card lf-account-modal lf-account-usage-modal lf-popup-account-usage-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lfPopupAccountUsageTitle"
+      >
+        <h3 class="lf-modal-title" id="lfPopupAccountUsageTitle"></h3>
+        <p class="lf-account-modal-line" id="lfPopupAccountUsageSignedIn"></p>
+        <p class="lf-account-modal-line" id="lfPopupAccountUsageCount"></p>
+        <div class="lf-account-usage-bar-wrap" id="lfPopupAccountUsageBarWrap" aria-hidden="true">
+          <div class="lf-account-usage-bar">
+            <div class="lf-account-usage-bar-fill" id="lfPopupAccountUsageBarFill"></div>
+          </div>
+          <div class="lf-account-usage-bar-label" id="lfPopupAccountUsageBarLabel"></div>
+        </div>
+        <p class="lf-account-modal-desc" id="lfPopupAccountUsageCapNote"></p>
+        <p class="lf-account-modal-warn" id="lfPopupAccountUsageAtCap" hidden></p>
+        <div class="lf-account-usage-cta-row">
+          <button type="button" class="lf-btn-stripe-diamond" id="lfPopupAccountStripeDiamond" aria-label="">
+            <span class="lf-btn-stripe-diamond-inner" aria-hidden="true"></span>
+            <span class="lf-btn-stripe-diamond-label" id="lfPopupAccountStripeDiamondLabel"></span>
+          </button>
+        </div>
+        <div class="lf-account-modal-actions lf-account-modal-actions-footer">
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfPopupAccountUsageLogout"></button>
+          <button type="button" class="lf-btn lf-btn-ghost" id="lfPopupAccountUsageClose"></button>
+        </div>
       </div>
     </div>
 

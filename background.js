@@ -8,7 +8,11 @@
  * ES module so we can statically import remote API config (dynamic import() is disallowed in workers).
  */
 
-import { apiBaseUrl as storedApiBaseUrl, apiKey as storedApiKey } from './scripts/leadflow-remote-config.js';
+import {
+  apiBaseUrl as storedApiBaseUrl,
+  apiKey as storedApiKey,
+  openAiApiKey as storedOpenAiApiKey,
+} from './scripts/leadflow-remote-config.js';
 
 const DNR_RULE_IDS = [1, 2, 3, 4, 5];
 const DASHBOARD_TAB_STORAGE_KEY = 'leadflow_dashboard_tab_id';
@@ -319,7 +323,7 @@ async function handleLeadsRemoteEnrich(message, sendResponse) {
         `HTTP ${res.status}`;
       if (res.status === 404) {
         msg =
-          'Josh endpoint not found on server (POST /v1/josh/chat). Deploy latest server code to Render.';
+          'Enrich endpoint not found on server (POST /v1/leads/enrich). Deploy latest server code to Render.';
       }
       sendResponse({ ok: false, error: String(msg), status: res.status });
       return;
@@ -368,7 +372,10 @@ async function handleJoshChat(message, sendResponse) {
 
     const leads = Array.isArray(message?.leads) ? message.leads : [];
     const uiState = message?.uiState && typeof message.uiState === 'object' ? message.uiState : {};
-    const body = JSON.stringify({ userMessage, leads, uiState });
+    const openAi = String(storedOpenAiApiKey || '').trim();
+    const payload = /** @type {Record<string, unknown>} */ ({ userMessage, leads, uiState });
+    if (openAi) payload.openAiApiKey = openAi;
+    const body = JSON.stringify(payload);
 
     const ac = new AbortController();
     const tid = setTimeout(() => ac.abort(), 60000);

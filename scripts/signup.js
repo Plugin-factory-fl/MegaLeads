@@ -93,7 +93,7 @@ async function openDashboardTab() {
 }
 
 function showSuccess() {
-  $('lfSignupSuccess').textContent = t('en', 'signup.success');
+  $('lfSignupSuccess').textContent = t('en', 'signup.successNoReturn');
   $('lfSignupSuccess').hidden = false;
   $('lfSignupPostActions').hidden = false;
   $('lfSignupCreateForm').querySelectorAll('input').forEach((i) => {
@@ -104,6 +104,61 @@ function showSuccess() {
     if (i instanceof HTMLInputElement) i.disabled = true;
   });
   $('lfSigninSubmit').disabled = true;
+}
+
+async function afterAuthSuccess() {
+  const key = STORAGE_KEYS.SIGNUP_RETURN;
+  const { [key]: ret } = await chrome.storage.local.get(key);
+  await chrome.storage.local.remove(key);
+
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.LOGIN_TOAST]: {
+      text: t('en', 'popup.loggedInToast'),
+      at: Date.now(),
+    },
+  });
+
+  const mode = ret && typeof ret === 'object' && typeof ret.mode === 'string' ? ret.mode : '';
+
+  if (mode === 'dashboard_same_tab') {
+    window.location.replace(chrome.runtime.getURL('dashboard.html'));
+    return;
+  }
+
+  if (mode === 'popup_new_tab') {
+    const tabId = ret.returnTabId != null ? Number(ret.returnTabId) : NaN;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.action?.openPopup) {
+        await chrome.action.openPopup();
+      }
+    } catch {
+      /* openPopup only works in some user-gesture contexts */
+    }
+    if (Number.isFinite(tabId)) {
+      try {
+        await chrome.tabs.update(tabId, { active: true });
+        const tinfo = await chrome.tabs.get(tabId);
+        if (tinfo.windowId != null) {
+          await chrome.windows.update(tinfo.windowId, { focused: true });
+        }
+      } catch {
+        /* tab may be gone */
+      }
+    }
+    window.close();
+    return;
+  }
+
+  const legacyUrl =
+    ret && typeof ret === 'object' && typeof ret.url === 'string' && ret.url.trim().length > 0
+      ? ret.url.trim()
+      : '';
+  if (legacyUrl) {
+    window.location.href = legacyUrl;
+    return;
+  }
+
+  showSuccess();
 }
 
 async function init() {
@@ -149,7 +204,7 @@ async function init() {
     }
     try {
       await writeUserSession(email);
-      showSuccess();
+      await afterAuthSuccess();
     } catch (e) {
       showCreateError(String(e?.message || e || 'Error'));
     }
@@ -166,7 +221,7 @@ async function init() {
     }
     try {
       await writeUserSession(email);
-      showSuccess();
+      await afterAuthSuccess();
     } catch (e) {
       showSigninError(String(e?.message || e || 'Error'));
     }

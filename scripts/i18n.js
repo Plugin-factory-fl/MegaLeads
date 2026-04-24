@@ -222,7 +222,7 @@ export const I18N = {
       aiSummaryAddedLine: 'Emails added after AI enrichment: {n}',
       aiSummaryImprovedLine: 'AI has improved your email list by {n} emails',
       extractionSummaryTitle: 'Extraction Summary',
-      extractionSummaryJoshLine: "Mega Lead's AI Agent Josh has retrieved {n} emails for you!",
+      extractionSummaryJoshLine: 'This run includes {n} rows with an email address.',
       extractionSummaryOk: 'OK',
       aiConfigMissing: 'Configure scripts/leadflow-remote-config.js (see example file).',
       exportFormatTitleProfiles: 'Export profiles',
@@ -238,13 +238,14 @@ export const I18N = {
       exportColEmailAction: 'Email action',
       exportColEnrichNotes: 'AI notes',
       joshBubbleHintA: 'Need help with your leads?',
-      joshBubbleHintB: 'Ask Josh to clean, sort, filter, or export.',
+      joshBubbleHintB: 'Ask Josh how MegaLeadsAI works — Q&A only.',
       joshBubbleLineDrag: 'Click and drag me around the screen!',
-      joshBubbleLineMegaLeadsHelp: "Ask me anything about MegaLeads. I'll help!",
+      joshBubbleLineMegaLeadsHelp: 'Ask me about MegaLeadsAI — Q&A only, no tasks run from chat.',
       joshWelcome:
-        'I am Josh, your MegaLeadsAI helper. Ask me questions or tell me what to do with your extracted leads list.',
+        "I'm Josh — ask me how MegaLeadsAI works. This chat is Q&A only: I can't change your list or run exports; use the dashboard for that.",
       joshTyping: 'Thinking...',
-      joshNetworkError: "Couldn't reach Josh. Check your API config and try again.",
+      joshNetworkError:
+        "Couldn't get a reply from the assistant. Check apiBaseUrl and apiKey in leadflow-remote-config.js, your connection, and that the Render service is running.",
       accountClose: 'Close',
       accountUsageTitle: 'Your account',
       accountUsageSignedInAs: 'Signed in as {email}',
@@ -253,6 +254,8 @@ export const I18N = {
       accountUsageCapNote:
         'The free tier includes up to {cap} unique email extractions. Subscribe for unlimited Instagram email extractions.',
       accountUsageAtCap: 'You have reached the free email limit. Get Infinite Emails to continue extracting.',
+      accountUsagePlusRoyalty:
+        "You're a MegaLeads AI Plus user. You're royalty.",
       accountLogout: 'Sign out',
       accountCheckoutDiamond: 'Get Infinite Emails',
       ariaCheckoutDiamond: 'Open checkout to Get Infinite Emails',

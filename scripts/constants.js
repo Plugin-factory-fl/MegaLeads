@@ -19,7 +19,7 @@ export const MSG = {
   GET_PAGE_CONTEXT: 'LF_GET_PAGE_CONTEXT',
   /** Dashboard → background: POST leads to Render enrich API (see scripts/leadflow-remote-config.js). */
   LF_LEADS_REMOTE_ENRICH: 'LF_LEADS_REMOTE_ENRICH',
-  /** Dashboard → background: Josh assistant chat + optional lead-list actions. */
+  /** Dashboard → background: Josh Q&A chat (proxied to Render). */
   LF_JOSH_CHAT: 'LF_JOSH_CHAT',
 };
 
@@ -45,8 +45,13 @@ export const STORAGE_KEYS = {
   SUBSCRIPTION: 'leadflow_subscription',
   /** Popup → dashboard: show usage modal (`'usage'`); consumed when dashboard handles it. */
   DASHBOARD_PENDING_ACCOUNT: 'leadflow_dashboard_pending_account',
-  /** After signup: `{ url: string|null }` — `window.location` goes here when set. */
+  /**
+   * Signup completion routing. Shapes: `{ mode: 'popup_new_tab', returnTabId }` |
+   * `{ mode: 'dashboard_same_tab' }` | legacy `{ url }`.
+   */
   SIGNUP_RETURN: 'leadflow_signup_return',
+  /** One-shot toast for toolbar popup after signup (`{ text, at }`). */
+  LOGIN_TOAST: 'leadflow_login_toast',
 };
 
 /** Max profiles per session (hard safety cap; UI slider cannot exceed this). */

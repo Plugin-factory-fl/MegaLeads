@@ -1337,62 +1337,68 @@ const JOSH_CHAT_SCHEMA = {
     additionalProperties: false,
     properties: {
       reply: { type: 'string' },
-      actions: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            type: {
-              type: 'string',
-              enum: ['set_filter', 'sort', 'select', 'delete_selected', 'delete_filtered', 'clear_all', 'export'],
-            },
-            query: { type: 'string' },
-            key: { type: 'string' },
-            direction: { type: 'string', enum: ['asc', 'desc'] },
-            mode: { type: 'string', enum: ['none', 'all', 'with_email', 'top_n'] },
-            count: { type: 'number' },
-            kind: { type: 'string', enum: ['profiles', 'emails'] },
-          },
-          required: ['type'],
-        },
-      },
     },
-    required: ['reply', 'actions'],
+    required: ['reply'],
   },
 };
 
-async function runJoshChatWithActions(userMessage, leads, uiState) {
-  if (!OPENAI_API_KEY) {
+/**
+ * Offline / degraded Josh: always returns something readable (no OpenAI or on failure).
+ * Josh is Q&A only — never implies he can run exports, filters, or edits for the user.
+ * @param {string} userMessage
+ * @param {number} leadCount
+ */
+function joshFallbackReply(userMessage, leadCount) {
+  const q = String(userMessage || '').toLowerCase();
+  const n = Number.isFinite(leadCount) ? leadCount : 0;
+  const rows = n === 1 ? '1 lead row' : `${n} lead rows`;
+
+  if (
+    (q.includes('what') && (q.includes('program') || q.includes('app') || q.includes('this'))) ||
+    q.includes('what is megaleads') ||
+    q.includes('what does this do')
+  ) {
+    return `MegaLeadsAI is a Chrome extension for Instagram lead gathering: you run extraction from the toolbar on a followers, following, or hashtag page, then review results on the dashboard (username, followers, bio, email when found, phone, website).
+
+This chat is **questions and answers only** — I do not change your list, export files, or run tools for you. Use the dashboard buttons for filter, export, clear, and AI enrich.
+
+You have about ${rows} loaded right now. For live answers, set \`openAiApiKey\` in scripts/leadflow-remote-config.js (extension) or OPENAI_API_KEY on the Render service.`;
+  }
+
+  return `I'm Josh — I can explain MegaLeadsAI and how the dashboard works. This chat is **read-only help**: I can't filter, export, delete, or edit leads for you; use the controls on the page.
+
+You have about ${rows} in the current view.
+
+If you only see this canned text, add your OpenAI key: either \`openAiApiKey\` in leadflow-remote-config.js (Josh sends it with the chat request) or OPENAI_API_KEY on the server.`;
+}
+
+/**
+ * OpenAI-backed Josh (Q&A only, strict JSON { reply }).
+ * @param {string} userMessage
+ * @param {unknown[]} leads
+ * @param {Record<string, unknown>} uiState
+ * @param {string} openAiBearerKey OpenAI sk-… from client body or server env
+ */
+async function runJoshChatOpenAI(userMessage, leads, uiState, openAiBearerKey) {
+  const key = String(openAiBearerKey || '').trim();
+  if (!key) {
     throw Object.assign(new Error('OPENAI_API_KEY missing'), { code: 'openai_missing' });
   }
-  const system = `You are Josh, the MegaLeadsAI in-app assistant for Instagram lead extraction users.
+  const system = `You are Josh, the in-app helper for MegaLeadsAI (Instagram lead extraction for marketers).
 
-What MegaLeadsAI does:
-- Extracts leads from Instagram followers/following/hashtags.
-- Shows results in dashboard columns: username, followerCount, bio, email, phone, websiteUrl.
-- Can filter, sort, select rows, export profiles/emails, and clear rows.
-- AI enrich can improve emails and add segments.
+Product facts:
+- Chrome extension: user starts extraction from the toolbar on Instagram (followers / following / hashtag).
+- Dashboard shows columns: username, followerCount, bio, email, phone, websiteUrl, etc.
+- Users filter, sort, export, clear, and run optional AI enrich using **dashboard UI**, not through you.
 
-Your job:
-1) Answer user questions about MegaLeadsAI clearly and briefly.
-2) If user explicitly asks you to perform a lead-list operation, include actions.
-3) Never claim an action happened unless you include it in actions.
-4) Keep reply concise (1-3 sentences), helpful, and practical.
+Your role (critical):
+- You are a **chat-only Q&A assistant**. You answer questions, give tips, and clarify how features work.
+- You **must not** imply you can perform actions on the user's lead list (no "I'll export that", "I filtered it", "I deleted those", "I'll run enrich for you").
+- If they ask you to do something, politely tell them which **dashboard or toolbar control** to use instead.
+- Keep replies concise (2–5 short sentences) unless they ask for detail.
+- Never output JSON except what the API schema requires.
 
-Action policy:
-- Only produce actions when user intent is specific and actionable.
-- Allowed actions:
-  - set_filter { query }
-  - sort { key, direction }
-  - select { mode, count } mode one of none|all|with_email|top_n
-  - delete_selected
-  - delete_filtered
-  - clear_all (destructive; only when user clearly asks to clear everything)
-  - export { kind } kind one of profiles|emails
-- If user asks something ambiguous or destructive without clarity, ask for confirmation in reply and actions must be [].
-
-Return strict JSON for schema: reply string + actions array.`;
+Return strict JSON: a single string field "reply" only.`;
 
   const payload = {
     userMessage: String(userMessage || ''),
@@ -1403,7 +1409,7 @@ Return strict JSON for schema: reply string + actions array.`;
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -1424,9 +1430,34 @@ Return strict JSON for schema: reply string + actions array.`;
   const txt = data?.choices?.[0]?.message?.content;
   if (!txt || typeof txt !== 'string') throw new Error('openai_empty_content');
   const parsed = JSON.parse(txt);
-  const reply = String(parsed?.reply || '').slice(0, 1200);
-  const actions = Array.isArray(parsed?.actions) ? parsed.actions : [];
-  return { reply, actions };
+  const reply = String(parsed?.reply || '').trim().slice(0, 2000);
+  if (!reply) throw new Error('openai_empty_reply');
+  return { reply, actions: [] };
+}
+
+/**
+ * Josh chat: prefer OpenAI (client `openAiApiKey` in JSON body, else server OPENAI_API_KEY).
+ * Always respond with { reply, actions: [] } (actions unused, kept for older clients).
+ * @param {string} userMessage
+ * @param {unknown[]} leads
+ * @param {Record<string, unknown>} uiState
+ * @param {string} [clientOpenAiKey] optional sk-… from extension leadflow-remote-config.js
+ */
+async function runJoshChatWithActions(userMessage, leads, uiState, clientOpenAiKey = '') {
+  const leadCount = Array.isArray(leads) ? leads.length : 0;
+  const fromClient = String(clientOpenAiKey || '').trim();
+  const fromServer = OPENAI_API_KEY;
+  const openAiBearer = fromClient || fromServer;
+  if (!openAiBearer) {
+    logInfo('josh_chat_fallback_no_openai_key', { leadCount });
+    return { reply: joshFallbackReply(userMessage, leadCount), actions: [] };
+  }
+  try {
+    return await runJoshChatOpenAI(userMessage, leads, uiState, openAiBearer);
+  } catch (e) {
+    logWarn('josh_chat_openai_failed', { err: String(e?.message || e) });
+    return { reply: joshFallbackReply(userMessage, leadCount), actions: [] };
+  }
 }
 
 async function handleJoshChat(req, res) {
@@ -1434,17 +1465,18 @@ async function handleJoshChat(req, res) {
   const userMessage = String(body.userMessage || '').trim();
   const leads = Array.isArray(body.leads) ? body.leads : [];
   const uiState = body.uiState && typeof body.uiState === 'object' ? body.uiState : {};
+  const clientOpenAiKey = String(body.openAiApiKey || '').trim();
   if (!userMessage) {
     return res.status(400).json({ error: 'validation', message: 'userMessage is required' });
   }
   try {
-    const out = await runJoshChatWithActions(userMessage, leads, uiState);
+    const out = await runJoshChatWithActions(userMessage, leads, uiState, clientOpenAiKey);
     return res.json(out);
   } catch (e) {
     logWarn('josh_chat_failed', { err: String(e?.message || e) });
     return res.status(502).json({
       error: 'josh_failed',
-      message: 'Josh is temporarily unavailable.',
+      message: 'Something went wrong loading Josh. Try again in a moment.',
     });
   }
 }
