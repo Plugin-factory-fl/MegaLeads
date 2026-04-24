@@ -23,8 +23,8 @@ const MAX_LEADS = Math.min(
 const LOG_LEVEL = (process.env.LEADFLOW_LOG_LEVEL || 'info').toLowerCase();
 const EMAIL_VERIFICATION_API_KEY = (process.env.EMAIL_VERIFICATION_API_KEY || '').trim();
 const EMAIL_VERIFICATION_PROVIDER = (process.env.EMAIL_VERIFICATION_PROVIDER || '').trim().toLowerCase();
-/** Max extension fetch_url rounds per batch (client increments toolRound). */
-const FETCH_TOOL_MAX_ROUNDS = Math.min(24, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_ROUNDS) || 18));
+/** Max `toolRound` before new browser fetches stop (client increments `toolRound` after each fetch burst). */
+const FETCH_TOOL_MAX_ROUNDS = Math.min(24, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_ROUNDS) || 12));
 /** Max URLs sent to the extension per needs_fetch response. */
 const FETCH_TOOL_MAX_URLS = Math.min(12, Math.max(1, Number(process.env.MEGALEADS_FETCH_TOOL_MAX_URLS_PER_ROUND) || 5));
 /** Max completed browser fetches per lead (username) per enrich request, across all tool rounds. */
@@ -708,6 +708,31 @@ function cloneMessagesForOpenAiFetchTool(messages) {
   });
 }
 
+/** Tail size for finalize-only OpenAI calls (full `messages` still used server-side for evidence). */
+const FETCH_FINALIZE_API_MESSAGE_TAIL = 14;
+
+/**
+ * Shorter message list for finalize OpenAI request — reduces latency vs sending the entire thread.
+ * @param {object[]} messages
+ * @param {object[]} leadsIn
+ * @returns {object[]}
+ */
+function compactMessagesForFinalizeApi(messages, leadsIn) {
+  const list = Array.isArray(messages) ? messages : [];
+  const compact = compactLeadsForLlm(leadsIn);
+  const system =
+    list[0] && list[0].role === 'system'
+      ? { ...list[0] }
+      : { role: 'system', content: FETCH_URL_TOOL_SYSTEM };
+  const afterSystem = list[0] && list[0].role === 'system' ? list.slice(1) : list;
+  const tail = afterSystem.slice(-FETCH_FINALIZE_API_MESSAGE_TAIL);
+  return [
+    system,
+    { role: 'user', content: `Leads JSON:\n${JSON.stringify(compact)}` },
+    ...tail.map((m) => ({ ...m })),
+  ];
+}
+
 /**
  * @param {object[]} messages OpenAI chat messages
  * @returns {Promise<object>} assistant message object (content and/or tool_calls)
@@ -754,10 +779,15 @@ async function openAiChatWithFetchTool(messages) {
 
 /**
  * One chat completion without tools — used when fetch rounds are exhausted or the tool loop stalls.
- * @param {object[]} messages
+ * @param {object[]} messages full conversation (evidence source for downstream enrichOne)
+ * @param {object[]|null} [leadsIn] when set, OpenAI payload uses a trimmed tail + fresh lead JSON for speed
  * @returns {Promise<object>} assistant message (content string)
  */
-async function openAiChatFetchFinalJsonOnly(messages) {
+async function openAiChatFetchFinalJsonOnly(messages, leadsIn = null) {
+  const apiBase =
+    leadsIn != null && Array.isArray(leadsIn) && leadsIn.length
+      ? compactMessagesForFinalizeApi(messages, leadsIn)
+      : messages;
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -767,7 +797,7 @@ async function openAiChatFetchFinalJsonOnly(messages) {
     body: JSON.stringify({
       model: OPENAI_MODEL,
       temperature: 0.2,
-      messages: [...cloneMessagesForOpenAiFetchTool(messages), { role: 'user', content: FETCH_URL_FINALIZE_USER }],
+      messages: [...cloneMessagesForOpenAiFetchTool(apiBase), { role: 'user', content: FETCH_URL_FINALIZE_USER }],
     }),
   });
   if (!res.ok) {
@@ -867,6 +897,14 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
 
   const priorFetchCounts = completedFetchUrlCountByUsername(messages);
 
+  if (!allowNewFetchJobs) {
+    logWarn('fetch_url round budget exhausted; one-shot finalize (skip tool model)', { toolRound: clientRound });
+    const finalMsg = await openAiChatFetchFinalJsonOnly(messages, leadsIn);
+    const budgetOut = await leadsOutFromFetchChoiceContent(finalMsg.content || '', leadsIn, messages, options);
+    if (!budgetOut) throw new Error('openai_final_parse_failed_after_forced_finalize');
+    return { kind: 'done', leadsOut: budgetOut };
+  }
+
   const INNER_MAX = 6;
   for (let inner = 0; inner < INNER_MAX; inner++) {
     const choice = await openAiChatWithFetchTool(cloneMessagesForOpenAiFetchTool(messages));
@@ -925,22 +963,6 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
       validFetchCandidates.push({ toolCallId: tcId, url, username });
     }
 
-    if (!allowNewFetchJobs && validFetchCandidates.length) {
-      logWarn('fetch_url round budget reached; not issuing new browser fetches', {
-        toolRound: clientRound,
-        maxRounds: FETCH_TOOL_MAX_ROUNDS,
-        skippedCalls: validFetchCandidates.length,
-      });
-      for (const vc of validFetchCandidates) {
-        prefilledToolResults.push({
-          tool_call_id: vc.toolCallId,
-          content:
-            'Skipped: fetch round budget exhausted for this batch (no more browser loads). Use existing tool text and the lead JSON only.',
-        });
-      }
-      validFetchCandidates.length = 0;
-    }
-
     const orderedCandidates = breadthFirstByUsername(validFetchCandidates);
     /** @type {typeof orderedCandidates} */
     const fetchJobs = [];
@@ -988,7 +1010,7 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
   }
 
   logWarn('fetch_url inner loop exhausted; forcing final JSON (no tools)', { toolRound: clientRound });
-  const finalMsg = await openAiChatFetchFinalJsonOnly(messages);
+  const finalMsg = await openAiChatFetchFinalJsonOnly(messages, leadsIn);
   const forcedOut = await leadsOutFromFetchChoiceContent(finalMsg.content || '', leadsIn, messages, options);
   if (!forcedOut) throw new Error('openai_final_parse_failed_after_forced_finalize');
   return { kind: 'done', leadsOut: forcedOut };
