@@ -824,7 +824,13 @@ function lfEnsureOverlayButton() {
   btn.setAttribute('aria-label', 'Extract leads now');
   btn.addEventListener('click', () => {
     if (lfOverlayDrag && lfOverlayDrag.moved) return;
-    chrome.runtime.sendMessage({ type: MSG.OPEN_POPUP }, () => void chrome.runtime.lastError);
+    // After extension reload, this page still has the old content script — runtime is dead until refresh.
+    try {
+      if (!chrome.runtime?.id) return;
+      chrome.runtime.sendMessage({ type: MSG.OPEN_POPUP }, () => void chrome.runtime.lastError);
+    } catch {
+      /* Extension context invalidated — user should refresh Instagram tab */
+    }
   });
   btn.addEventListener('pointerdown', (ev) => {
     lfOverlayDrag = {

@@ -41,13 +41,16 @@ You need **two different secrets** on Render (do not replace one with the other)
 | `STRIPE_WEBHOOK_SECRET` | For webhooks | Verifies `POST /v1/stripe/webhook` (`whsec_…`). |
 | `STRIPE_PRODUCT_ID` | Optional | Stored in Checkout `metadata` for your own bookkeeping (not required by Stripe for checkout). |
 | `PUBLIC_BASE_URL` | Recommended | Public **https** origin with **no** trailing slash, e.g. `https://megaleads.onrender.com`. Used for success/cancel URLs. On Render you can often rely on **`RENDER_EXTERNAL_URL`** instead if you do not set `PUBLIC_BASE_URL`. |
-| `DATABASE_URL` | Recommended | Postgres URL for persistent account-level free-tier usage ledger (used by `POST /v1/free-tier/status`). |
+| `DATABASE_URL` | Recommended | Postgres URL for persistent account-level free-tier usage ledger (`POST /v1/free-tier/status`) and the **free** column in `POST /v1/admin/subscribers`. |
+| `MEGALEADS_DATABASE_URL` | Optional | **Takes precedence over `DATABASE_URL`.** Use this when your host already defines `DATABASE_URL` for another app (for example MegaMix) so MegaLeads reads and writes `account_email_usage` only on the **Mega Leads** database. |
+
+**Paid** rows on the admin dashboard come from Stripe. If the same Stripe account also bills another product, set **`STRIPE_PRICE_ID`** to the Mega Leads subscription price: only subscriptions that include that price are listed as paid.
 
 In the Stripe Dashboard, add a webhook endpoint: `https://<your-service-host>/v1/stripe/webhook` and subscribe at least to `checkout.session.completed`. Deploy after `npm install` in `server/` so the `stripe` package is installed.
 
 The Chrome extension calls **`POST /v1/stripe/checkout-session`** with the same **`Authorization: Bearer`** as enrich (`MEGALEADS_API_KEY`). The JSON response contains `{ "url": "https://checkout.stripe.com/..." }`, which opens in a new tab. If that fails, the extension can still use a static Payment Link in `scripts/leadflow-remote-config.js` (`stripeCheckoutUrl`).
 
-`DATABASE_URL` now powers persistent free-tier usage tracking (`account_email_usage` table). If omitted, the server falls back to in-memory ledger (resets on deploy/restart).
+`MEGALEADS_DATABASE_URL` or `DATABASE_URL` powers persistent free-tier usage tracking (`account_email_usage` table). If neither is set, the server falls back to an in-memory ledger (resets on deploy/restart).
 
 With **FETCH_URL**, the OpenAI path can return `status: "needs_fetch"`; the extension fetches those URLs in the browser context and POSTs tool results back until the model returns final `leads`.
 

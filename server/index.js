@@ -51,14 +51,17 @@ const ADMIN_EMAIL = 'admin@megaleadsai.com';
 const ADMIN_PASSWORD = 'Shakeybob3';
 /** @type {Map<string, Set<string>>} accountEmail -> Set("username\\u0000email") */
 const FREE_TIER_USAGE_LEDGER = new Map();
+/** Prefer this on hosts where `DATABASE_URL` is inherited from another app (e.g. MegaMix). */
+const MEGALEADS_DATABASE_URL = String(process.env.MEGALEADS_DATABASE_URL || '').trim();
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
+const USAGE_DATABASE_URL = MEGALEADS_DATABASE_URL || DATABASE_URL;
 const { Pool } = pg;
 /** @type {import('pg').Pool | null} */
-const usagePool = DATABASE_URL
+const usagePool = USAGE_DATABASE_URL
   ? new Pool({
-      connectionString: DATABASE_URL,
+      connectionString: USAGE_DATABASE_URL,
       ssl:
-        DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1')
+        USAGE_DATABASE_URL.includes('localhost') || USAGE_DATABASE_URL.includes('127.0.0.1')
           ? false
           : { rejectUnauthorized: false },
     })
@@ -1727,6 +1730,11 @@ function main() {
   });
 
   app.listen(PORT, () => {
+    if (usagePool) {
+      logInfo('usage_postgres_pool', {
+        envVar: MEGALEADS_DATABASE_URL ? 'MEGALEADS_DATABASE_URL' : 'DATABASE_URL',
+      });
+    }
     logInfo(`listening on ${PORT}`, {
       health: ['/', '/health'],
       enrich: 'POST /v1/leads/enrich',

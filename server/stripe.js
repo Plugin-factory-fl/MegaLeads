@@ -268,6 +268,16 @@ export async function handleStripeManageSubscriptionSession(req, res) {
 }
 
 /**
+ * When `STRIPE_PRICE_ID` is set, only subscriptions that include that price count (same Stripe account can power multiple products).
+ * @param {import('stripe').Stripe.Subscription} sub
+ */
+function subscriptionMatchesMegaleadsPrice(sub) {
+  if (!STRIPE_PRICE_ID) return true;
+  const items = sub.items?.data || [];
+  return items.some((line) => line.price && String(line.price.id) === STRIPE_PRICE_ID);
+}
+
+/**
  * @returns {Promise<Set<string>>}
  */
 export async function listPaidSubscriberEmails() {
@@ -284,6 +294,7 @@ export async function listPaidSubscriberEmails() {
     for (const sub of page.data) {
       const st = String(sub.status || '').toLowerCase();
       if (st !== 'active' && st !== 'trialing') continue;
+      if (!subscriptionMatchesMegaleadsPrice(sub)) continue;
       const customerId =
         typeof sub.customer === 'string' ? sub.customer : sub.customer?.id ? String(sub.customer.id) : '';
       if (!customerId) continue;
