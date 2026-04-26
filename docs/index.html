@@ -20,6 +20,7 @@
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://plugin-factory-fl.github.io/MegaLeads/" />
+    <meta property="og:image" content="https://plugin-factory-fl.github.io/MegaLeads/assets/logo.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#1e1033" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -28,7 +29,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&amp;family=Instrument+Serif:ital@0;1&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%236d28d9' width='32' height='32' rx='8'/%3E%3Ctext x='16' y='22' text-anchor='middle' fill='%23facc15' font-size='14' font-weight='bold' font-family='system-ui'%3EML%3C/text%3E%3C/svg%3E" />
+    <link rel="icon" type="image/png" href="assets/logo.png" />
+    <link rel="apple-touch-icon" href="assets/logo.png" />
     <style>
       :root {
         --bg-deep: #0f0818;
@@ -94,17 +96,14 @@
         color: var(--text);
         text-decoration: none;
       }
-      .brand-mark {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        background: linear-gradient(145deg, #a78bfa, #5b21b6);
-        display: grid;
-        place-items: center;
-        font-size: 0.72rem;
-        font-weight: 900;
-        color: var(--gold);
-        box-shadow: 0 0 24px var(--glow);
+      .brand-logo {
+        height: 40px;
+        width: auto;
+        max-width: 200px;
+        display: block;
+        object-fit: contain;
+        object-position: left center;
+        filter: drop-shadow(0 2px 12px rgba(124, 58, 237, 0.35));
       }
       .btn {
         display: inline-flex;
@@ -407,8 +406,7 @@
     <header id="top">
       <div class="wrap nav">
         <a class="brand" href="#top">
-          <span class="brand-mark" aria-hidden="true">ML</span>
-          MegaLeadsAI
+          <img class="brand-logo" src="assets/logo.png" alt="MegaLeadsAI" width="512" height="512" decoding="async" />
         </a>
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end">
           <a class="btn btn-ghost" href="#video">Watch tutorial</a>
