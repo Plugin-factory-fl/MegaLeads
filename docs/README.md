@@ -14,11 +14,11 @@ This folder is published with **GitHub Pages** from **`/docs`**.
 3. Under **Build and deployment**:
    - **Source**: *Deploy from a branch*
    - **Branch**: `main` (or your default) · **Folder**: `/docs`
-4. Save. The site URL will look like:
+4. Save. GitHub gives a default URL like `https://<owner>.github.io/<repository>/`.
 
-   `https://<owner>.github.io/<repository>/`
+5. **Custom domain:** this repo includes `docs/CNAME` with **`megaleads-ai.com`**. In the repo go to **Settings → Pages → Custom domain**, enter `megaleads-ai.com`, save, and add the **DNS A records** (or ALIAS) GitHub shows for an apex domain. After DNS propagates, enable **Enforce HTTPS**.
 
-5. Use that URL in the Chrome Web Store listing (**Privacy policy** field). Reviewers and users can scroll to **Privacy** or open `https://<owner>.github.io/<repository>/#privacy`.
+6. Use **`https://megaleads-ai.com/`** in the Chrome Web Store (**Privacy policy** field). Users can open **`https://megaleads-ai.com/#privacy`** for the policy only.
 
 ## Local preview
 

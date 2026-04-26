@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://megaleads-ai.com/sitemap.xml
