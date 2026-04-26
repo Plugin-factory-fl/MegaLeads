@@ -301,6 +301,22 @@
         color: var(--muted);
         font-size: 15pt;
       }
+      .steps .step-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .steps .step-img {
+        width: 100%;
+        max-width: 720px;
+        height: auto;
+        border-radius: var(--radius);
+        border: 1px solid var(--stroke);
+        display: block;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+      }
       .cta-band {
         text-align: center;
         padding: 3rem 1.25rem;
@@ -580,27 +596,59 @@
           <p class="h-title"><strong>4 steps.</strong> <em>That is it.</em></p>
           <ol class="steps">
             <li>
-              <div>
-                <strong>Open Instagram</strong>
-                <span>Go to <strong>followers</strong>, <strong>following</strong>, or a <strong>hashtag</strong> page.</span>
+              <div class="step-body">
+                <strong>Open an Instagram profile and click the <em>magic</em> button.</strong>
+                <img
+                  class="step-img"
+                  src="assets/2.jpg"
+                  alt="Step 1: Instagram profile with the MegaLeadsAI magic button"
+                  width="1280"
+                  height="800"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             </li>
             <li>
-              <div>
-                <strong>Click the MegaLeadsAI icon</strong>
-                <span>Pick what to grab and <em>how fast</em> it should run.</span>
+              <div class="step-body">
+                <strong>Click the &lsquo;Start extraction&rsquo; button.</strong>
+                <img
+                  class="step-img"
+                  src="assets/3.jpg"
+                  alt="Step 2: Start extraction button in MegaLeadsAI"
+                  width="1280"
+                  height="800"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             </li>
             <li>
-              <div>
-                <strong>Press Start</strong>
-                <span>Watch the <strong>dashboard</strong> fill up. Pause any time.</span>
+              <div class="step-body">
+                <strong>Watch the emails gather.</strong>
+                <img
+                  class="step-img"
+                  src="assets/4.jpg"
+                  alt="Step 3: Dashboard showing emails gathering in MegaLeadsAI"
+                  width="1280"
+                  height="800"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             </li>
             <li>
-              <div>
-                <strong>AI enriches, then you export</strong>
-                <span><strong>AI enrichment</strong> runs to boost accuracy. Then <strong>save to Excel</strong>.</span>
+              <div class="step-body">
+                <strong>Download your fresh email list.</strong>
+                <img
+                  class="step-img"
+                  src="assets/5.jpg"
+                  alt="Step 4: Downloading the email list from MegaLeadsAI"
+                  width="1280"
+                  height="800"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             </li>
           </ol>
