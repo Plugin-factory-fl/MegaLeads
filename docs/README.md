@@ -1,6 +1,11 @@
-# MegaLeads docs (GitHub Pages)
+# MegaLeads site (GitHub Pages)
 
-This folder is published with **GitHub Pages** so you have a public URL for the **Privacy Policy** (`index.html`).
+This folder is published with **GitHub Pages** from **`/docs`**.
+
+`index.html` is a **single page** that includes:
+
+1. **Marketing** — MegaLeadsAI positioning for email list builders, Chrome Web Store CTAs, feature overview, embedded tutorial video, and how-it-works steps.
+2. **Privacy policy** — Full MegaLeadsAI privacy policy at the **bottom** of the same document (`#privacy`), suitable for the Chrome Web Store “Privacy policy” URL.
 
 ## Enable Pages
 
@@ -9,17 +14,15 @@ This folder is published with **GitHub Pages** so you have a public URL for the 
 3. Under **Build and deployment**:
    - **Source**: *Deploy from a branch*
    - **Branch**: `main` (or your default) · **Folder**: `/docs`
-4. Save. After the build finishes (usually under a minute), the site URL will look like:
+4. Save. The site URL will look like:
 
    `https://<owner>.github.io/<repository>/`
 
-   The privacy policy is the homepage: that same URL loads `docs/index.html`.
-
-5. Put that URL in the Chrome Web Store listing (Privacy policy field).
+5. Use that URL in the Chrome Web Store listing (**Privacy policy** field). Reviewers and users can scroll to **Privacy** or open `https://<owner>.github.io/<repository>/#privacy`.
 
 ## Local preview
 
-Open `docs/index.html` in a browser, or run a static server from the repo root:
+From the repo root:
 
 ```bash
 npx --yes serve docs -p 3333
@@ -27,6 +30,9 @@ npx --yes serve docs -p 3333
 
 Then visit `http://localhost:3333`.
 
-## Updating the policy
+## Updating content
 
-Edit `docs/index.html` only. Commit and push; Pages updates on the next deployment.
+- **Marketing or layout:** edit the top of `docs/index.html`.
+- **Privacy only:** edit the `#privacy` section at the bottom of `docs/index.html`.
+
+Commit and push; Pages updates on the next deployment (usually within a minute).
