@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MegaLeadsAI — Instagram Lead Extractor &amp; Email List Builder for Chrome</title>
+    <meta
+      name="description"
+      content="Build email lists from Instagram faster. MegaLeadsAI extracts followers, following, and hashtag leads into a filterable dashboard—export to Excel. Free tier. Chrome extension."
+    />
+    <meta
+      name="keywords"
+      content="Instagram lead extractor, Instagram email list, export Instagram followers to Excel, Instagram leads Chrome extension, email list builder, Instagram prospecting tool"
+    />
+    <!-- After GitHub Pages is live: add <link rel="canonical" href="https://YOUR_USER.github.io/MegaLeads/"> and og:url with the same URL. -->
+    <meta property="og:title" content="MegaLeadsAI — Instagram leads to Excel for email list builders" />
+    <meta
+      property="og:description"
+      content="Extract Instagram followers, following &amp; hashtag leads. Filter, enrich, export .xlsx. Built for list builders &amp; sales teams."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#1e1033" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&amp;family=Instrument+Serif:ital@0;1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%236d28d9' width='32' height='32' rx='8'/%3E%3Ctext x='16' y='22' text-anchor='middle' fill='%23facc15' font-size='14' font-weight='bold' font-family='system-ui'%3EML%3C/text%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --bg-deep: #0f0818;
+        --bg-card: rgba(255, 255, 255, 0.04);
+        --stroke: rgba(255, 255, 255, 0.1);
+        --text: #f4f4f5;
+        --muted: #a1a1aa;
+        --accent: #c4b5fd;
+        --gold: #facc15;
+        --violet: #7c3aed;
+        --glow: rgba(124, 58, 237, 0.45);
+        --radius: 14px;
+        --max: 1120px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        font-family: 'DM Sans', system-ui, sans-serif;
+        font-size: 1.05rem;
+        line-height: 1.55;
+        color: var(--text);
+        background: var(--bg-deep);
+        background-image:
+          radial-gradient(ellipse 100% 60% at 50% -20%, rgba(124, 58, 237, 0.35), transparent),
+          radial-gradient(ellipse 80% 50% at 100% 50%, rgba(250, 204, 21, 0.06), transparent);
+        min-height: 100vh;
+      }
+      a {
+        color: var(--accent);
+      }
+      .wrap {
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+      header {
+        padding: 1rem 0;
+        border-bottom: 1px solid var(--stroke);
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(15, 8, 24, 0.85);
+        backdrop-filter: blur(12px);
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        font-size: 1.1rem;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: linear-gradient(145deg, #a78bfa, #5b21b6);
+        display: grid;
+        place-items: center;
+        font-size: 0.72rem;
+        font-weight: 900;
+        color: var(--gold);
+        box-shadow: 0 0 24px var(--glow);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        padding: 0.65rem 1.15rem;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #a78bfa, #6d28d9);
+        color: #fff;
+        box-shadow: 0 8px 28px var(--glow);
+      }
+      .btn-ghost {
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--stroke);
+      }
+      .btn-ghost:hover {
+        color: var(--text);
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+      .hero {
+        padding: 3.5rem 0 3rem;
+        text-align: center;
+      }
+      .hero h1 {
+        font-family: 'Instrument Serif', Georgia, serif;
+        font-weight: 400;
+        font-size: clamp(2.35rem, 5.5vw, 3.45rem);
+        line-height: 1.12;
+        margin: 0 0 1rem;
+        letter-spacing: -0.02em;
+      }
+      .hero h1 em {
+        font-style: italic;
+        color: var(--gold);
+      }
+      .hero-lead {
+        max-width: 38rem;
+        margin: 0 auto 1.75rem;
+        color: var(--muted);
+        font-size: 1.12rem;
+      }
+      .hero-cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        justify-content: center;
+        margin-bottom: 0.5rem;
+      }
+      .hero-note {
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin-top: 0.75rem;
+      }
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+        margin-top: 2rem;
+      }
+      .badge {
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: var(--bg-card);
+        border: 1px solid var(--stroke);
+        color: #d4d4d8;
+      }
+      section {
+        padding: 2.75rem 0;
+      }
+      section h2 {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--accent);
+        margin: 0 0 0.75rem;
+        font-weight: 700;
+      }
+      section .h-title {
+        font-size: clamp(1.55rem, 3vw, 2rem);
+        font-weight: 800;
+        margin: 0 0 1.25rem;
+        letter-spacing: -0.02em;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
+      }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--stroke);
+        border-radius: var(--radius);
+        padding: 1.35rem 1.25rem;
+      }
+      .card h3 {
+        margin: 0 0 0.5rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .card .icon {
+        font-size: 1.35rem;
+        margin-bottom: 0.65rem;
+      }
+      .video-wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        border-radius: var(--radius);
+        overflow: hidden;
+        border: 1px solid var(--stroke);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+        aspect-ratio: 16 / 9;
+        background: #000;
+      }
+      .video-wrap iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+      .steps {
+        counter-reset: step;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 0.85rem;
+      }
+      .steps li {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        padding: 1rem 1.1rem;
+        background: var(--bg-card);
+        border: 1px solid var(--stroke);
+        border-radius: var(--radius);
+      }
+      .steps li::before {
+        counter-increment: step;
+        content: counter(step);
+        flex: 0 0 2rem;
+        height: 2rem;
+        border-radius: 8px;
+        background: rgba(124, 58, 237, 0.35);
+        color: var(--gold);
+        font-weight: 800;
+        font-size: 0.85rem;
+        display: grid;
+        place-items: center;
+      }
+      .steps strong {
+        display: block;
+        margin-bottom: 0.2rem;
+      }
+      .steps span {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      .cta-band {
+        text-align: center;
+        padding: 3rem 1.25rem;
+        margin: 2rem 0 0;
+        border-radius: var(--radius);
+        border: 1px solid var(--stroke);
+        background: linear-gradient(160deg, rgba(124, 58, 237, 0.2), rgba(15, 8, 24, 0.9));
+      }
+      .cta-band h2 {
+        font-size: clamp(1.45rem, 3vw, 1.85rem);
+        font-weight: 800;
+        margin: 0 0 0.5rem;
+        color: var(--text);
+        text-transform: none;
+        letter-spacing: -0.02em;
+      }
+      .cta-band p {
+        color: var(--muted);
+        margin: 0 0 1.25rem;
+        max-width: 32rem;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      footer {
+        padding: 2rem 0 2.5rem;
+        border-top: 1px solid var(--stroke);
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+      footer a {
+        color: #d4d4d8;
+      }
+      @media (max-width: 640px) {
+        .nav .btn-ghost {
+          display: none;
+        }
+      }
+    </style>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "MegaLeadsAI",
+        "applicationCategory": "BrowserApplication",
+        "operatingSystem": "Chrome",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": "Chrome extension for Instagram lead extraction and email list building. Export followers, following, and hashtag leads to Excel.",
+        "url": "https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe"
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <div class="wrap nav">
+        <a class="brand" href="#">
+          <span class="brand-mark" aria-hidden="true">ML</span>
+          MegaLeadsAI
+        </a>
+        <div style="display: flex; gap: 0.5rem; align-items: center">
+          <a class="btn btn-ghost" href="#video">Watch tutorial</a>
+          <a
+            class="btn btn-primary"
+            href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=item-share-cb&amp;utm_medium=website&amp;utm_campaign=nav"
+            rel="noopener noreferrer"
+            target="_blank"
+            >Add to Chrome — Free</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap">
+          <h1>Turn Instagram discovery into <em>email-ready lists</em>—without the copy-paste grind.</h1>
+          <p class="hero-lead">
+            <strong>MegaLeadsAI</strong> is a Chrome extension built for <strong>email list builders</strong>,
+            agencies, and sales teams who prospect on Instagram. Pull <strong>followers</strong>,
+            <strong>following</strong>, and <strong>hashtag</strong> profiles into one sortable table—spot emails &
+            phones in bios, filter noise, then <strong>export to Excel</strong> for your CRM or cold outreach stack.
+          </p>
+          <div class="hero-cta">
+            <a
+              class="btn btn-primary"
+              href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=item-share-cb&amp;utm_medium=website&amp;utm_campaign=hero"
+              rel="noopener noreferrer"
+              target="_blank"
+              >Get MegaLeadsAI on the Chrome Web Store</a
+            >
+            <a class="btn btn-ghost" href="#features">See what you get</a>
+          </div>
+          <p class="hero-note">Free tier with tracked unique emails · Optional unlimited plan · Manifest V3 · Chrome 114+</p>
+          <div class="badges" aria-label="Highlights">
+            <span class="badge">Instagram lead extractor</span>
+            <span class="badge">Followers / following / hashtag</span>
+            <span class="badge">.xlsx export</span>
+            <span class="badge">Optional AI enrichment</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <h2>Built for list builders</h2>
+          <p class="h-title">Everything you need to go from scroll → spreadsheet.</p>
+          <div class="grid-3">
+            <article class="card">
+              <div class="icon" aria-hidden="true">📋</div>
+              <h3>One dashboard for every lead</h3>
+              <p>
+                Username, follower count, bio, website, timestamps—and <strong>email &amp; phone</strong> when
+                signals show up in the profile. Filter and select rows instead of juggling tabs.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">📤</div>
+              <h3>Export Instagram leads to Excel</h3>
+              <p>
+                Download <strong>.xlsx</strong> for profiles or email-focused exports so your list lives where you
+                already work—Sheets, HubSpot sequences, Clay, or your outbound tool of choice.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">⚡</div>
+              <h3>Popup controls + pacing you control</h3>
+              <p>
+                Start from the <strong>toolbar popup</strong> on Instagram: pick mode, limits, and delays. A
+                full-tab <strong>dashboard</strong> opens for live progress—built for longer runs without losing
+                context.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">🤖</div>
+              <h3>Optional AI enrichment</h3>
+              <p>
+                When you connect your API, run <strong>server-assisted enrichment</strong> to tighten contact
+                fields from bios and linked pages. Josh Q&amp;A helps you interpret results—advisory only.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">🎁</div>
+              <h3>Start free, scale when lists scale</h3>
+              <p>
+                <strong>Free tier</strong> includes a tracked unique-email allowance (shown in-app). Upgrade when
+                you need <strong>unlimited</strong> extraction volume—checkout from the extension where enabled.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">🔒</div>
+              <h3>Your rows stay in your browser</h3>
+              <p>
+                Lead data lives in <strong>Chrome local storage</strong> by default. Optional cloud features only
+                send what those flows need—use HTTPS endpoints you trust.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="video">
+        <div class="wrap">
+          <h2>Video walkthrough</h2>
+          <p class="h-title">See MegaLeadsAI in action—start to export.</p>
+          <p style="max-width: 40rem; margin: 0 auto 1.25rem; color: var(--muted); text-align: center">
+            Watch the official tutorial: how to open Instagram, configure the popup, run extraction, and export
+            Instagram leads for your email list.
+          </p>
+          <div class="video-wrap">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/z8SbSOKctlI"
+              title="MegaLeadsAI tutorial — Instagram lead extraction and export"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              loading="lazy"
+              referrerpolicy="strict-origin-when-cross-origin"
+            ></iframe>
+          </div>
+          <p style="text-align: center; margin-top: 1.25rem">
+            <a
+              class="btn btn-primary"
+              href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=item-share-cb&amp;utm_medium=website&amp;utm_campaign=video"
+              rel="noopener noreferrer"
+              target="_blank"
+              >Install from Chrome Web Store</a
+            >
+          </p>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="wrap">
+          <h2>How it works</h2>
+          <p class="h-title">Four steps. One clean list.</p>
+          <ol class="steps">
+            <li>
+              <div>
+                <strong>Open Instagram in Chrome</strong>
+                <span>Go to followers, following, or a supported hashtag flow—the places you already prospect.</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Launch MegaLeadsAI from the toolbar</strong>
+                <span>Set mode, max profiles, and optional delays to balance speed vs. account safety.</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Start extraction → dashboard fills in</strong>
+                <span>Watch progress live, pause or stop, and scan bios for email-ready contacts.</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Filter, optionally enrich, export to Excel</strong>
+                <span>Ship the list to your outbound stack—or enrich first if you use the optional API path.</span>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <div class="cta-band">
+            <h2>Ready to build your next Instagram email list?</h2>
+            <p>
+              Install MegaLeadsAI from the Chrome Web Store and run your first extraction in minutes. Built by
+              <strong>MegaMix AI, LLC</strong> for teams who live in spreadsheets.
+            </p>
+            <a
+              class="btn btn-primary"
+              style="font-size: 1.05rem; padding: 0.85rem 1.5rem"
+              href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=item-share-cb&amp;utm_medium=website&amp;utm_campaign=footer_cta"
+              rel="noopener noreferrer"
+              target="_blank"
+              >Add MegaLeadsAI to Chrome</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          © MegaMix AI, LLC ·
+          <a href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe" rel="noopener noreferrer" target="_blank"
+            >MegaLeadsAI on Chrome Web Store</a
+          >
+          · Instagram® is a trademark of Meta Platforms, Inc. MegaLeadsAI is not endorsed by or affiliated with Meta.
+        </p>
+        <p style="margin-top: 0.75rem">
+          Privacy disclosures for the extension are listed on the
+          <a href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe" rel="noopener noreferrer" target="_blank"
+            >Chrome Web Store listing</a
+          >.
+        </p>
+      </footer>
+  </body>
+</html>
