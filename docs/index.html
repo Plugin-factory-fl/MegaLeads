@@ -6,7 +6,7 @@
     <title>MegaLeadsAI — Instagram Lead Extractor &amp; Email List Builder for Chrome</title>
     <meta
       name="description"
-      content="Build email lists from Instagram faster with MegaLeadsAI—Chrome extension with dashboard, Excel export, and optional AI enrichment. Full privacy policy for MegaMix AI, LLC included on this page."
+      content="MegaLeadsAI: Instagram leads in one table, AI enrichment for top accuracy, export to Excel. Chrome extension. Privacy policy on this page."
     />
     <meta
       name="keywords"
@@ -16,7 +16,7 @@
     <meta property="og:title" content="MegaLeadsAI — Instagram leads to Excel for email list builders" />
     <meta
       property="og:description"
-      content="Extract Instagram followers, following &amp; hashtag leads. Filter, enrich, export .xlsx. Privacy policy included."
+      content="Instagram leads in one table. AI enrichment every run for top accuracy. Export to Excel. Privacy policy on-page."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://plugin-factory-fl.github.io/MegaLeads/" />
@@ -54,8 +54,8 @@
       body {
         margin: 0;
         font-family: 'DM Sans', system-ui, sans-serif;
-        font-size: 1.05rem;
-        line-height: 1.55;
+        font-size: 15pt;
+        line-height: 1.5;
         color: var(--text);
         background: var(--bg-deep);
         background-image:
@@ -72,7 +72,7 @@
         padding: 0 1.25rem;
       }
       header {
-        padding: 1rem 0;
+        padding: 1rem 0 1.15rem;
         border-bottom: 1px solid var(--stroke);
         position: sticky;
         top: 0;
@@ -97,13 +97,13 @@
         text-decoration: none;
       }
       .brand-logo {
-        height: 40px;
+        height: 120px;
         width: auto;
-        max-width: 200px;
+        max-width: min(360px, 70vw);
         display: block;
         object-fit: contain;
         object-position: left center;
-        filter: drop-shadow(0 2px 12px rgba(124, 58, 237, 0.35));
+        filter: drop-shadow(0 2px 16px rgba(124, 58, 237, 0.4));
       }
       .btn {
         display: inline-flex;
@@ -113,7 +113,7 @@
         padding: 0.65rem 1.15rem;
         border-radius: 999px;
         font-weight: 700;
-        font-size: 0.95rem;
+        font-size: 15pt;
         text-decoration: none;
         border: none;
         cursor: pointer;
@@ -143,7 +143,7 @@
       .hero h1 {
         font-family: 'Instrument Serif', Georgia, serif;
         font-weight: 400;
-        font-size: clamp(2.35rem, 5.5vw, 3.45rem);
+        font-size: clamp(26pt, 5.5vw, 40pt);
         line-height: 1.12;
         margin: 0 0 1rem;
         letter-spacing: -0.02em;
@@ -153,10 +153,27 @@
         color: var(--gold);
       }
       .hero-lead {
-        max-width: 38rem;
-        margin: 0 auto 1.75rem;
+        max-width: 36rem;
+        margin: 0 auto 1.25rem;
         color: var(--muted);
-        font-size: 1.12rem;
+        font-size: 17pt;
+      }
+      .hero-usp {
+        max-width: 40rem;
+        margin: 0 auto 1.75rem;
+        padding: 1rem 1.25rem;
+        border-radius: var(--radius);
+        border: 1px solid rgba(250, 204, 21, 0.35);
+        background: rgba(250, 204, 21, 0.08);
+        color: var(--text);
+        font-size: 18pt;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+      .hero-usp em {
+        font-style: italic;
+        font-weight: 600;
+        color: var(--gold);
       }
       .hero-cta {
         display: flex;
@@ -166,7 +183,7 @@
         margin-bottom: 0.5rem;
       }
       .hero-note {
-        font-size: 0.82rem;
+        font-size: 14pt;
         color: var(--muted);
         margin-top: 0.75rem;
       }
@@ -178,9 +195,9 @@
         margin-top: 2rem;
       }
       .badge {
-        font-size: 0.78rem;
+        font-size: 14pt;
         font-weight: 600;
-        padding: 0.35rem 0.75rem;
+        padding: 0.4rem 0.85rem;
         border-radius: 999px;
         background: var(--bg-card);
         border: 1px solid var(--stroke);
@@ -190,15 +207,15 @@
         padding: 2.75rem 0;
       }
       section:not(.privacy-section) > .wrap > h2 {
-        font-size: 0.78rem;
+        font-size: 14pt;
         text-transform: uppercase;
-        letter-spacing: 0.14em;
+        letter-spacing: 0.12em;
         color: var(--accent);
         margin: 0 0 0.75rem;
         font-weight: 700;
       }
       section .h-title {
-        font-size: clamp(1.55rem, 3vw, 2rem);
+        font-size: clamp(20pt, 3.2vw, 26pt);
         font-weight: 800;
         margin: 0 0 1.25rem;
         letter-spacing: -0.02em;
@@ -216,17 +233,18 @@
       }
       .card h3 {
         margin: 0 0 0.5rem;
-        font-size: 1.05rem;
+        font-size: 18pt;
         font-weight: 700;
       }
       .card p {
         margin: 0;
-        color: var(--muted);
-        font-size: 0.95rem;
+        color: #d4d4d8;
+        font-size: 15pt;
       }
       .card .icon {
-        font-size: 1.35rem;
+        font-size: 22pt;
         margin-bottom: 0.65rem;
+        line-height: 1;
       }
       .video-wrap {
         max-width: 880px;
@@ -264,23 +282,24 @@
       .steps li::before {
         counter-increment: step;
         content: counter(step);
-        flex: 0 0 2rem;
-        height: 2rem;
+        flex: 0 0 2.25rem;
+        height: 2.25rem;
         border-radius: 8px;
         background: rgba(124, 58, 237, 0.35);
         color: var(--gold);
         font-weight: 800;
-        font-size: 0.85rem;
+        font-size: 14pt;
         display: grid;
         place-items: center;
       }
       .steps strong {
         display: block;
         margin-bottom: 0.2rem;
+        font-size: 16pt;
       }
       .steps span {
         color: var(--muted);
-        font-size: 0.92rem;
+        font-size: 15pt;
       }
       .cta-band {
         text-align: center;
@@ -291,7 +310,7 @@
         background: linear-gradient(160deg, rgba(124, 58, 237, 0.2), rgba(15, 8, 24, 0.9));
       }
       .cta-band h2 {
-        font-size: clamp(1.45rem, 3vw, 1.85rem);
+        font-size: clamp(20pt, 3vw, 26pt);
         font-weight: 800;
         margin: 0 0 0.5rem;
         color: var(--text);
@@ -304,13 +323,21 @@
         max-width: 32rem;
         margin-left: auto;
         margin-right: auto;
+        font-size: 15pt;
+      }
+      .skim-note {
+        max-width: 40rem;
+        margin: 0 auto 1.25rem;
+        color: var(--muted);
+        text-align: center;
+        font-size: 15pt;
       }
       .site-footer {
         padding: 2rem 0 2.5rem;
         border-top: 1px solid var(--stroke);
         text-align: center;
         color: var(--muted);
-        font-size: 0.88rem;
+        font-size: 14pt;
       }
       .site-footer a {
         color: #d4d4d8;
@@ -326,7 +353,7 @@
         padding: 0 1.25rem;
       }
       .privacy-section .policy-main-title {
-        font-size: 1.65rem;
+        font-size: clamp(20pt, 3vw, 26pt);
         font-weight: 800;
         letter-spacing: -0.02em;
         margin: 0 0 0.25rem;
@@ -335,13 +362,13 @@
       }
       .privacy-section .policy-meta {
         color: var(--muted);
-        font-size: 0.9rem;
+        font-size: 14pt;
         margin-bottom: 2rem;
         padding-bottom: 1.25rem;
         border-bottom: 1px solid var(--stroke);
       }
       .privacy-section h2 {
-        font-size: 1.1rem;
+        font-size: 17pt;
         font-weight: 700;
         margin: 2rem 0 0.5rem;
         color: var(--accent);
@@ -351,17 +378,20 @@
       .privacy-section p {
         margin: 0 0 0.85rem;
         color: #d4d4d8;
+        font-size: 14pt;
       }
       .privacy-section ul {
         margin: 0 0 0.85rem;
         padding-left: 1.25rem;
         color: #d4d4d8;
+        font-size: 14pt;
       }
       .privacy-section li {
         margin-bottom: 0.35rem;
+        font-size: 14pt;
       }
       .privacy-section code {
-        font-size: 0.9em;
+        font-size: 14pt;
         padding: 0.12em 0.35em;
         border-radius: 6px;
         background: rgba(255, 255, 255, 0.08);
@@ -370,13 +400,13 @@
         margin-top: 3rem;
         padding-top: 1.5rem;
         border-top: 1px solid var(--stroke);
-        font-size: 0.88rem;
+        font-size: 14pt;
         color: var(--muted);
       }
       @media (max-width: 720px) {
         .nav .btn-ghost {
           padding: 0.5rem 0.75rem;
-          font-size: 0.82rem;
+          font-size: 14pt;
         }
       }
       @media (max-width: 640px) {
@@ -397,7 +427,7 @@
           "price": "0",
           "priceCurrency": "USD"
         },
-        "description": "Chrome extension for Instagram lead extraction and email list building. Export followers, following, and hashtag leads to Excel.",
+        "description": "Chrome extension for Instagram leads with AI enrichment for top accuracy. Export to Excel.",
         "url": "https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe"
       }
     </script>
@@ -425,12 +455,15 @@
     <main>
       <section class="hero">
         <div class="wrap">
-          <h1>Turn Instagram discovery into <em>email-ready lists</em>—without the copy-paste grind.</h1>
+          <h1>Get <strong>emails</strong> from Instagram. <em>The easy way.</em></h1>
+          <p class="hero-usp">
+            <strong>Best accuracy in the industry</strong> with <strong>AI enrichment</strong> — on <em>every</em> run.
+          </p>
           <p class="hero-lead">
-            <strong>MegaLeadsAI</strong> is a Chrome extension built for <strong>email list builders</strong>,
-            agencies, and sales teams who prospect on Instagram. Pull <strong>followers</strong>,
-            <strong>following</strong>, and <strong>hashtag</strong> profiles into one sortable table—spot emails &amp;
-            phones in bios, filter noise, then <strong>export to Excel</strong> for your CRM or cold outreach stack.
+            <strong>MegaLeadsAI</strong> is a Chrome add-on for people who build <strong>email lists</strong>. It grabs
+            public profiles from <strong>followers</strong>, <strong>following</strong>, or <strong>hashtags</strong>.
+            You see <strong>emails</strong> and <strong>phones</strong> when they sit in bios. You <strong>save to
+            Excel</strong> when you are done.
           </p>
           <div class="hero-cta">
             <a
@@ -442,68 +475,70 @@
             >
             <a class="btn btn-ghost" href="#features">See what you get</a>
           </div>
-          <p class="hero-note">Free tier with tracked unique emails · Optional unlimited plan · Manifest V3 · Chrome 114+</p>
+          <p class="hero-note">
+            <strong>Free</strong> to start · <strong>Paid plan</strong> for unlimited · Works in <strong>Chrome
+            114+</strong>
+          </p>
           <div class="badges" aria-label="Highlights">
-            <span class="badge">Instagram lead extractor</span>
-            <span class="badge">Followers / following / hashtag</span>
-            <span class="badge">.xlsx export</span>
-            <span class="badge">Optional AI enrichment</span>
+            <span class="badge">AI on every run</span>
+            <span class="badge">Excel export</span>
+            <span class="badge">Followers &amp; hashtags</span>
+            <span class="badge">One clean table</span>
           </div>
         </div>
       </section>
 
       <section id="features">
         <div class="wrap">
-          <h2>Built for list builders</h2>
-          <p class="h-title">Everything you need to go from scroll → spreadsheet.</p>
+          <h2>For email list builders</h2>
+          <p class="h-title"><strong>Big type.</strong> <em>Simple steps.</em> <strong>Your list.</strong></p>
           <div class="grid-3">
             <article class="card">
-              <div class="icon" aria-hidden="true">📋</div>
-              <h3>One dashboard for every lead</h3>
+              <div class="icon" aria-hidden="true">🤖</div>
+              <h3>AI enrichment — our edge</h3>
               <p>
-                Username, follower count, bio, website, timestamps—and <strong>email &amp; phone</strong> when
-                signals show up in the profile. Filter and select rows instead of juggling tabs.
+                <strong>Best accuracy in the industry</strong> with <strong>AI enrichment</strong> on every run. AI
+                helps read bios and pages so you miss fewer real contacts.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">📋</div>
+              <h3>One table for all leads</h3>
+              <p>
+                See <strong>name</strong>, <strong>followers</strong>, <strong>bio</strong>, <strong>links</strong>, and
+                <strong>email / phone</strong> when they show up. <em>Filter fast.</em> Pick the rows you want.
               </p>
             </article>
             <article class="card">
               <div class="icon" aria-hidden="true">📤</div>
-              <h3>Export Instagram leads to Excel</h3>
+              <h3>Save to Excel</h3>
               <p>
-                Download <strong>.xlsx</strong> for profiles or email-focused exports so your list lives where you
-                already work—Sheets, HubSpot sequences, Clay, or your outbound tool of choice.
+                Tap <strong>export</strong>. You get an <strong>.xlsx</strong> file. Open it in Excel, Google Sheets,
+                or any tool you like.
               </p>
             </article>
             <article class="card">
               <div class="icon" aria-hidden="true">⚡</div>
-              <h3>Popup controls + pacing you control</h3>
+              <h3>You stay in control</h3>
               <p>
-                Start from the <strong>toolbar popup</strong> on Instagram: pick mode, limits, and delays. A full-tab
-                <strong>dashboard</strong> opens for live progress—built for longer runs without losing context.
-              </p>
-            </article>
-            <article class="card">
-              <div class="icon" aria-hidden="true">🤖</div>
-              <h3>Optional AI enrichment</h3>
-              <p>
-                When you connect your API, run <strong>server-assisted enrichment</strong> to tighten contact fields
-                from bios and linked pages. Josh Q&amp;A helps you interpret results—advisory only.
+                Open the <strong>small popup</strong> on Instagram. Set limits and speed. A <strong>big dashboard</strong>
+                tab shows live progress.
               </p>
             </article>
             <article class="card">
               <div class="icon" aria-hidden="true">🎁</div>
-              <h3>Start free, scale when lists scale</h3>
+              <h3>Free first. Pay if you need more</h3>
               <p>
-                <strong>Free tier</strong> includes a tracked unique-email allowance (shown in-app). Upgrade when you
-                need <strong>unlimited</strong> extraction volume—checkout from the extension where enabled.
+                Start <strong>free</strong>. The app shows your email cap. Go <strong>unlimited</strong> with a paid
+                plan when you are ready.
               </p>
             </article>
             <article class="card">
               <div class="icon" aria-hidden="true">🔒</div>
-              <h3>Your rows stay in your browser</h3>
+              <h3>Your data stays on your PC</h3>
               <p>
-                Lead data lives in <strong>Chrome local storage</strong> by default. Optional cloud features only send
-                what those flows need—use HTTPS endpoints you trust. Full details are in the
-                <a href="#privacy">privacy policy</a> below.
+                Rows live in <strong>Chrome storage</strong> on your machine. Extra web hooks use
+                <strong>HTTPS</strong> only. Read more in our <a href="#privacy">privacy policy</a> at the bottom.
               </p>
             </article>
           </div>
@@ -512,11 +547,10 @@
 
       <section id="video">
         <div class="wrap">
-          <h2>Video walkthrough</h2>
-          <p class="h-title">See MegaLeadsAI in action—start to export.</p>
-          <p style="max-width: 40rem; margin: 0 auto 1.25rem; color: var(--muted); text-align: center">
-            Watch the official tutorial: how to open Instagram, configure the popup, run extraction, and export
-            Instagram leads for your email list.
+          <h2>Video</h2>
+          <p class="h-title"><strong>Watch</strong> the <em>short</em> how-to.</p>
+          <p class="skim-note">
+            See how to open Instagram, hit <strong>Start</strong>, and <strong>export</strong> your list.
           </p>
           <div class="video-wrap">
             <iframe
@@ -543,30 +577,30 @@
       <section id="how">
         <div class="wrap">
           <h2>How it works</h2>
-          <p class="h-title">Four steps. One clean list.</p>
+          <p class="h-title"><strong>4 steps.</strong> <em>That is it.</em></p>
           <ol class="steps">
             <li>
               <div>
-                <strong>Open Instagram in Chrome</strong>
-                <span>Go to followers, following, or a supported hashtag flow—the places you already prospect.</span>
+                <strong>Open Instagram</strong>
+                <span>Go to <strong>followers</strong>, <strong>following</strong>, or a <strong>hashtag</strong> page.</span>
               </div>
             </li>
             <li>
               <div>
-                <strong>Launch MegaLeadsAI from the toolbar</strong>
-                <span>Set mode, max profiles, and optional delays to balance speed vs. account safety.</span>
+                <strong>Click the MegaLeadsAI icon</strong>
+                <span>Pick what to grab and <em>how fast</em> it should run.</span>
               </div>
             </li>
             <li>
               <div>
-                <strong>Start extraction → dashboard fills in</strong>
-                <span>Watch progress live, pause or stop, and scan bios for email-ready contacts.</span>
+                <strong>Press Start</strong>
+                <span>Watch the <strong>dashboard</strong> fill up. Pause any time.</span>
               </div>
             </li>
             <li>
               <div>
-                <strong>Filter, optionally enrich, export to Excel</strong>
-                <span>Ship the list to your outbound stack—or enrich first if you use the optional API path.</span>
+                <strong>AI enriches, then you export</strong>
+                <span><strong>AI enrichment</strong> runs to boost accuracy. Then <strong>save to Excel</strong>.</span>
               </div>
             </li>
           </ol>
@@ -576,14 +610,13 @@
       <section>
         <div class="wrap">
           <div class="cta-band">
-            <h2>Ready to build your next Instagram email list?</h2>
+            <h2>Ready?</h2>
             <p>
-              Install MegaLeadsAI from the Chrome Web Store and run your first extraction in minutes. Built by
-              <strong>MegaMix AI, LLC</strong> for teams who live in spreadsheets.
+              Add MegaLeadsAI in <strong>Chrome</strong>. Built by <strong>MegaMix AI, LLC</strong>.
             </p>
             <a
               class="btn btn-primary"
-              style="font-size: 1.05rem; padding: 0.85rem 1.5rem"
+              style="font-size: 16pt; padding: 0.85rem 1.5rem"
               href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=item-share-cb&amp;utm_medium=website&amp;utm_campaign=footer_cta"
               rel="noopener noreferrer"
               target="_blank"
@@ -601,10 +634,11 @@
           <a href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe" rel="noopener noreferrer" target="_blank"
             >MegaLeadsAI on Chrome Web Store</a
           >
-          · Instagram® is a trademark of Meta Platforms, Inc. MegaLeadsAI is not endorsed by or affiliated with Meta.
+          · Instagram is a <strong>Meta</strong> brand. We are <em>not</em> part of Meta.
         </p>
         <p style="margin-top: 0.75rem">
-          <a href="#privacy">Privacy policy</a> — use this page’s URL in the Chrome Web Store; the full policy is below.
+          <a href="#privacy"><strong>Privacy policy</strong></a> — same URL you use in the Chrome Web Store. Full text
+          is <em>below</em>.
         </p>
       </div>
     </div>
