@@ -30,6 +30,9 @@ import { t, tf, translateSessionMode, uiLocaleFromUiPrefs } from './i18n.js';
 
 /** Max rows per POST to the enrich API (must be ≤ server cap). */
 const ENRICH_BATCH_SIZE = 40;
+const REVIEW_PROMPT_DISMISSED_KEY = 'lf_review_prompt_dismissed';
+const CHROME_WEBSTORE_REVIEW_URL =
+  'https://chromewebstore.google.com/detail/megaleadsai/afcakombimmcopmdckjdjffdgnchhbpe/reviews?hl=en&authuser=7&pageId=none';
 
 /**
  * Admin dashboard is keyed off the admin email, not only `session.isAdmin`
@@ -629,6 +632,63 @@ function wireExportFormatModal() {
   document.getElementById('lfExportFormatCancel')?.addEventListener('click', () => closeExportFormatModal());
   document.getElementById('lfExportFormatXlsx')?.addEventListener('click', () => void runPendingExport('xlsx'));
   document.getElementById('lfExportFormatCsv')?.addEventListener('click', () => void runPendingExport('csv'));
+}
+
+function closeReviewPromptModal() {
+  const wrap = document.getElementById('lfReviewPromptWrap');
+  if (wrap) wrap.hidden = true;
+}
+
+function markReviewPromptDismissed() {
+  try {
+    localStorage.setItem(REVIEW_PROMPT_DISMISSED_KEY, '1');
+  } catch {
+    /* no-op */
+  }
+}
+
+function shouldShowReviewPrompt() {
+  try {
+    return localStorage.getItem(REVIEW_PROMPT_DISMISSED_KEY) !== '1';
+  } catch {
+    return true;
+  }
+}
+
+function maybeShowReviewPromptModal() {
+  if (!shouldShowReviewPrompt()) return;
+  const wrap = document.getElementById('lfReviewPromptWrap');
+  if (!wrap) return;
+  wrap.hidden = false;
+}
+
+function wireReviewPromptModal() {
+  const wrap = document.getElementById('lfReviewPromptWrap');
+  if (wrap) {
+    wrap.addEventListener('click', (ev) => {
+      if (ev.target === wrap) {
+        markReviewPromptDismissed();
+        closeReviewPromptModal();
+      }
+    });
+    const card = wrap.querySelector('.lf-review-prompt-card');
+    if (card) card.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+  const closeBtn = document.getElementById('lfReviewPromptClose');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      markReviewPromptDismissed();
+      closeReviewPromptModal();
+    });
+  }
+  const leaveBtn = document.getElementById('lfReviewPromptLeave');
+  if (leaveBtn) {
+    leaveBtn.addEventListener('click', async () => {
+      markReviewPromptDismissed();
+      closeReviewPromptModal();
+      await chrome.tabs.create({ url: CHROME_WEBSTORE_REVIEW_URL, active: true });
+    });
+  }
 }
 
 function applyDashboardLocale() {
@@ -1923,6 +1983,7 @@ async function doExportEmails(/** @type {'xlsx'|'csv'} */ format) {
     a.click();
     URL.revokeObjectURL(url);
     appendStatusLine(tf(uiLocale, 'dashboard.exportedCsv', { n: target.length, f: fname }));
+    maybeShowReviewPromptModal();
     return;
   }
   const X = typeof globalThis !== 'undefined' && globalThis.XLSX;
@@ -1943,6 +2004,7 @@ async function doExportEmails(/** @type {'xlsx'|'csv'} */ format) {
   const fname = await buildExportFilename('xlsx', 'emails');
   X.writeFile(wb, fname);
   appendStatusLine(tf(uiLocale, 'dashboard.exportedXlsxEmails', { n: target.length, f: fname }));
+  maybeShowReviewPromptModal();
 }
 
 function syncHistoryPanelAria() {
@@ -2490,6 +2552,7 @@ async function onManageSubscriptionClick() {
 function wireEvents() {
   wireAccountModals();
   wireExportFormatModal();
+  wireReviewPromptModal();
   if (els.dashboardAccountBtn) {
     els.dashboardAccountBtn.addEventListener('click', () => void onDashboardAccountButtonClick());
   }

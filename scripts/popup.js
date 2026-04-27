@@ -556,6 +556,8 @@ function syncPopupAuthModalLocale() {
   if (liCr) liCr.textContent = t(L, 'popup.authModalCreateAccountBtn');
   const liCls = q('lfPopupAuthLoginClose');
   if (liCls) liCls.textContent = t(L, 'dashboard.accountClose');
+  const loginQuick = q('lfPopupAuthLoginCta');
+  if (loginQuick) loginQuick.textContent = t(L, 'popup.authModalLogInBtn');
 }
 
 function setPopupAuthSignupError(msg) {
@@ -882,8 +884,8 @@ async function refreshPopupHeaderProgress() {
     if (paidTitle) paidTitle.hidden = true;
     if (crown) crown.hidden = true;
     if (upgradeBtn instanceof HTMLElement) {
-      upgradeBtn.hidden = false;
-      upgradeBtn.style.display = '';
+      upgradeBtn.hidden = true;
+      upgradeBtn.style.display = 'none';
     }
     return;
   }
@@ -1167,6 +1169,8 @@ function wireEvents() {
   }
   const authCta = document.getElementById('lfPopupAuthCta');
   if (authCta) authCta.addEventListener('click', () => openPopupSignupModal());
+  const authLoginCta = document.getElementById('lfPopupAuthLoginCta');
+  if (authLoginCta) authLoginCta.addEventListener('click', () => openPopupLoginModal());
   const capUp = document.getElementById('lfPopupCapUpgrade');
   if (capUp) {
     capUp.addEventListener('click', () => {

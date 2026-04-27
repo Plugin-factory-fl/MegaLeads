@@ -1087,6 +1087,17 @@ html.lf-extension-doc.lf-dark .lf-toast-panel {
   background: var(--lf-accent-hover);
 }
 
+.lf-btn-login {
+  background: linear-gradient(180deg, #22c55e, #16a34a);
+  color: #f0fdf4;
+  border: 1px solid #15803d;
+}
+
+.lf-btn-login:hover:not(:disabled) {
+  filter: brightness(1.06);
+  border-color: #166534;
+}
+
 .lf-btn-danger {
   background: #fee2e2;
   color: var(--lf-danger);
@@ -1962,6 +1973,18 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
 
 .lf-popup-gate-cta {
   width: 100%;
+}
+
+.lf-popup-gate-banner .lf-popup-gate-cta + .lf-popup-gate-cta {
+  margin-top: 0.4rem;
+}
+
+.lf-review-prompt-card {
+  width: min(430px, 100%);
+}
+
+.lf-review-prompt-actions {
+  justify-content: flex-end;
 }
 
 .lf-admin-panel {
