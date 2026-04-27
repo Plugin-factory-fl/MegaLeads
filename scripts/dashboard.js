@@ -30,7 +30,7 @@ import { t, tf, translateSessionMode, uiLocaleFromUiPrefs } from './i18n.js';
 
 /** Max rows per POST to the enrich API (must be ≤ server cap). */
 const ENRICH_BATCH_SIZE = 40;
-const REVIEW_PROMPT_DISMISSED_KEY = 'lf_review_prompt_dismissed';
+const REVIEW_PROMPT_EMAIL_EXPORT_COUNT_KEY = 'lf_review_prompt_email_export_count';
 const CHROME_WEBSTORE_REVIEW_URL =
   'https://chromewebstore.google.com/detail/megaleadsai/afcakombimmcopmdckjdjffdgnchhbpe/reviews?hl=en&authuser=7&pageId=none';
 
@@ -639,24 +639,28 @@ function closeReviewPromptModal() {
   if (wrap) wrap.hidden = true;
 }
 
-function markReviewPromptDismissed() {
-  try {
-    localStorage.setItem(REVIEW_PROMPT_DISMISSED_KEY, '1');
-  } catch {
-    /* no-op */
-  }
+function shouldShowReviewPromptAtCount(downloadCount) {
+  const n = Number(downloadCount) || 0;
+  if (n <= 0) return false;
+  if (n === 1) return true;
+  return n % 3 === 0;
 }
 
-function shouldShowReviewPrompt() {
+function incrementEmailExportCount() {
   try {
-    return localStorage.getItem(REVIEW_PROMPT_DISMISSED_KEY) !== '1';
+    const currentRaw = localStorage.getItem(REVIEW_PROMPT_EMAIL_EXPORT_COUNT_KEY);
+    const current = Math.max(0, Number(currentRaw) || 0);
+    const next = current + 1;
+    localStorage.setItem(REVIEW_PROMPT_EMAIL_EXPORT_COUNT_KEY, String(next));
+    return next;
   } catch {
-    return true;
+    return 0;
   }
 }
 
 function maybeShowReviewPromptModal() {
-  if (!shouldShowReviewPrompt()) return;
+  const exportCount = incrementEmailExportCount();
+  if (!shouldShowReviewPromptAtCount(exportCount)) return;
   const wrap = document.getElementById('lfReviewPromptWrap');
   if (!wrap) return;
   wrap.hidden = false;
@@ -667,7 +671,6 @@ function wireReviewPromptModal() {
   if (wrap) {
     wrap.addEventListener('click', (ev) => {
       if (ev.target === wrap) {
-        markReviewPromptDismissed();
         closeReviewPromptModal();
       }
     });
@@ -677,14 +680,12 @@ function wireReviewPromptModal() {
   const closeBtn = document.getElementById('lfReviewPromptClose');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
-      markReviewPromptDismissed();
       closeReviewPromptModal();
     });
   }
   const leaveBtn = document.getElementById('lfReviewPromptLeave');
   if (leaveBtn) {
     leaveBtn.addEventListener('click', async () => {
-      markReviewPromptDismissed();
       closeReviewPromptModal();
       await chrome.tabs.create({ url: CHROME_WEBSTORE_REVIEW_URL, active: true });
     });
