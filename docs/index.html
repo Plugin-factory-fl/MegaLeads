@@ -435,19 +435,12 @@
         font-size: 14pt;
         color: var(--muted);
       }
-      .nav-guides {
+      .nav-actions {
         display: flex;
+        gap: 0.5rem;
+        align-items: center;
         flex-wrap: wrap;
-        gap: 0.35rem 0.65rem;
-        font-size: 13pt;
-        font-weight: 600;
-      }
-      .nav-guides a {
-        color: #d4d4d8;
-        text-decoration: none;
-      }
-      .nav-guides a:hover {
-        color: var(--text);
+        justify-content: flex-end;
       }
       .faq-section .faq-list {
         margin: 0;
@@ -579,18 +572,11 @@
             decoding="async"
           />
         </a>
-        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem">
-          <nav class="nav-guides" aria-label="Guides">
-            <a href="blog/">Blog</a>
-            <a href="instagram-email-extractor.html">Email extractor</a>
-            <a href="export-instagram-followers-emails.html">Follower emails</a>
-            <a href="instagram-hashtag-leads.html">Hashtag leads</a>
-            <a href="chrome-extension.html">Chrome extension</a>
-          </nav>
-          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end">
-            <a class="btn btn-ghost" href="#video">Watch tutorial</a>
-            <a class="btn btn-ghost" href="#faq">FAQ</a>
-            <a class="btn btn-ghost" href="#privacy">Privacy</a>
+        <div class="nav-actions">
+          <a class="btn btn-ghost" href="blog/">Blog</a>
+          <a class="btn btn-ghost" href="#video">Watch tutorial</a>
+          <a class="btn btn-ghost" href="#faq">FAQ</a>
+          <a class="btn btn-ghost" href="#privacy">Privacy</a>
             <a
               class="btn btn-primary btn-cta-store"
               href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=megaleads_site&amp;utm_medium=website&amp;utm_campaign=nav"
@@ -599,7 +585,6 @@
               target="_blank"
               >Add to Chrome — Free</a
             >
-          </div>
         </div>
       </div>
     </header>
@@ -829,7 +814,6 @@
                   An <strong>Instagram email extractor</strong> collects public profile data from lists you choose and
                   surfaces email addresses and phone numbers when they appear in bios or linked sites. MegaLeadsAI runs
                   in Chrome with AI enrichment and Excel export.
-                  <a href="instagram-email-extractor.html">Full email extractor guide</a>.
                 </p>
               </details>
             </li>
@@ -846,8 +830,7 @@
               <details>
                 <summary>Can I extract emails from Instagram followers?</summary>
                 <p>
-                  Yes. Use Followers mode and
-                  <a href="export-instagram-followers-emails.html">export follower emails to Excel</a>.
+                  Yes. Use Followers mode on any public profile, then export your results to Excel from the dashboard.
                 </p>
               </details>
             </li>
@@ -855,8 +838,7 @@
               <details>
                 <summary>Does it work on hashtags?</summary>
                 <p>
-                  Yes — see <a href="instagram-hashtag-leads.html">hashtag email leads</a> and our
-                  <a href="chrome-extension.html">Chrome extension</a> page.
+                  Yes. Open a hashtag view in Instagram, run extraction in Chrome, and export from the dashboard.
                 </p>
               </details>
             </li>
@@ -890,12 +872,8 @@
           <a href="#privacy"><strong>Privacy policy</strong></a> — same URL you use in the Chrome Web Store. Full text
           is <em>below</em>.
         </p>
-        <nav class="seo-links-grid" aria-label="SEO guides">
-          <a href="blog/">Blog (15 articles)</a>
-          <a href="instagram-email-extractor.html">Instagram email extractor</a>
-          <a href="export-instagram-followers-emails.html">Export follower emails</a>
-          <a href="instagram-hashtag-leads.html">Hashtag email leads</a>
-          <a href="chrome-extension.html">Chrome extension</a>
+        <nav class="seo-links-grid" aria-label="Site links">
+          <a href="blog/">Blog</a>
         </nav>
       </div>
     </div>

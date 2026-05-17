@@ -345,47 +345,64 @@ function headBlock(post, isIndex) {
 }
 
 function siteHeader(blogCurrent) {
-  const blogLink = blogCurrent
-    ? '<a href="/blog/" aria-current="page"><strong>Blog</strong></a>'
-    : '<a href="/blog/">Blog</a>';
+  const blogBtn = blogCurrent
+    ? '<a class="btn btn-ghost" href="/blog/" aria-current="page">Blog</a>'
+    : '<a class="btn btn-ghost" href="/blog/">Blog</a>';
   return `<header>
       <div class="wrap nav">
-        <a class="brand" href="/"><img src="../assets/logo.png" alt="MegaLeadsAI" width="40" height="40" /> MegaLeadsAI</a>
-        <nav class="nav-links" aria-label="Site">
-          <a href="/">Home</a>
-          ${blogLink}
-          <a href="/instagram-email-extractor.html" class="hide-mobile">Guides</a>
-          <a class="btn btn-primary" href="${STORE}?utm_source=megaleads_site&amp;utm_medium=blog&amp;utm_campaign=nav" data-store-cta="blog_nav" rel="noopener noreferrer" target="_blank">Add to Chrome</a>
-        </nav>
+        <a class="brand" href="/">
+          <img
+            class="brand-logo"
+            src="../assets/logo.png"
+            alt="MegaLeadsAI Instagram email extractor Chrome extension"
+            width="512"
+            height="512"
+            decoding="async"
+          />
+        </a>
+        <div class="nav-actions">
+          ${blogBtn}
+          <a class="btn btn-ghost" href="/#video">Watch tutorial</a>
+          <a class="btn btn-ghost" href="/#faq">FAQ</a>
+          <a class="btn btn-ghost" href="/#privacy">Privacy</a>
+          <a
+            class="btn btn-primary btn-cta-store"
+            href="${STORE}?utm_source=megaleads_site&amp;utm_medium=blog&amp;utm_campaign=nav"
+            data-store-cta="blog_nav"
+            rel="noopener noreferrer"
+            target="_blank"
+            >Add to Chrome — Free</a
+          >
+        </div>
       </div>
     </header>`;
 }
 
 function siteFooter() {
-  return `<footer class="site-footer">
+  return `<div class="site-footer">
       <div class="wrap">
-        <nav class="footer-links">
-          <a href="/">Home</a>
+        <p>
+          © MegaMix AI, LLC ·
+          <a href="${STORE}" rel="noopener noreferrer" target="_blank">MegaLeadsAI on Chrome Web Store</a>
+          · Instagram is a <strong>Meta</strong> brand. We are <em>not</em> part of Meta.
+        </p>
+        <p style="margin-top: 0.75rem">
+          <a href="/#privacy"><strong>Privacy policy</strong></a>
+        </p>
+        <nav class="seo-links-grid" aria-label="Site links">
           <a href="/blog/">Blog</a>
-          <a href="/instagram-email-extractor.html">Email extractor</a>
-          <a href="/#privacy">Privacy</a>
         </nav>
-        <p>© MegaMix AI, LLC · Not affiliated with Meta or Instagram.</p>
       </div>
-    </footer>
+    </div>
     <script src="../seo.js"></script>`;
 }
 
 function ctaBlock(slug) {
-  return `<motion.div class="cta-band blog-cta">
+  return `<div class="cta-band blog-cta">
           <h2>Start your list from zero</h2>
           <p><strong>MegaLeads AI</strong> is the best way to build your first Instagram-sourced email list—extract, enrich, and export in Chrome.</p>
           <a class="btn btn-primary" href="${STORE}?utm_source=megaleads_site&amp;utm_medium=blog&amp;utm_campaign=${slug}" data-store-cta="blog_${slug}" rel="noopener noreferrer" target="_blank">Get MegaLeads AI on Chrome Web Store</a>
-        </motion.div>`;
-}
-
-function fix(html) {
-  return html.replace(/motion\.div/g, 'motion.div');
+        </div>`;
 }
 
 function articlePage(post) {
