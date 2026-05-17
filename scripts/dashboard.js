@@ -2,12 +2,8 @@
  * MegaLeads - full-tab dashboard: progress, log, results (controls in popup).
  */
 
-import {
-  MSG,
-  STORAGE_KEYS,
-  REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP,
-  SESSION_HISTORY_LIMIT,
-} from './constants.js';
+import { MSG, STORAGE_KEYS, SESSION_HISTORY_LIMIT } from './constants.js';
+import { isWeakLeadForLlm } from './enrich-weak.js';
 import {
   ADMIN_EMAIL,
   ADMIN_PASSWORD,
@@ -1553,102 +1549,88 @@ async function prefetchContactsIntoDtos(dtos) {
   aiTrace('prefetch_contact_summary', { visited, emailAdds, phoneAdds });
 }
 
+/** Max page text chars sent per lead for single-shot enrich API. */
+const PAGE_EVIDENCE_TEXT_MAX = 120000;
+
 /**
- * One enrich batch: optional multi-round fetch_url tool (extension fetches HTML).
+ * Deterministic site crawl for weak leads (contact/about pages); results go to one LLM call on the server.
+ * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
+ * @returns {Promise<{ username: string, text: string }[]>}
+ */
+async function buildPageEvidenceForWeakLeads(dtos) {
+  /** @type {{ username: string, text: string }[]} */
+  const pageEvidence = [];
+  let weak = 0;
+  let fetched = 0;
+  for (const dto of dtos) {
+    if (!isWeakLeadForLlm(dto)) continue;
+    weak += 1;
+    const url = String(dto?.websiteUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) continue;
+    if (/instagram\.com|instagr\.am/i.test(url)) continue;
+    const expanded = await fetchExpandedContactText(url);
+    pageEvidence.push({
+      username: String(dto.username || ''),
+      text: expanded.mergedText.slice(0, PAGE_EVIDENCE_TEXT_MAX),
+    });
+    fetched += 1;
+    const parsed = extractEmailPhoneFromParts([dto.email || '', expanded.mergedText || '']);
+    const hiPhone = extractHighConfidencePhone(expanded.mergedText || '');
+    if (parsed.email && parsed.email !== String(dto.email || '').trim()) {
+      dto.email = parsed.email;
+    }
+    if (hiPhone && hiPhone !== String(dto.phone || '').trim()) {
+      dto.phone = hiPhone;
+    }
+    aiTrace('weak_lead_fetch_done', {
+      username: dto.username,
+      url,
+      ok: expanded.ok,
+      fetchedUrls: expanded.fetchedUrls.length,
+    });
+  }
+  aiTrace('weak_lead_fetch_summary', { weak, fetched, pageEvidence: pageEvidence.length });
+  return pageEvidence;
+}
+
+/**
+ * One enrich batch: prefetch, optional weak-lead page crawl, single server LLM pass.
  * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
  * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean }} options
  */
 async function processRemoteEnrichBatch(dtos, options) {
+  const useFetch = options.fetchUrlTool === true;
   aiTrace('batch_start', {
     batchSize: dtos.length,
     llm: options.llm !== false,
     verify: options.verify === true,
-    fetchUrlTool: options.fetchUrlTool === true,
+    fetchUrlTool: useFetch,
   });
-  if (!options.fetchUrlTool) {
-    /** @type {{ ok?: boolean, error?: string, data?: { leads?: unknown[] } }} */
-    const resp = await sendMessageAsync({
-      type: MSG.LF_LEADS_REMOTE_ENRICH,
-      leads: dtos,
-      options,
-    });
-    if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
-    const returned = resp.data?.leads;
-    if (!Array.isArray(returned)) throw new Error('Invalid API response');
-    aiTrace('batch_done_no_fetch', { returned: returned.length });
-    return returned;
-  }
 
   await prefetchContactsIntoDtos(dtos);
 
-  /** @type {unknown[]|undefined} */
-  let messages;
-  /** @type {{ tool_call_id: string, content: string }[]|undefined} */
-  let toolResults;
-  let toolRound = 0;
-  while (true) {
-    aiTrace('fetch_round_request', {
-      toolRound,
-      hasMessages: Array.isArray(messages),
-      toolResultsCount: Array.isArray(toolResults) ? toolResults.length : 0,
-    });
-    /** @type {{ ok?: boolean, error?: string, data?: Record<string, unknown> }} */
-    const resp = await sendMessageAsync({
-      type: MSG.LF_LEADS_REMOTE_ENRICH,
-      leads: dtos,
-      options,
-      ...(messages != null ? { messages } : {}),
-      ...(toolResults != null ? { toolResults } : {}),
-      toolRound,
-    });
-    if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
-    const data = resp.data || {};
-    if (data.status === 'needs_fetch') {
-      aiTrace('fetch_round_needs_fetch', {
-        toolRound,
-        fetchJobs: Array.isArray(data.fetchJobs) ? data.fetchJobs.length : 0,
-        prefilledToolResults: Array.isArray(data.prefilledToolResults) ? data.prefilledToolResults.length : 0,
-      });
-      messages = /** @type {unknown[]} */ (data.messages);
-      const merged = [
-        ...(Array.isArray(data.prefilledToolResults) ? data.prefilledToolResults : []),
-      ];
-      for (const job of data.fetchJobs || []) {
-        if (!job || typeof job !== 'object') continue;
-        const url = String(job.url || '');
-        const username = String(job.username || '');
-        const toolCallId = String(job.toolCallId || '');
-        aiTrace('fetch_job_start', { toolRound, username, url, toolCallId });
-        const expanded = await fetchExpandedContactText(url);
-        const pageText = expanded.mergedText.slice(0, 180000);
-        const content = `USERNAME: ${username}\n${pageText}`;
-        merged.push({ tool_call_id: toolCallId, content, url, username });
-        aiTrace('fetch_job_done', {
-          toolRound,
-          username,
-          url,
-          ok: expanded.ok,
-          fetchedUrls: expanded.fetchedUrls.length,
-          chars: pageText.length,
-          preview: pageText.slice(0, 120),
-        });
-      }
-      toolResults = merged;
-      toolRound += 1;
-      if (toolRound > REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP) {
-        throw new Error('Too many fetch_url rounds (raise MEGALEADS_FETCH_TOOL_MAX_ROUNDS on Render, max 24).');
-      }
-      setAiStatus(tf(uiLocale, 'dashboard.aiFetchRound', { n: toolRound }));
-      continue;
-    }
-    const returned = data.leads;
-    if (!Array.isArray(returned)) throw new Error('Invalid API response');
-    aiTrace('batch_done_with_fetch', {
-      returned: returned.length,
-      roundsUsed: toolRound,
-    });
-    return returned;
+  /** @type {{ username: string, text: string }[]|undefined} */
+  let pageEvidence;
+  if (useFetch) {
+    setAiStatus(t(uiLocale, 'dashboard.aiFetchingWeak'));
+    pageEvidence = await buildPageEvidenceForWeakLeads(dtos);
   }
+
+  /** @type {{ ok?: boolean, error?: string, data?: { leads?: unknown[] } }} */
+  const resp = await sendMessageAsync({
+    type: MSG.LF_LEADS_REMOTE_ENRICH,
+    leads: dtos,
+    options,
+    ...(pageEvidence != null && pageEvidence.length ? { pageEvidence } : {}),
+  });
+  if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
+  const returned = resp.data?.leads;
+  if (!Array.isArray(returned)) throw new Error('Invalid API response');
+  aiTrace(useFetch ? 'batch_done_single_shot' : 'batch_done_no_fetch', {
+    returned: returned.length,
+    pageEvidence: pageEvidence?.length ?? 0,
+  });
+  return returned;
 }
 
 /**

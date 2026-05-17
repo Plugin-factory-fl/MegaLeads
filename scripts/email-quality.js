@@ -50,6 +50,35 @@ function isLikelyAutoEmailLocal(local) {
  * @param {string[]} candidates
  * @returns {string|null}
  */
+/**
+ * Conservative filter for obvious placeholder/test addresses.
+ * @param {string} email
+ * @returns {boolean}
+ */
+export function isLikelyPlaceholderEmail(email) {
+  const n = normalizeEmailCandidate(email);
+  if (!n) return false;
+  const at = n.indexOf('@');
+  if (at <= 0) return false;
+  const local = n.slice(0, at);
+  const host = n.slice(at + 1);
+
+  const placeholderHosts = new Set([
+    'example.com',
+    'example.org',
+    'example.net',
+    'test.com',
+    'domain.com',
+    'yourdomain.com',
+    'mailinator.com',
+  ]);
+  if (placeholderHosts.has(host)) return true;
+  if (/\.(example|invalid|test|local)$/i.test(host)) return true;
+  if (/^(test|example|sample|demo|fake|noemail|nobody)([._-]?\d+)?$/i.test(local)) return true;
+  if (/^(yourname|firstname|lastname|fullname|username|email|user)([._-]?\d+)?$/i.test(local)) return true;
+  return false;
+}
+
 export function pickBestEmail(candidates) {
   const uniq = [];
   const seen = new Set();

@@ -5,7 +5,13 @@
 
 import express from 'express';
 import pg from 'pg';
-import { pickBestEmail, normalizeEmailCandidate, EMAIL_RE } from '../scripts/email-quality.js';
+import {
+  pickBestEmail,
+  normalizeEmailCandidate,
+  isLikelyPlaceholderEmail,
+  EMAIL_RE,
+} from '../scripts/email-quality.js';
+import { isWeakLeadForLlm } from '../scripts/enrich-weak.js';
 import {
   attachStripeWebhookRoute,
   handleStripeCheckoutSession,
@@ -542,6 +548,112 @@ function compactLeadsForLlm(leads) {
   }));
 }
 
+/** Max chars of condensed page text sent to the LLM per lead (single-shot enrich). */
+const PAGE_EVIDENCE_SNIPPET_MAX = Math.min(
+  6000,
+  Math.max(800, Number(process.env.MEGALEADS_PAGE_EVIDENCE_SNIPPET_MAX) || 2800),
+);
+
+/**
+ * @param {string} text
+ * @returns {{ emails: string[], phones: string[], snippet: string }}
+ */
+function evidenceSummaryFromPageText(text) {
+  const raw = String(text || '');
+  const emailSet = new Set();
+  for (const em of emailsFromText(raw)) {
+    const n = normalizeEmailCandidate(em);
+    if (n) emailSet.add(n);
+  }
+  const phoneSet = new Set();
+  for (const ph of phonesFromText(raw)) {
+    const n = normalizePhoneCandidate(ph);
+    if (n) phoneSet.add(n);
+  }
+  const snippet = shrinkFetchHtmlForLlm(raw, 12000).slice(0, PAGE_EVIDENCE_SNIPPET_MAX);
+  return {
+    emails: [...emailSet].slice(0, 16),
+    phones: [...phoneSet].slice(0, 10),
+    snippet,
+  };
+}
+
+/**
+ * @param {unknown} body
+ * @returns {Map<string, { emails: string[], phones: string[], snippet: string }>}
+ */
+function pageEvidenceMapFromBody(body) {
+  /** @type {Map<string, { emails: string[], phones: string[], snippet: string }>} */
+  const byUser = new Map();
+  const arr = Array.isArray(body?.pageEvidence) ? body.pageEvidence : [];
+  for (const p of arr) {
+    if (!p || typeof p !== 'object') continue;
+    const u = String(p.username || '').trim().toLowerCase();
+    if (!u) continue;
+    const text = String(p.text != null ? p.text : '').slice(0, 150000);
+    const prev = byUser.get(u);
+    const next = evidenceSummaryFromPageText(text);
+    if (!prev) {
+      byUser.set(u, next);
+      continue;
+    }
+    const emails = new Set([...prev.emails, ...next.emails]);
+    const phones = new Set([...prev.phones, ...next.phones]);
+    const snippet = [prev.snippet, next.snippet].filter(Boolean).join('\n').slice(0, PAGE_EVIDENCE_SNIPPET_MAX);
+    byUser.set(u, {
+      emails: [...emails].slice(0, 16),
+      phones: [...phones].slice(0, 10),
+      snippet,
+    });
+  }
+  return byUser;
+}
+
+/**
+ * @param {object[]} leads
+ * @param {Map<string, { emails: string[], phones: string[], snippet: string }>} [pageEvidenceByUser]
+ */
+function compactLeadsForLlmWithEvidence(leads, pageEvidenceByUser) {
+  return leads.map((r) => {
+    const key = String(r.username || '').trim().toLowerCase();
+    const ev = pageEvidenceByUser?.get(key);
+    const bioFull = String(r.bio || '');
+    const bio = isWeakLeadForLlm(r) ? bioFull.slice(0, 1200) : bioFull.slice(0, 400);
+    return {
+      username: String(r.username || ''),
+      followerCount: r.followerCount ?? null,
+      bio,
+      websiteUrl: String(r.websiteUrl || '').slice(0, 500),
+      email: String(r.email || ''),
+      phone: String(r.phone || '').slice(0, 80),
+      evidence_emails: ev?.emails || [],
+      evidence_phones: ev?.phones || [],
+      page_snippet: ev?.snippet || '',
+    };
+  });
+}
+
+/**
+ * @param {object[]} leadsIn
+ * @param {Map<string, { emails: string[], phones: string[], snippet: string }>} pageEvidenceByUser
+ * @returns {{ extraEmails: Set<string>, extraPhones: Set<string> }}
+ */
+function extraEvidenceSetsForLead(row, pageEvidenceByUser) {
+  const key = String(row?.username || '').trim().toLowerCase();
+  const ev = pageEvidenceByUser.get(key);
+  const extraEmails = new Set(ev?.emails || []);
+  const extraPhones = new Set(ev?.phones || []);
+  for (const em of emailCandidatesForRow(row)) {
+    const n = normalizeEmailCandidate(em);
+    if (n) extraEmails.add(n);
+  }
+  for (const ph of phoneCandidatesForRow(row)) {
+    const n = normalizePhoneCandidate(ph);
+    if (n) extraPhones.add(n);
+  }
+  return { extraEmails, extraPhones };
+}
+
 const URL_RE = /https?:\/\/[^\s"'<>]+/gi;
 
 /** @param {string} raw */
@@ -742,35 +854,6 @@ function extraEvidencePhonesForLead(row, fetchedByHost) {
     }
   }
   return out;
-}
-
-/**
- * Conservative filter for obvious placeholder/test addresses.
- * @param {string} email
- * @returns {boolean}
- */
-function isLikelyPlaceholderEmail(email) {
-  const n = normalizeEmailCandidate(email);
-  if (!n) return false;
-  const at = n.indexOf('@');
-  if (at <= 0) return false;
-  const local = n.slice(0, at);
-  const host = n.slice(at + 1);
-
-  const placeholderHosts = new Set([
-    'example.com',
-    'example.org',
-    'example.net',
-    'test.com',
-    'domain.com',
-    'yourdomain.com',
-    'mailinator.com',
-  ]);
-  if (placeholderHosts.has(host)) return true;
-  if (/\.(example|invalid|test|local)$/i.test(host)) return true;
-  if (/^(test|example|sample|demo|fake|noemail|nobody)([._-]?\d+)?$/i.test(local)) return true;
-  if (/^(yourname|firstname|lastname|fullname|username|email|user)([._-]?\d+)?$/i.test(local)) return true;
-  return false;
 }
 
 /** @param {string} text */
@@ -1296,11 +1379,17 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
   return { kind: 'done', leadsOut: forcedOut };
 }
 
+const LLM_BATCH_SYSTEM = `You enrich Instagram lead rows for a CRM export. Only improve contact fields (email + phone), never segmentation.
+email_action: keep = keep current email; replace = use email_suggested (must appear verbatim in evidence_emails or page_snippet); clear = remove email.
+phone_action: keep = keep current phone; replace = use phone_suggested (must appear verbatim in evidence_phones or page_snippet); clear = remove phone.
+Never invent addresses or numbers. Respect username keys exactly.`;
+
 /**
  * @param {object[]} leads
- * @param {{ llm?: boolean, verify?: boolean }} options
+ * @param {{ llm?: boolean, verify?: boolean, weakLeadsOnly?: boolean }} options
+ * @param {Map<string, { emails: string[], phones: string[], snippet: string }>} [pageEvidenceByUser]
  */
-async function runLlmBatch(leads, options) {
+async function runLlmBatch(leads, options, pageEvidenceByUser) {
   const useLlm = options.llm !== false;
   if (!useLlm) return new Map();
 
@@ -1308,7 +1397,13 @@ async function runLlmBatch(leads, options) {
     throw Object.assign(new Error('OPENAI_API_KEY missing'), { code: 'openai_missing' });
   }
 
-  const compact = compactLeadsForLlm(leads);
+  const weakOnly = options.weakLeadsOnly !== false;
+  const targets = weakOnly ? leads.filter((r) => isWeakLeadForLlm(r)) : leads;
+  if (!targets.length) return new Map();
+
+  const compact = pageEvidenceByUser
+    ? compactLeadsForLlmWithEvidence(targets, pageEvidenceByUser)
+    : compactLeadsForLlm(targets);
 
   const schema = {
     name: 'lead_enrich_batch',
@@ -1347,8 +1442,6 @@ async function runLlmBatch(leads, options) {
     },
   };
 
-  const system = `You enrich Instagram lead rows for a CRM export. Only improve contact fields (email + phone), never segmentation. email_action: keep = keep current email; replace = use email_suggested (must be exact evidence); clear = remove email. phone_action: keep = keep current phone; replace = use phone_suggested (must be exact evidence); clear = remove phone. Respect username keys exactly.`;
-
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -1359,10 +1452,10 @@ async function runLlmBatch(leads, options) {
       model: OPENAI_MODEL,
       temperature: 0.2,
       messages: [
-        { role: 'system', content: system },
+        { role: 'system', content: LLM_BATCH_SYSTEM },
         {
           role: 'user',
-          content: JSON.stringify(compact),
+          content: JSON.stringify({ items: compact }),
         },
       ],
       response_format: { type: 'json_schema', json_schema: schema },
@@ -1500,6 +1593,55 @@ async function enrichOne(row, llmByUser, _doVerify, extras) {
   return out;
 }
 
+/**
+ * @param {object[]} leadsIn
+ * @param {object} options
+ * @param {Map<string, { emails: string[], phones: string[], snippet: string }>} pageEvidenceByUser
+ */
+async function enrichAllLeads(leadsIn, options, pageEvidenceByUser) {
+  const useLlm = options.llm !== false;
+  let llmByUser = new Map();
+  if (useLlm) {
+    llmByUser = await runLlmBatch(leadsIn, { llm: true, weakLeadsOnly: true }, pageEvidenceByUser);
+  }
+  const doVerify = false;
+  const leadsOut = [];
+  for (const row of leadsIn) {
+    const { extraEmails, extraPhones } = extraEvidenceSetsForLead(row, pageEvidenceByUser);
+    leadsOut.push(
+      await enrichOne(row, llmByUser, doVerify, {
+        extraEvidenceEmails: extraEmails,
+        extraEvidencePhones: extraPhones,
+        excludeFakeEmails: options.excludeFakeEmails !== false,
+      }),
+    );
+  }
+  return leadsOut;
+}
+
+/**
+ * Single-shot enrich: client supplies fetched page text; one LLM call for weak leads only.
+ * @param {object[]} leadsIn
+ * @param {object} options
+ * @param {object} body
+ */
+async function handleEnrichSingleShot(leadsIn, options, body) {
+  const pageEvidenceByUser = pageEvidenceMapFromBody(body);
+  const weakCount = leadsIn.filter((r) => isWeakLeadForLlm(r)).length;
+  const leadsOut = await enrichAllLeads(leadsIn, options, pageEvidenceByUser);
+  return {
+    leadsOut,
+    meta: {
+      model: OPENAI_MODEL,
+      count: leadsOut.length,
+      fetchUrlTool: true,
+      singleShot: true,
+      weakLlmCount: weakCount,
+      llmSkippedCount: leadsIn.length - weakCount,
+    },
+  };
+}
+
 async function handleEnrich(req, res) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const leadsIn = Array.isArray(body.leads) ? body.leads : [];
@@ -1529,32 +1671,20 @@ async function handleEnrich(req, res) {
       });
     }
     try {
-      const out = await handleEnrichFetchUrlToolFlow(leadsIn, options, body);
-      if (out.kind === 'needs_fetch') {
-        return res.json({
-          status: 'needs_fetch',
-          messages: out.messages,
-          fetchJobs: out.fetchJobs,
-          prefilledToolResults: out.prefilledToolResults,
-          toolRound: Number(body.toolRound) || 0,
-          meta: { model: OPENAI_MODEL },
-        });
-      }
-      const leadsOut = out.leadsOut;
+      const { leadsOut, meta } = await handleEnrichSingleShot(leadsIn, options, body);
       logInfo('enrich_ok', {
         count: leadsOut.length,
         llm: true,
         verify: options.verify === true,
         fetchUrlTool: true,
+        singleShot: true,
+        weakLlmCount: meta.weakLlmCount,
         sampleUser: leadsOut[0]?.username,
         sampleEmail: leadsOut[0]?.email ? redactEmail(leadsOut[0].email) : '(none)',
       });
-      return res.json({
-        leads: leadsOut,
-        meta: { model: OPENAI_MODEL, count: leadsOut.length, fetchUrlTool: true },
-      });
+      return res.json({ leads: leadsOut, meta });
     } catch (e) {
-      logWarn('fetchUrlTool enrich failed', { err: String(e?.message || e) });
+      logWarn('singleShot enrich failed', { err: String(e?.message || e) });
       return res.status(502).json({
         error: 'llm_failed',
         message: String(e?.message || e),
@@ -1562,38 +1692,34 @@ async function handleEnrich(req, res) {
     }
   }
 
-  let llmByUser = new Map();
-  if (options.llm !== false) {
-    try {
-      llmByUser = await runLlmBatch(leadsIn, { llm: true });
-    } catch (e) {
-      logWarn('LLM batch failed', { err: String(e?.message || e) });
-      return res.status(502).json({
-        error: 'llm_failed',
-        message: String(e?.message || e),
-      });
-    }
+  const pageEvidenceByUser = pageEvidenceMapFromBody(body);
+  const weakCount = options.llm !== false ? leadsIn.filter((r) => isWeakLeadForLlm(r)).length : 0;
+  try {
+    const leadsOut = await enrichAllLeads(leadsIn, options, pageEvidenceByUser);
+    logInfo('enrich_ok', {
+      count: leadsOut.length,
+      llm: options.llm !== false,
+      verify: false,
+      weakLlmCount: weakCount,
+      sampleUser: leadsOut[0]?.username,
+      sampleEmail: leadsOut[0]?.email ? redactEmail(leadsOut[0].email) : '(none)',
+    });
+    return res.json({
+      leads: leadsOut,
+      meta: {
+        model: OPENAI_MODEL,
+        count: leadsOut.length,
+        weakLlmCount: weakCount,
+        llmSkippedCount: leadsIn.length - weakCount,
+      },
+    });
+  } catch (e) {
+    logWarn('LLM enrich failed', { err: String(e?.message || e) });
+    return res.status(502).json({
+      error: 'llm_failed',
+      message: String(e?.message || e),
+    });
   }
-
-  const doVerify = false;
-  const leadsOut = [];
-  for (const row of leadsIn) {
-    leadsOut.push(
-      await enrichOne(row, llmByUser, doVerify, {
-        excludeFakeEmails: options.excludeFakeEmails !== false,
-      }),
-    );
-  }
-
-  logInfo('enrich_ok', {
-    count: leadsOut.length,
-    llm: options.llm !== false,
-    verify: doVerify,
-    sampleUser: leadsOut[0]?.username,
-    sampleEmail: leadsOut[0]?.email ? redactEmail(leadsOut[0].email) : '(none)',
-  });
-
-  return res.json({ leads: leadsOut, meta: { model: OPENAI_MODEL, count: leadsOut.length } });
 }
 
 function compactLeadsForJosh(leads) {

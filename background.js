@@ -311,6 +311,9 @@ async function handleLeadsRemoteEnrich(message, sendResponse) {
     if (message.toolRound != null && Number.isFinite(Number(message.toolRound))) {
       bodyObj.toolRound = Number(message.toolRound);
     }
+    if (Array.isArray(message.pageEvidence) && message.pageEvidence.length) {
+      bodyObj.pageEvidence = message.pageEvidence;
+    }
     const body = JSON.stringify(bodyObj);
     if (body.length > 2500000) {
       sendResponse({ ok: false, error: 'Batch payload too large; reduce batch size or fetch rounds.' });

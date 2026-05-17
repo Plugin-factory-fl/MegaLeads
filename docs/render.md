@@ -52,7 +52,7 @@ The Chrome extension calls **`POST /v1/stripe/checkout-session`** with the same 
 
 `MEGALEADS_DATABASE_URL` or `DATABASE_URL` powers persistent free-tier usage tracking (`account_email_usage` table). If neither is set, the server falls back to an in-memory ledger (resets on deploy/restart).
 
-With **FETCH_URL**, the OpenAI path can return `status: "needs_fetch"`; the extension fetches those URLs in the browser context and POSTs tool results back until the model returns final `leads`.
+With **FETCH_URL** enabled, the extension crawls each **weak** lead’s website (contact/about pages), sends `pageEvidence` in one `POST /v1/leads/enrich`, and the server makes **one** OpenAI call for those weak rows only (no multi-round tool loop).
 
 ## 3. Extension configuration
 
