@@ -207,6 +207,7 @@ export const I18N = {
       aiFetchUrlToggle: 'Crawl websites for weak leads (one AI pass)',
       aiExcludeFakeToggle: 'Exclude fake/placeholder emails',
       aiFetchingWeak: 'Crawling websites for leads missing contact info…',
+      aiFetchRound: 'Fetching pages for AI… round {n}',
       aiEnrichRun: 'Run AI enrich',
       aiEnriching: 'Enriching… batch {cur}/{tot}',
       aiEnrichDone: 'AI enrich finished ({n} rows).',

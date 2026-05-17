@@ -2,7 +2,12 @@
  * MegaLeads - full-tab dashboard: progress, log, results (controls in popup).
  */
 
-import { MSG, STORAGE_KEYS, SESSION_HISTORY_LIMIT } from './constants.js';
+import {
+  MSG,
+  STORAGE_KEYS,
+  REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP,
+  SESSION_HISTORY_LIMIT,
+} from './constants.js';
 import { isWeakLeadForLlm } from './enrich-weak.js';
 import {
   ADMIN_EMAIL,
@@ -1594,7 +1599,63 @@ async function buildPageEvidenceForWeakLeads(dtos) {
 }
 
 /**
- * One enrich batch: prefetch, optional weak-lead page crawl, single server LLM pass.
+ * Legacy multi-round FETCH_URL loop (older Render API). Used only when server returns needs_fetch.
+ * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
+ * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean }} options
+ */
+async function processRemoteEnrichBatchLegacyFetch(dtos, options) {
+  await prefetchContactsIntoDtos(dtos);
+  /** @type {unknown[]|undefined} */
+  let messages;
+  /** @type {{ tool_call_id: string, content: string }[]|undefined} */
+  let toolResults;
+  let toolRound = 0;
+  while (true) {
+    aiTrace('fetch_round_request', {
+      toolRound,
+      hasMessages: Array.isArray(messages),
+      toolResultsCount: Array.isArray(toolResults) ? toolResults.length : 0,
+      legacy: true,
+    });
+    /** @type {{ ok?: boolean, error?: string, data?: Record<string, unknown> }} */
+    const resp = await sendMessageAsync({
+      type: MSG.LF_LEADS_REMOTE_ENRICH,
+      leads: dtos,
+      options,
+      ...(messages != null ? { messages } : {}),
+      ...(toolResults != null ? { toolResults } : {}),
+      toolRound,
+    });
+    if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
+    const data = resp.data || {};
+    if (data.status === 'needs_fetch') {
+      messages = /** @type {unknown[]} */ (data.messages);
+      const merged = [...(Array.isArray(data.prefilledToolResults) ? data.prefilledToolResults : [])];
+      for (const job of data.fetchJobs || []) {
+        if (!job || typeof job !== 'object') continue;
+        const url = String(job.url || '');
+        const username = String(job.username || '');
+        const toolCallId = String(job.toolCallId || '');
+        const expanded = await fetchExpandedContactText(url);
+        const pageText = expanded.mergedText.slice(0, 180000);
+        merged.push({ tool_call_id: toolCallId, content: `USERNAME: ${username}\n${pageText}` });
+      }
+      toolResults = merged;
+      toolRound += 1;
+      if (toolRound > REMOTE_ENRICH_FETCH_TOOL_ROUND_HARD_CAP) {
+        throw new Error('Too many fetch_url rounds (deploy latest Render server or raise MEGALEADS_FETCH_TOOL_MAX_ROUNDS).');
+      }
+      setAiStatus(tf(uiLocale, 'dashboard.aiFetchRound', { n: toolRound }));
+      continue;
+    }
+    const returned = data.leads;
+    if (!Array.isArray(returned)) throw new Error('Invalid API response (legacy fetch)');
+    return returned;
+  }
+}
+
+/**
+ * One enrich batch: optional weak-lead page crawl, single server LLM pass.
  * @param {ReturnType<typeof leadToEnrichDto>[]} dtos
  * @param {{ llm?: boolean, verify?: boolean, fetchUrlTool?: boolean }} options
  */
@@ -1607,8 +1668,6 @@ async function processRemoteEnrichBatch(dtos, options) {
     fetchUrlTool: useFetch,
   });
 
-  await prefetchContactsIntoDtos(dtos);
-
   /** @type {{ username: string, text: string }[]|undefined} */
   let pageEvidence;
   if (useFetch) {
@@ -1616,7 +1675,7 @@ async function processRemoteEnrichBatch(dtos, options) {
     pageEvidence = await buildPageEvidenceForWeakLeads(dtos);
   }
 
-  /** @type {{ ok?: boolean, error?: string, data?: { leads?: unknown[] } }} */
+  /** @type {{ ok?: boolean, error?: string, data?: Record<string, unknown> }} */
   const resp = await sendMessageAsync({
     type: MSG.LF_LEADS_REMOTE_ENRICH,
     leads: dtos,
@@ -1624,8 +1683,16 @@ async function processRemoteEnrichBatch(dtos, options) {
     ...(pageEvidence != null && pageEvidence.length ? { pageEvidence } : {}),
   });
   if (!resp?.ok) throw new Error(resp?.error || 'Request failed');
-  const returned = resp.data?.leads;
-  if (!Array.isArray(returned)) throw new Error('Invalid API response');
+  const data = resp.data || {};
+  if (data.status === 'needs_fetch') {
+    aiTrace('batch_fallback_legacy_fetch', { toolRound: data.toolRound });
+    return processRemoteEnrichBatchLegacyFetch(dtos, options);
+  }
+  const returned = data.leads;
+  if (!Array.isArray(returned)) {
+    const hint = data.status ? ` (status: ${String(data.status)})` : '';
+    throw new Error(`Invalid API response${hint} — reload the extension and redeploy the Render server.`);
+  }
   aiTrace(useFetch ? 'batch_done_single_shot' : 'batch_done_no_fetch', {
     returned: returned.length,
     pageEvidence: pageEvidence?.length ?? 0,
