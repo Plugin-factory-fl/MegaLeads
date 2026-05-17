@@ -25,6 +25,8 @@ export const MSG = {
   LF_ADMIN_SUBSCRIBERS: 'LF_ADMIN_SUBSCRIBERS',
   /** Content overlay CTA → background: open extension popup (or fallback tab). */
   OPEN_POPUP: 'LF_OPEN_POPUP',
+  /** Content overlay on profile → background: start extraction (same as popup Start). */
+  OVERLAY_RUN_EXTRACT: 'LF_OVERLAY_RUN_EXTRACT',
 };
 
 /** @type {const} */
@@ -36,6 +38,8 @@ export const STORAGE_KEYS = {
   DASHBOARD_TAB_ID: 'leadflow_dashboard_tab_id',
   /** Instagram tab that received Start (so Stop works while dashboard is focused). */
   SCRAPE_SOURCE_TAB: 'leadflow_scrape_source_tab',
+  /** After overlay click on /followers|/following: land on profile then auto-start. */
+  OVERLAY_PENDING_START: 'leadflow_overlay_pending_start',
   /** Popup: delay-slider risk toast dismissed until this timestamp (ms). */
   DELAY_RISK_SNOOZE_UNTIL: 'leadflow_delay_risk_snooze_until',
   /** Stored extraction sessions with lead snapshots (newest first). */

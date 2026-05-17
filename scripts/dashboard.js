@@ -192,6 +192,7 @@ const $ = (id) => {
 
 const els = {
   progressBar: null,
+  progressNotches: null,
   progressFill: null,
   progressLabel: null,
   filter: null,
@@ -271,6 +272,7 @@ let pendingExportKind = null;
 
 function bindEls() {
   els.progressBar = $('lfProgressBar');
+  els.progressNotches = document.getElementById('lfProgressNotches');
   els.progressFill = $('lfProgressFill');
   els.progressLabel = document.getElementById('lfProgressLabel');
   els.progressStatus = document.getElementById('lfProgressStatus');
@@ -368,6 +370,7 @@ function syncSessionBar(rs) {
     const rawGoal = rs.sessionMaxProfiles;
     const g = rawGoal != null ? Number(rawGoal) : NaN;
     sessionGoalMax = Number.isFinite(g) && g > 0 ? g : null;
+    syncProgressNotches(sessionGoalMax);
     if (els.sessionGoal) {
       if (sessionGoalMax != null) {
         els.sessionGoal.textContent = tf(L, 'dashboard.sessionGoal', {
@@ -393,6 +396,7 @@ function syncSessionBar(rs) {
   }
 
   sessionGoalMax = null;
+  syncProgressNotches(null);
   const latest = Array.isArray(sessions) && sessions.length ? sessions[0] : null;
   if (latest && latest.status === 'completed') {
     if (els.sessionTarget) {
@@ -766,6 +770,7 @@ function syncJoshBubbleLineIfVisible() {
   const lines = getJoshBubbleLines();
   const line = lines[joshBubbleMessageIndex % lines.length];
   if (line) els.joshAvatarThought.textContent = line;
+  syncJoshBubbleEmptyState();
 }
 
 async function loadPrefsUi() {
@@ -788,6 +793,8 @@ function setRunningUi(on) {
     els.progressBar.classList.remove('lf-progress-determinate');
     els.progressFill.style.width = '100%';
     if (els.progressLabel) els.progressLabel.textContent = '';
+  } else if (sessionGoalMax != null && sessionGoalMax > 0) {
+    applyGoalProgressCount(countProgressLeadsStored(), sessionGoalMax);
   } else {
     els.progressBar.classList.remove('lf-progress-determinate');
     els.progressFill.style.width = '';
@@ -798,18 +805,69 @@ function setRunningUi(on) {
 }
 
 /**
+ * @param {number|null} goal capped profile target for this run
+ */
+function syncProgressNotches(goal) {
+  if (!els.progressBar) return;
+  const g = goal != null ? Math.round(Number(goal)) : 0;
+  if (g >= 2 && g <= 200) {
+    els.progressBar.classList.add('lf-progress-has-notches');
+    els.progressBar.style.setProperty('--lf-notch-count', String(g));
+  } else {
+    els.progressBar.classList.remove('lf-progress-has-notches');
+    els.progressBar.style.removeProperty('--lf-notch-count');
+  }
+}
+
+/** Leads stored this run (respects min-followers filter when session set it). */
+function countProgressLeadsStored() {
+  const minF = resolveMinFollowersForDisplayCounts();
+  return getActiveLeads().filter((r) => leadSurvivesMinFollowersPrune(r, minF)).length;
+}
+
+/**
+ * @param {number} completed profiles gathered so far
+ * @param {number} goal user profile cap
+ */
+function applyGoalProgressCount(completed, goal) {
+  if (!running || !els.progressBar || !els.progressFill) return;
+  const L = uiLocale;
+  const locStr = 'en-US';
+  const safeGoal = Math.max(1, Math.round(Number(goal) || 1));
+  const cur = Math.max(0, Math.min(safeGoal, Math.round(Number(completed) || 0)));
+  const pct = Math.min(100, (100 * cur) / safeGoal);
+  els.progressBar.classList.add('lf-active', 'lf-progress-determinate');
+  els.progressFill.style.width = `${pct}%`;
+  if (els.progressLabel) {
+    els.progressLabel.textContent = tf(L, 'dashboard.progressGoalProfiles', {
+      cur: cur.toLocaleString(locStr),
+      goal: safeGoal.toLocaleString(locStr),
+    });
+  }
+}
+
+/**
  * @param {object} msg runtime message (PROGRESS)
  */
 function applyProgressFromMessage(msg) {
   if (!running) return;
   const L = uiLocale;
   const locStr = 'en-US';
+  const goal = sessionGoalMax != null && sessionGoalMax > 0 ? sessionGoalMax : null;
+  const fromMsg = typeof msg.extracted === 'number' ? msg.extracted : null;
+  const stored = countProgressLeadsStored();
+  const completed = fromMsg != null ? Math.max(fromMsg, stored) : stored;
+
+  if (goal != null) {
+    applyGoalProgressCount(completed, goal);
+    return;
+  }
+
   if (msg.phase === 'enrich' && msg.enrichTotal > 0) {
     const cur = Math.max(0, Number(msg.enrichCurrent) || 0);
     const tot = Number(msg.enrichTotal) || 1;
     els.progressBar.classList.add('lf-progress-determinate');
-    /** Cap at 85% so the last 15% represents post-extraction AI enrichment on the dashboard. */
-    const pct = Math.min(85, (100 * cur) / tot);
+    const pct = Math.min(100, (100 * cur) / tot);
     els.progressFill.style.width = `${pct}%`;
     if (els.progressLabel) {
       els.progressLabel.textContent = tf(L, 'dashboard.progressEnrich', { cur, tot });
@@ -819,14 +877,8 @@ function applyProgressFromMessage(msg) {
   els.progressBar.classList.remove('lf-progress-determinate');
   els.progressFill.style.width = '';
   if (els.progressLabel) {
-    const n = typeof msg.extracted === 'number' ? msg.extracted : null;
-    const goal = sessionGoalMax != null ? sessionGoalMax : null;
-    if (goal != null && n != null) {
-      els.progressLabel.textContent = tf(L, 'dashboard.progressGatherGoal', {
-        cur: n.toLocaleString(locStr),
-        goal: goal.toLocaleString(locStr),
-      });
-    } else if (n != null && n > 0) {
+    const n = fromMsg;
+    if (n != null && n > 0) {
       els.progressLabel.textContent = tf(L, 'dashboard.progressGatherN', {
         n: n.toLocaleString(locStr),
       });
@@ -837,16 +889,21 @@ function applyProgressFromMessage(msg) {
 }
 
 /**
- * Progress bar for automated post-extraction AI (batches), maps into 85–100%.
+ * Progress bar for automated post-extraction AI (batches).
  * @param {number} cur 1-based batch index
  * @param {number} tot batch count
  */
 function applyPostExtractionAiBatchProgress(cur, tot) {
   if (!running) return;
+  const goal = sessionGoalMax != null && sessionGoalMax > 0 ? sessionGoalMax : null;
+  if (goal != null) {
+    applyGoalProgressCount(countProgressLeadsStored(), goal);
+    return;
+  }
   const L = uiLocale;
   els.progressBar.classList.add('lf-progress-determinate');
   const safeTot = Math.max(1, tot);
-  const pct = Math.min(100, 85 + (15 * cur) / safeTot);
+  const pct = Math.min(100, (100 * cur) / safeTot);
   els.progressFill.style.width = `${pct}%`;
   if (els.progressLabel) {
     els.progressLabel.textContent = tf(L, 'dashboard.progressAiEnrich', { cur, tot: safeTot });
@@ -1809,6 +1866,9 @@ async function runPostExtractionAiEnrich() {
     appendStatusLine(t(uiLocale, 'dashboard.postExtractionAiStarting'));
     const { finalEmailCount } = await runRemoteEnrichOnList(list, options, true);
     await patchLatestSessionHistoryWithCurrentLeads();
+    if (sessionGoalMax != null && sessionGoalMax > 0) {
+      applyGoalProgressCount(sessionGoalMax, sessionGoalMax);
+    }
     appendStatusLine(tf(uiLocale, 'dashboard.postExtractionAiDone', { n: leads.length }));
     setAiStatus('');
     showExtractionSummaryModal(finalEmailCount);
@@ -2143,9 +2203,21 @@ function scheduleJoshBubble(fn, delay) {
 function setJoshThoughtBubbleHidden(hidden) {
   if (!els.joshThoughtSimple) return;
   els.joshThoughtSimple.classList.toggle('lf-josh-thought-bubble-hidden', hidden);
+  syncJoshBubbleEmptyState();
   if (els.joshAvatarThought) {
     els.joshAvatarThought.tabIndex = hidden ? -1 : 0;
   }
+}
+
+function syncJoshBubbleEmptyState() {
+  if (!els.joshThoughtWrap) return;
+  const text = String(els.joshAvatarThought?.textContent || '').trim();
+  const hidden =
+    !els.joshThoughtSimple ||
+    els.joshThoughtSimple.classList.contains('hidden') ||
+    els.joshThoughtSimple.classList.contains('lf-josh-thought-bubble-hidden') ||
+    !text;
+  els.joshThoughtWrap.classList.toggle('lf-josh-bubble-empty', hidden);
 }
 
 function stopJoshBubbleRotation() {
@@ -2174,9 +2246,15 @@ function runJoshBubbleShowPhase() {
   const lines = getJoshBubbleLines();
   if (!lines.length) return;
   const line = lines[joshBubbleMessageIndex % lines.length];
+  if (!String(line || '').trim()) {
+    scheduleJoshBubble(() => runJoshBubbleHidePhase(), 0);
+    return;
+  }
   els.joshAvatarThought.textContent = line;
+  syncJoshBubbleEmptyState();
   requestAnimationFrame(() => {
     if (isJoshChatOpen()) return;
+    if (!String(els.joshAvatarThought?.textContent || '').trim()) return;
     setJoshThoughtBubbleHidden(false);
   });
   scheduleJoshBubble(() => runJoshBubbleHidePhase(), JOSH_BUBBLE_DISPLAY_MS);
@@ -2194,6 +2272,7 @@ function runJoshBubbleHidePhase() {
 function startJoshBubbleRotation() {
   clearJoshBubbleTimers();
   if (!els.joshAvatarThought || !els.joshThoughtSimple) return;
+  syncJoshBubbleEmptyState();
   runJoshBubbleIdlePhase();
 }
 
@@ -2698,6 +2777,9 @@ function wireEvents() {
     if (changes[STORAGE_KEYS.LEADS]) {
       leads = (changes[STORAGE_KEYS.LEADS].newValue || []).map(normalizeStoredLead);
       renderTable();
+      if (running && sessionGoalMax != null && sessionGoalMax > 0) {
+        applyGoalProgressCount(countProgressLeadsStored(), sessionGoalMax);
+      }
     }
     if (changes[STORAGE_KEYS.SESSION_HISTORY]) {
       sessions = changes[STORAGE_KEYS.SESSION_HISTORY].newValue || [];
@@ -2707,8 +2789,15 @@ function wireEvents() {
     }
     if (changes[STORAGE_KEYS.RUN_STATE]) {
       const rs = changes[STORAGE_KEYS.RUN_STATE].newValue;
-      if (rs?.running) setRunningUi(true);
-      else if (rs && rs.running === false) {
+      if (rs?.running) {
+        setRunningUi(true);
+        const g = rs.sessionMaxProfiles != null ? Number(rs.sessionMaxProfiles) : NaN;
+        if (Number.isFinite(g) && g > 0) {
+          sessionGoalMax = g;
+          syncProgressNotches(g);
+          applyGoalProgressCount(countProgressLeadsStored(), g);
+        }
+      } else if (rs && rs.running === false) {
         setRunningUi(false);
         void refreshDashboardCapBanner();
         void refreshDashboardHeaderProgress();
@@ -2810,9 +2899,19 @@ async function init() {
 
   const { [STORAGE_KEYS.RUN_STATE]: rs } = await chrome.storage.local.get(STORAGE_KEYS.RUN_STATE);
   syncSessionBar(rs);
-  if (rs?.running) setRunningUi(true);
+  if (rs?.running) {
+    setRunningUi(true);
+    const g = rs.sessionMaxProfiles != null ? Number(rs.sessionMaxProfiles) : NaN;
+    if (Number.isFinite(g) && g > 0) {
+      sessionGoalMax = g;
+      syncProgressNotches(g);
+    }
+  }
 
   await loadLeads();
+  if (running && sessionGoalMax != null && sessionGoalMax > 0) {
+    applyGoalProgressCount(countProgressLeadsStored(), sessionGoalMax);
+  }
   await loadSessionHistory();
   wireTableSort();
   wireEvents();

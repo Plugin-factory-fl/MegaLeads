@@ -13,9 +13,13 @@ import {
   apiKey as storedApiKey,
   openAiApiKey as storedOpenAiApiKey,
 } from './scripts/leadflow-remote-config.js';
+import { MSG, STORAGE_KEYS } from './scripts/constants.js';
+import { buildScrapePayloadFromUiPrefs } from './scripts/scrape-payload.js';
+import { uiLocaleFromUiPrefs } from './scripts/i18n.js';
+import { canStartExtractionForFreeTier } from './scripts/account-shared.js';
 
 const DNR_RULE_IDS = [1, 2, 3, 4, 5];
-const DASHBOARD_TAB_STORAGE_KEY = 'leadflow_dashboard_tab_id';
+const DASHBOARD_TAB_STORAGE_KEY = STORAGE_KEYS.DASHBOARD_TAB_ID;
 
 /** Same app id as web; asbd id matches current www.instagram.com XHR (Network tab). */
 const IG_ASBD_ID = '129477';
@@ -248,6 +252,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === MSG.OVERLAY_RUN_EXTRACT) {
+    void handleOverlayRunExtract(message, sender, sendResponse);
+    return true;
+  }
+
   if (message?.type === 'LF_OPEN_POPUP') {
     void (async () => {
       try {
@@ -271,6 +280,128 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return false;
 });
+
+async function openOrFocusDashboardTab() {
+  const url = chrome.runtime.getURL('dashboard.html');
+  const { [STORAGE_KEYS.DASHBOARD_TAB_ID]: stored } = await chrome.storage.local.get(
+    STORAGE_KEYS.DASHBOARD_TAB_ID,
+  );
+  if (stored != null) {
+    try {
+      const tab = await chrome.tabs.get(stored);
+      if (tab.id != null) {
+        await chrome.tabs.update(tab.id, { active: true });
+        if (tab.windowId != null) {
+          await chrome.windows.update(tab.windowId, { focused: true });
+        }
+        return;
+      }
+    } catch {
+      await chrome.storage.local.remove(STORAGE_KEYS.DASHBOARD_TAB_ID);
+    }
+  }
+  const created = await chrome.tabs.create({ url, active: true });
+  if (created?.id != null) {
+    await chrome.storage.local.set({ [STORAGE_KEYS.DASHBOARD_TAB_ID]: created.id });
+  }
+}
+
+/**
+ * Magic-button / overlay: start extraction on the active Instagram tab (no popup required).
+ * @param {{ mode?: string, username?: string, query?: string }} message
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {(r: unknown) => void} sendResponse
+ */
+async function handleOverlayRunExtract(message, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  if (!tabId) {
+    sendResponse({ ok: false, error: 'No Instagram tab' });
+    return;
+  }
+  const gate = await canStartExtractionForFreeTier();
+  if (!gate.ok) {
+    sendResponse({ ok: false, error: gate.reason === 'at_cap' ? 'at_cap' : 'needs_account' });
+    return;
+  }
+  let tabUrl = '';
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    tabUrl = tab.url || '';
+  } catch {
+    sendResponse({ ok: false, error: 'Tab not found' });
+    return;
+  }
+  if (!tabUrl.includes('instagram.com')) {
+    sendResponse({ ok: false, error: 'not_instagram' });
+    return;
+  }
+
+  const { [STORAGE_KEYS.UI_PREFS]: p } = await chrome.storage.local.get(STORAGE_KEYS.UI_PREFS);
+  const locale = uiLocaleFromUiPrefs(p);
+  const payload = buildScrapePayloadFromUiPrefs(p, locale);
+  const mode =
+    message.mode === 'following' ? 'following' : message.mode === 'hashtag' ? 'hashtag' : 'followers';
+  payload.mode = mode;
+  if (mode === 'hashtag') {
+    payload.query = String(message.query || message.username || '')
+      .trim()
+      .replace(/^#/, '');
+  } else {
+    payload.query = String(message.username || message.query || '')
+      .trim()
+      .replace(/^@/, '');
+  }
+
+  const q = String(payload.query || '').trim();
+  const sessionTarget =
+    mode === 'hashtag' ? `#${q.replace(/^#/, '')}` : q ? `@${q.replace(/^@/, '')}` : '—';
+  const maxP = payload.maxProfiles != null ? Number(payload.maxProfiles) : NaN;
+
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.SCRAPE_SOURCE_TAB]: tabId,
+    [STORAGE_KEYS.RUN_STATE]: {
+      running: true,
+      mode: payload.mode,
+      startedAt: Date.now(),
+      sessionTarget,
+      sessionModeLabel:
+        mode === 'followers'
+          ? 'Followers'
+          : mode === 'following'
+            ? 'Following'
+            : mode === 'hashtag'
+              ? 'Hashtag'
+              : '',
+      sessionPageUrl: tabUrl,
+      sessionMaxProfiles: Number.isFinite(maxP) && maxP > 0 ? maxP : null,
+      sessionMinFollowers: Math.max(0, Number(payload.minFollowers) || 0),
+      stopReason: '',
+      currentPhase: 'gather',
+    },
+  });
+
+  try {
+    const resp = await chrome.tabs.sendMessage(tabId, {
+      type: MSG.START_SCRAPE,
+      payload,
+    });
+    if (resp && resp.ok === false) {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.RUN_STATE]: { running: false, stopReason: 'validation_error' },
+      });
+      sendResponse({ ok: false, error: String(resp.error || 'rejected') });
+      return;
+    }
+    await openOrFocusDashboardTab();
+    sendResponse({ ok: true });
+  } catch (e) {
+    await chrome.storage.local.remove(STORAGE_KEYS.SCRAPE_SOURCE_TAB);
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.RUN_STATE]: { running: false, stopReason: 'validation_error' },
+    });
+    sendResponse({ ok: false, error: String((e && /** @type {Error} */ (e).message) || e) });
+  }
+}
 
 /**
  * Proxy batched lead enrich requests to the Render API (avoids CORS from the dashboard page).

@@ -803,7 +803,12 @@ function lfEnsureOverlayStyles() {
 
 function lfEligibleOverlayPage() {
   const info = detectPageMode(document.location);
-  return info.mode === 'profile' || info.mode === 'hashtag';
+  return (
+    info.mode === 'profile' ||
+    info.mode === 'hashtag' ||
+    info.mode === 'followers' ||
+    info.mode === 'following'
+  );
 }
 
 function lfEnsureOverlayButton() {
@@ -824,9 +829,51 @@ function lfEnsureOverlayButton() {
   btn.setAttribute('aria-label', 'Extract leads now');
   btn.addEventListener('click', () => {
     if (lfOverlayDrag && lfOverlayDrag.moved) return;
-    // After extension reload, this page still has the old content script — runtime is dead until refresh.
     try {
       if (!chrome.runtime?.id) return;
+      const info = detectPageMode(document.location);
+      if (info.mode === 'followers' || info.mode === 'following') {
+        const user = String(info.user || '').trim();
+        if (!user) return;
+        const origin = document.location.origin || 'https://www.instagram.com';
+        const profileUrl = `${origin}/${encodeURIComponent(user)}/`;
+        const listMode = info.mode;
+        chrome.storage.local.set(
+          {
+            [STORAGE_KEYS.OVERLAY_PENDING_START]: {
+              username: user,
+              mode: listMode,
+              at: Date.now(),
+            },
+          },
+          () => {
+            document.location.assign(profileUrl);
+          },
+        );
+        return;
+      }
+      if (info.mode === 'profile' && info.user) {
+        chrome.runtime.sendMessage(
+          {
+            type: MSG.OVERLAY_RUN_EXTRACT,
+            mode: 'followers',
+            username: info.user,
+          },
+          () => void chrome.runtime.lastError,
+        );
+        return;
+      }
+      if (info.mode === 'hashtag' && info.tag) {
+        chrome.runtime.sendMessage(
+          {
+            type: MSG.OVERLAY_RUN_EXTRACT,
+            mode: 'hashtag',
+            query: info.tag,
+          },
+          () => void chrome.runtime.lastError,
+        );
+        return;
+      }
       chrome.runtime.sendMessage({ type: MSG.OPEN_POPUP }, () => void chrome.runtime.lastError);
     } catch {
       /* Extension context invalidated — user should refresh Instagram tab */
@@ -916,14 +963,42 @@ function lfStartOverlaySparkles() {
   }, 160);
 }
 
+async function lfTryConsumeOverlayPending() {
+  try {
+    if (!chrome.runtime?.id) return;
+    const bag = await chrome.storage.local.get(STORAGE_KEYS.OVERLAY_PENDING_START);
+    const pending = bag[STORAGE_KEYS.OVERLAY_PENDING_START];
+    if (!pending || typeof pending !== 'object') return;
+    if (Date.now() - (Number(pending.at) || 0) > 120000) {
+      await chrome.storage.local.remove(STORAGE_KEYS.OVERLAY_PENDING_START);
+      return;
+    }
+    const info = detectPageMode(document.location);
+    if (info.mode !== 'profile') return;
+    const want = String(pending.username || '').trim().toLowerCase();
+    if (!want || info.user.toLowerCase() !== want) return;
+    await chrome.storage.local.remove(STORAGE_KEYS.OVERLAY_PENDING_START);
+    const mode = pending.mode === 'following' ? 'following' : 'followers';
+    chrome.runtime.sendMessage(
+      { type: MSG.OVERLAY_RUN_EXTRACT, mode, username: info.user },
+      () => void chrome.runtime.lastError,
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 function lfInitOverlayButton() {
   lfRefreshOverlayButton();
   lfStartOverlaySparkles();
+  void lfTryConsumeOverlayPending();
   setInterval(() => {
     const key = `${document.location.pathname}|${document.location.search}`;
-    if (key === lfOverlayLastPath) return;
-    lfOverlayLastPath = key;
-    lfRefreshOverlayButton();
+    if (key !== lfOverlayLastPath) {
+      lfOverlayLastPath = key;
+      lfRefreshOverlayButton();
+      void lfTryConsumeOverlayPending();
+    }
   }, 700);
 }
 

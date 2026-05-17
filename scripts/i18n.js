@@ -129,6 +129,7 @@ export const I18N = {
       progressGather: 'Gathering accounts from the page…',
       progressGatherN: 'Gathering accounts from the page… ({n} found)',
       progressGatherGoal: 'Gathering profiles… {cur} / {goal}',
+      progressGoalProfiles: '{cur} / {goal} profiles',
       progressEnrich: 'Analyzing profile details ({cur}/{tot})',
       historyLabel: 'Extraction history',
       historyToggleExpand: 'Show extraction history',

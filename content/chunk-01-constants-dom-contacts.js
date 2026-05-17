@@ -40,6 +40,7 @@ const MSG = {
   HTTP_TEXT_FETCH: 'LF_HTTP_TEXT_FETCH',
   GET_PAGE_CONTEXT: 'LF_GET_PAGE_CONTEXT',
   OPEN_POPUP: 'LF_OPEN_POPUP',
+  OVERLAY_RUN_EXTRACT: 'LF_OVERLAY_RUN_EXTRACT',
 };
 
 const STORAGE_KEYS = {
@@ -48,6 +49,7 @@ const STORAGE_KEYS = {
   UI_PREFS: 'leadflow_ui_prefs',
   SCRAPE_SOURCE_TAB: 'leadflow_scrape_source_tab',
   SESSION_HISTORY: 'leadflow_session_history',
+  OVERLAY_PENDING_START: 'leadflow_overlay_pending_start',
 };
 
 /** Set to `false` to silence DevTools `[MegaLeads]` logs. */

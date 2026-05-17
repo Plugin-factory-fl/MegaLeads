@@ -13,6 +13,12 @@ import {
 } from '../scripts/email-quality.js';
 import { isWeakLeadForLlm } from '../scripts/enrich-weak.js';
 import {
+  phonesFromText,
+  normalizePhoneCandidate,
+  pickBestPhone,
+  isLikelyJunkPhone,
+} from '../scripts/phone-quality.js';
+import {
   attachStripeWebhookRoute,
   handleStripeCheckoutSession,
   handleStripeCheckoutReturn,
@@ -392,92 +398,6 @@ function emailCandidatesForRow(row) {
   return parts;
 }
 
-const PHONE_RE = /(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,9}\b/g;
-const PHONE_TRAIL_RE = /[),.;:!?]+$/;
-
-/** @param {string} text */
-function phonesFromText(text) {
-  if (!text || typeof text !== 'string') return [];
-  const re = new RegExp(PHONE_RE.source, PHONE_RE.flags);
-  return text.match(re) || [];
-}
-
-/** @param {string} raw */
-function looksLikeDateLikePhone(raw) {
-  const t = String(raw || '').trim();
-  return (
-    /^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/.test(t) ||
-    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/.test(t) ||
-    /^\d{4}\s*[-–—]\s*\d{4}$/.test(t)
-  );
-}
-
-/** @param {string} raw */
-function looksLikeDatePlusDecimalNoise(raw) {
-  const t = String(raw || '').trim();
-  return /\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b/.test(t) && /\b\d+\.\d+\b/.test(t);
-}
-
-/** @param {string} raw */
-function looksLikeCoordinateNoise(raw) {
-  const t = String(raw || '').trim();
-  return /^[-+]?\d{1,3}\.\d{3,}\s+[-+]?\d{1,3}\.\d{3,}(?:\s+[-+]?\d+(?:\.\d+)?)?$/.test(t);
-}
-
-/** @param {string} raw */
-function looksLikeDottedNumericNoise(raw) {
-  const t = String(raw || '').trim().replace(/\s+/g, '');
-  if (!/^[+\d.]+$/.test(t)) return false;
-  const dots = (t.match(/\./g) || []).length;
-  if (dots < 2) return false;
-  return t.length >= 10;
-}
-
-/** @param {string} raw */
-function normalizePhoneCandidate(raw) {
-  if (!raw || typeof raw !== 'string') return '';
-  const base = String(raw).trim().replace(PHONE_TRAIL_RE, '');
-  if (!base || base.includes('@')) return '';
-  if (looksLikeDateLikePhone(base)) return '';
-  if (looksLikeDatePlusDecimalNoise(base)) return '';
-  if (looksLikeCoordinateNoise(base)) return '';
-  if (looksLikeDottedNumericNoise(base)) return '';
-  const digits = base.replace(/\D/g, '');
-  if (digits.length < 8 || digits.length > 15) return '';
-  const hasPlus = base.trim().startsWith('+');
-  if (!hasPlus && digits.length > 11) return '';
-  if (!hasPlus && digits.length === 11 && !digits.startsWith('1')) return '';
-  if (/\d{4}[-.\s]\d{4}[-.\s]\d{4}/.test(base)) return '';
-  if (/^\+?\d+$/.test(base.replace(/\s+/g, ''))) {
-    if (!base.trim().startsWith('+')) {
-      if (digits.length < 10 || digits.length > 11) return '';
-      if (digits.length === 11 && !digits.startsWith('1')) return '';
-    }
-  }
-  if (!/[()\s.\-+]/.test(base) && digits.length >= 12) return '';
-  return base;
-}
-
-/**
- * @param {string[]} candidates
- * @returns {string}
- */
-function pickBestPhone(candidates) {
-  const uniq = [];
-  const seen = new Set();
-  for (const c of candidates || []) {
-    const n = normalizePhoneCandidate(String(c || ''));
-    if (!n) continue;
-    const k = n.replace(/\D/g, '');
-    if (seen.has(k)) continue;
-    seen.add(k);
-    uniq.push(n);
-  }
-  if (!uniq.length) return '';
-  uniq.sort((a, b) => b.replace(/\D/g, '').length - a.replace(/\D/g, '').length);
-  return uniq[0] || '';
-}
-
 /**
  * @param {object} row
  * @returns {string[]}
@@ -626,6 +546,7 @@ function compactLeadsForLlmWithEvidence(leads, pageEvidenceByUser) {
       websiteUrl: String(r.websiteUrl || '').slice(0, 500),
       email: String(r.email || ''),
       phone: String(r.phone || '').slice(0, 80),
+      phone_needs_audit: isLikelyJunkPhone(String(r.phone || '')) || Boolean(String(r.phone || '').trim() && !normalizePhoneCandidate(String(r.phone || ''))),
       evidence_emails: ev?.emails || [],
       evidence_phones: ev?.phones || [],
       page_snippet: ev?.snippet || '',
@@ -953,7 +874,7 @@ Critical email accuracy rules:
 Critical phone accuracy rules:
 - Never invent a phone number.
 - Only suggest phone_suggested if the exact number appears in provided lead fields or fetched tool text.
-- Reject date-like strings, plain long numeric IDs, version numbers, and obvious non-phone patterns.
+- Reject date-like strings (e.g. 12/31/2024), version numbers (1.2.3), plain long numeric IDs, and obvious non-phone patterns — use phone_action="clear" when current phone is junk.
 - If no trustworthy number is found, set phone_action="keep" and phone_suggested="".
 
 fetch_url call rules:
@@ -1381,7 +1302,8 @@ async function handleEnrichFetchUrlToolFlow(leadsIn, options, body) {
 
 const LLM_BATCH_SYSTEM = `You enrich Instagram lead rows for a CRM export. Only improve contact fields (email + phone), never segmentation.
 email_action: keep = keep current email; replace = use email_suggested (must appear verbatim in evidence_emails or page_snippet); clear = remove email.
-phone_action: keep = keep current phone; replace = use phone_suggested (must appear verbatim in evidence_phones or page_snippet); clear = remove phone.
+phone_action: keep = keep current phone only if it is a real phone number found in evidence; replace = use phone_suggested (must appear verbatim in evidence_phones or page_snippet, e.g. tel: link); clear = remove phone.
+Phone audit: Many scraped "phones" are dates (12/31/2024), version numbers (1.2.3), Instagram IDs, or random digits. If phone_needs_audit is true or the current phone is not a plausible business phone, set phone_action to clear unless evidence_phones contains an exact replacement.
 Never invent addresses or numbers. Respect username keys exactly.`;
 
 /**
@@ -1587,7 +1509,16 @@ async function enrichOne(row, llmByUser, _doVerify, extras) {
     }
   }
 
-  out.phone = normalizePhoneCandidate(String(out.phone || '')) || '';
+  const finalPhone = normalizePhoneCandidate(String(out.phone || '')) || '';
+  if (finalPhone) {
+    out.phone = finalPhone;
+  } else if (String(out.phone || '').trim()) {
+    out.phone = '';
+    out.phone_action = 'clear';
+    out.email_quality_codes = [...(out.email_quality_codes || []), 'junk_phone_filtered'];
+  } else {
+    out.phone = '';
+  }
 
   delete out.email_deterministic;
   return out;

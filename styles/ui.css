@@ -1137,10 +1137,34 @@ html.lf-extension-doc.lf-dark .lf-toast-panel {
 }
 
 .lf-progress-bar {
-  height: 6px;
+  position: relative;
+  height: 10px;
   background: var(--lf-border);
   border-radius: 99px;
   overflow: hidden;
+}
+
+.lf-progress-notches {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.lf-progress-bar.lf-progress-has-notches .lf-progress-notches {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc((100% / var(--lf-notch-count, 20)) - 1px),
+    color-mix(in srgb, var(--lf-muted) 55%, transparent) calc((100% / var(--lf-notch-count, 20)) - 1px),
+    color-mix(in srgb, var(--lf-muted) 55%, transparent) calc(100% / var(--lf-notch-count, 20))
+  );
+}
+
+.lf-progress-bar.lf-progress-has-notches .lf-progress-fill {
+  position: relative;
+  z-index: 2;
 }
 
 /* Indeterminate while scrolling / gathering list rows */
@@ -1512,6 +1536,15 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   transform: translateX(-50%);
   min-width: 230px;
   max-width: 260px;
+}
+
+.lf-josh-thought-wrap.lf-josh-bubble-empty .lf-josh-thought-simple {
+  display: none;
+}
+
+.lf-josh-thought-wrap.lf-josh-bubble-empty {
+  min-height: 0;
+  margin-bottom: 0;
 }
 
 .lf-josh-thought-simple {

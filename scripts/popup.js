@@ -430,6 +430,7 @@ async function loadPrefs() {
     els.profileLimitSlider.max = String(PROFILE_LIMIT_SLIDER_MAX);
     els.profileLimitSlider.value = String(PROFILE_LIMIT_DEFAULT);
     els.profileLimitEnabled.checked = PROFILE_LIMIT_ENABLED_DEFAULT;
+    els.minFollowers.value = '0';
     updateProfileLimitReadout();
     syncProfileLimitEnabledState();
     els.delaySlider.min = String(DELAY_SLIDER_MIN);
@@ -1047,7 +1048,36 @@ async function startExtractionPipeline() {
 
   const { [STORAGE_KEYS.UI_PREFS]: p } = await chrome.storage.local.get(STORAGE_KEYS.UI_PREFS);
   const payload = buildScrapePayloadFromUiPrefs(p, uiLocale);
-  await chrome.storage.local.set({ [STORAGE_KEYS.SCRAPE_SOURCE_TAB]: tab.id });
+  const q = String(payload.query || '').trim();
+  const sessionTarget =
+    payload.mode === 'hashtag'
+      ? `#${q.replace(/^#/, '')}`
+      : q
+        ? `@${q.replace(/^@/, '')}`
+        : '—';
+  const maxP = payload.maxProfiles != null ? Number(payload.maxProfiles) : NaN;
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.SCRAPE_SOURCE_TAB]: tab.id,
+    [STORAGE_KEYS.RUN_STATE]: {
+      running: true,
+      mode: payload.mode,
+      startedAt: Date.now(),
+      sessionTarget,
+      sessionModeLabel:
+        payload.mode === 'followers'
+          ? 'Followers'
+          : payload.mode === 'following'
+            ? 'Following'
+            : payload.mode === 'hashtag'
+              ? 'Hashtag'
+              : '',
+      sessionPageUrl: url,
+      sessionMaxProfiles: Number.isFinite(maxP) && maxP > 0 ? maxP : null,
+      sessionMinFollowers: Math.max(0, Number(payload.minFollowers) || 0),
+      stopReason: '',
+      currentPhase: 'gather',
+    },
+  });
 
   /**
    * Open/focus the dashboard only after the content script accepts Start.
@@ -1061,6 +1091,9 @@ async function startExtractionPipeline() {
     });
     if (resp && resp.ok === false) {
       void chrome.storage.local.remove(STORAGE_KEYS.SCRAPE_SOURCE_TAB);
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.RUN_STATE]: { running: false, stopReason: 'validation_error' },
+      });
       setPopupStatus(resp.error || t(uiLocale, 'popup.statusRejected'), true);
       return;
     }
@@ -1068,6 +1101,9 @@ async function startExtractionPipeline() {
     syncRunButtons();
   } catch {
     void chrome.storage.local.remove(STORAGE_KEYS.SCRAPE_SOURCE_TAB);
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.RUN_STATE]: { running: false, stopReason: 'validation_error' },
+    });
     setPopupStatus(t(uiLocale, 'popup.statusReload'), true);
     return;
   }
