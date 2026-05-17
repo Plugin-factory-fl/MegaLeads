@@ -1,0 +1,211 @@
+/* Shared styles for megaleads-ai.com marketing + SEO landing pages */
+:root {
+  --bg-deep: #0f0818;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --stroke: rgba(255, 255, 255, 0.1);
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --accent: #c4b5fd;
+  --gold: #facc15;
+  --violet: #7c3aed;
+  --radius: 14px;
+  --max: 1120px;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-deep);
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -20%, rgba(124, 58, 237, 0.35), transparent),
+    radial-gradient(ellipse 80% 50% at 100% 50%, rgba(250, 204, 21, 0.06), transparent);
+  min-height: 100vh;
+}
+a {
+  color: var(--accent);
+}
+.wrap {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+header {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--stroke);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(15, 8, 24, 0.9);
+  backdrop-filter: blur(12px);
+}
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand img {
+  height: 40px;
+  width: auto;
+}
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+.nav-links a {
+  color: #d4d4d8;
+  text-decoration: none;
+}
+.nav-links a:hover {
+  color: var(--text);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--violet), #8b5cf6);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--stroke);
+}
+.seo-main {
+  padding: 2rem 0 3rem;
+}
+.seo-main h1 {
+  font-size: clamp(1.75rem, 4vw, 2.35rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 1rem;
+}
+.seo-main .lead {
+  font-size: 1.1rem;
+  color: #d4d4d8;
+  max-width: 42rem;
+  margin: 0 0 1.5rem;
+}
+.seo-main h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 2rem 0 0.75rem;
+  color: var(--text);
+}
+.seo-main h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.5rem;
+}
+.seo-main p,
+.seo-main li {
+  color: #d4d4d8;
+  max-width: 44rem;
+}
+.seo-main ul {
+  padding-left: 1.25rem;
+}
+.breadcrumb {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 1.25rem;
+}
+.breadcrumb a {
+  color: var(--muted);
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 1.15rem;
+}
+.card h3 {
+  margin-top: 0;
+}
+.cta-band {
+  text-align: center;
+  padding: 2rem 1.25rem;
+  margin: 2.5rem 0 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke);
+  background: linear-gradient(160deg, rgba(124, 58, 237, 0.2), rgba(15, 8, 24, 0.9));
+}
+.faq-list {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.faq-list details {
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  margin-bottom: 0.5rem;
+  background: var(--bg-card);
+  padding: 0.65rem 1rem;
+}
+.faq-list summary {
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text);
+}
+.faq-list p {
+  margin: 0.65rem 0 0;
+  font-size: 0.95rem;
+}
+.site-footer {
+  padding: 2rem 0 2.5rem;
+  border-top: 1px solid var(--stroke);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.site-footer .footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 640px) {
+  .nav-links .hide-mobile {
+    display: none;
+  }
+}
