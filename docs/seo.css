@@ -8,6 +8,7 @@
   --accent: #c4b5fd;
   --gold: #facc15;
   --violet: #7c3aed;
+  --glow: rgba(124, 58, 237, 0.45);
   --radius: 14px;
   --max: 1120px;
 }
@@ -20,8 +21,8 @@ html {
 body {
   margin: 0;
   font-family: 'DM Sans', system-ui, sans-serif;
-  font-size: 16px;
-  line-height: 1.55;
+  font-size: 15pt;
+  line-height: 1.5;
   color: var(--text);
   background: var(--bg-deep);
   background-image:
@@ -37,44 +38,9 @@ a {
   margin: 0 auto;
   padding: 0 1.25rem;
 }
-header {
-  padding: 1rem 0 1.15rem;
-  border-bottom: 1px solid var(--stroke);
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: rgba(15, 8, 24, 0.85);
-  backdrop-filter: blur(12px);
-}
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-}
-.brand-logo {
-  height: 120px;
-  width: auto;
-  max-width: min(360px, 70vw);
-  display: block;
-  object-fit: contain;
-  object-position: left center;
-  filter: drop-shadow(0 2px 16px rgba(124, 58, 237, 0.4));
-}
-.nav-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.btn {
+/* Header/nav/buttons: site-header.css (loaded after this file on blog pages) */
+.seo-main .btn,
+.blog-cta .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,32 +48,16 @@ header {
   padding: 0.65rem 1.15rem;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 15pt;
   text-decoration: none;
   border: none;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.btn:hover {
-  transform: translateY(-1px);
-}
-.btn-primary {
+.seo-main .btn-primary,
+.blog-cta .btn-primary {
   background: linear-gradient(135deg, #a78bfa, #6d28d9);
   color: #fff;
-  box-shadow: 0 8px 28px rgba(124, 58, 237, 0.45);
-}
-.btn-ghost {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid var(--stroke);
-}
-.btn-ghost:hover {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-.btn-ghost[aria-current='page'] {
-  color: var(--text);
-  border-color: rgba(196, 181, 253, 0.45);
+  box-shadow: 0 8px 28px var(--glow);
 }
 .seo-main {
   padding: 2rem 0 3rem;
@@ -214,18 +164,6 @@ header {
   margin-top: 0.75rem;
   font-size: 14px;
 }
-@media (max-width: 720px) {
-  .nav .btn-ghost {
-    padding: 0.5rem 0.75rem;
-    font-size: 14px;
-  }
-}
-@media (max-width: 640px) {
-  .nav .btn-ghost:not(.btn-cta-store) {
-    display: none;
-  }
-}
-
 .blog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

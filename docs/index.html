@@ -81,40 +81,6 @@
         margin: 0 auto;
         padding: 0 1.25rem;
       }
-      header {
-        padding: 1rem 0 1.15rem;
-        border-bottom: 1px solid var(--stroke);
-        position: sticky;
-        top: 0;
-        z-index: 50;
-        background: rgba(15, 8, 24, 0.85);
-        backdrop-filter: blur(12px);
-      }
-      .nav {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-      }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        font-size: 1.1rem;
-        color: var(--text);
-        text-decoration: none;
-      }
-      .brand-logo {
-        height: 120px;
-        width: auto;
-        max-width: min(360px, 70vw);
-        display: block;
-        object-fit: contain;
-        object-position: left center;
-        filter: drop-shadow(0 2px 16px rgba(124, 58, 237, 0.4));
-      }
       .btn {
         display: inline-flex;
         align-items: center;
@@ -435,13 +401,6 @@
         font-size: 14pt;
         color: var(--muted);
       }
-      .nav-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-      }
       .faq-section .faq-list {
         margin: 0;
         padding: 0;
@@ -473,18 +432,8 @@
         margin-top: 0.75rem;
         font-size: 14pt;
       }
-      @media (max-width: 720px) {
-        .nav .btn-ghost {
-          padding: 0.5rem 0.75rem;
-          font-size: 14pt;
-        }
-      }
-      @media (max-width: 640px) {
-        .nav .btn-ghost:not(.btn-cta-store) {
-          display: none;
-        }
-      }
     </style>
+    <link rel="stylesheet" href="site-header.css" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -577,14 +526,14 @@
           <a class="btn btn-ghost" href="#video">Watch tutorial</a>
           <a class="btn btn-ghost" href="#faq">FAQ</a>
           <a class="btn btn-ghost" href="#privacy">Privacy</a>
-            <a
-              class="btn btn-primary btn-cta-store"
-              href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=megaleads_site&amp;utm_medium=website&amp;utm_campaign=nav"
-              data-store-cta="nav"
-              rel="noopener noreferrer"
-              target="_blank"
-              >Add to Chrome — Free</a
-            >
+          <a
+            class="btn btn-primary btn-cta-store"
+            href="https://chromewebstore.google.com/detail/afcakombimmcopmdckjdjffdgnchhbpe?utm_source=megaleads_site&amp;utm_medium=website&amp;utm_campaign=nav"
+            data-store-cta="nav"
+            rel="noopener noreferrer"
+            target="_blank"
+            >Add to Chrome — Free</a
+          >
         </div>
       </div>
     </header>

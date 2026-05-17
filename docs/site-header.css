@@ -1,0 +1,100 @@
+/* Shared site header — keep in sync with megaleads-ai.com homepage */
+header {
+  padding: 1rem 0 1.15rem;
+  border-bottom: 1px solid var(--stroke);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(15, 8, 24, 0.85);
+  backdrop-filter: blur(12px);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: 1.1rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-logo {
+  height: 120px;
+  width: auto;
+  max-width: min(360px, 70vw);
+  display: block;
+  object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 2px 16px rgba(124, 58, 237, 0.4));
+}
+
+.nav-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+header .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 15pt;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+header .btn:hover {
+  transform: translateY(-1px);
+}
+
+header .btn-primary {
+  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+  color: #fff;
+  box-shadow: 0 8px 28px var(--glow, rgba(124, 58, 237, 0.45));
+}
+
+header .btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--stroke);
+}
+
+header .btn-ghost:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+header .btn-ghost[aria-current='page'] {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 720px) {
+  .nav .btn-ghost {
+    padding: 0.5rem 0.75rem;
+    font-size: 14pt;
+  }
+}
+
+@media (max-width: 640px) {
+  .nav .btn-ghost:not(.btn-cta-store) {
+    display: none;
+  }
+}

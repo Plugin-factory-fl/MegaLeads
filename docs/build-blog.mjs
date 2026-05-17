@@ -329,9 +329,10 @@ function headBlock(post, isIndex) {
     <meta property="og:image" content="https://megaleads-ai.com/assets/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;0,9..40,800&amp;display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;0,9..40,1000;1,9..40,400;1,9..40,700;1,9..40,800&amp;display=swap" rel="stylesheet" />
     <link rel="icon" type="image/png" href="../assets/logo.png" />
     <link rel="stylesheet" href="../seo.css" />
+    <link rel="stylesheet" href="../site-header.css" />
     ${
       isIndex
         ? `<script type="application/ld+json">
