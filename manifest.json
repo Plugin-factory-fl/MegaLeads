@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MegaLeads AI - IG Email Extractor Lead Finder",
   "version": "1.0.3",
-  "description": "Instagram email extractor for Chrome. IG email extractor & lead finder—extract emails from followers, following & hashtags. AI enrichment, export to Excel.",
+  "description": "AI Instagram email extractor for Chrome. Extract emails from followers, following & hashtags. AI enrich, export Excel.",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "scripting", "tabs", "activeTab", "declarativeNetRequest"],
   "host_permissions": [
