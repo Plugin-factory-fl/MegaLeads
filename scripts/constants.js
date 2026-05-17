@@ -25,8 +25,6 @@ export const MSG = {
   LF_ADMIN_SUBSCRIBERS: 'LF_ADMIN_SUBSCRIBERS',
   /** Content overlay CTA → background: open extension popup (or fallback tab). */
   OPEN_POPUP: 'LF_OPEN_POPUP',
-  /** Content overlay on profile → background: start extraction (same as popup Start). */
-  OVERLAY_RUN_EXTRACT: 'LF_OVERLAY_RUN_EXTRACT',
 };
 
 /** @type {const} */

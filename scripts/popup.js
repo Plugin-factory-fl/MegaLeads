@@ -476,8 +476,31 @@ function formatQueryForMode(mode, tag, user) {
   return '';
 }
 
+/** @returns {Promise<boolean>} true when overlay redirect pre-filled the form */
+async function applyOverlayPendingPageContext() {
+  const { [STORAGE_KEYS.OVERLAY_PENDING_START]: pending } = await chrome.storage.local.get(
+    STORAGE_KEYS.OVERLAY_PENDING_START,
+  );
+  if (!pending || typeof pending !== 'object') return false;
+  if (Date.now() - (Number(pending.at) || 0) > 120000) {
+    await chrome.storage.local.remove(STORAGE_KEYS.OVERLAY_PENDING_START);
+    return false;
+  }
+  const user = String(pending.username || '').trim();
+  const listMode = pending.mode === 'following' ? 'following' : 'followers';
+  if (!user) return false;
+  setSelectedMode(listMode);
+  els.query.value = formatQueryForMode(listMode, undefined, user);
+  updateQueryLabel();
+  await savePrefs();
+  await chrome.storage.local.remove(STORAGE_KEYS.OVERLAY_PENDING_START);
+  return true;
+}
+
 async function refreshPageContext() {
   try {
+    if (await applyOverlayPendingPageContext()) return;
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) return;
     const url = tab.url || '';

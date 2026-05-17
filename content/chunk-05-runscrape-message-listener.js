@@ -852,28 +852,6 @@ function lfEnsureOverlayButton() {
         );
         return;
       }
-      if (info.mode === 'profile' && info.user) {
-        chrome.runtime.sendMessage(
-          {
-            type: MSG.OVERLAY_RUN_EXTRACT,
-            mode: 'followers',
-            username: info.user,
-          },
-          () => void chrome.runtime.lastError,
-        );
-        return;
-      }
-      if (info.mode === 'hashtag' && info.tag) {
-        chrome.runtime.sendMessage(
-          {
-            type: MSG.OVERLAY_RUN_EXTRACT,
-            mode: 'hashtag',
-            query: info.tag,
-          },
-          () => void chrome.runtime.lastError,
-        );
-        return;
-      }
       chrome.runtime.sendMessage({ type: MSG.OPEN_POPUP }, () => void chrome.runtime.lastError);
     } catch {
       /* Extension context invalidated — user should refresh Instagram tab */
@@ -977,12 +955,7 @@ async function lfTryConsumeOverlayPending() {
     if (info.mode !== 'profile') return;
     const want = String(pending.username || '').trim().toLowerCase();
     if (!want || info.user.toLowerCase() !== want) return;
-    await chrome.storage.local.remove(STORAGE_KEYS.OVERLAY_PENDING_START);
-    const mode = pending.mode === 'following' ? 'following' : 'followers';
-    chrome.runtime.sendMessage(
-      { type: MSG.OVERLAY_RUN_EXTRACT, mode, username: info.user },
-      () => void chrome.runtime.lastError,
-    );
+    chrome.runtime.sendMessage({ type: MSG.OPEN_POPUP }, () => void chrome.runtime.lastError);
   } catch {
     /* ignore */
   }
