@@ -9,6 +9,15 @@ import {
   writeUserSession,
   syncSubscriptionFromServer,
 } from './account-shared.js';
+import {
+  registerPasswordForEmail,
+  verifyPasswordForEmail,
+  hasStoredPasswordForEmail,
+} from './auth-vault.js';
+import {
+  storeBrowserPasswordCredential,
+  wireBrowserPasswordAutofillOnFocus,
+} from './browser-credentials.js';
 import { t } from './i18n.js';
 
 const $ = (id) => {
@@ -213,7 +222,9 @@ async function init() {
         showCreateError('Invalid admin credentials.');
         return;
       }
+      if (!isAdmin) await registerPasswordForEmail(email, pw);
       await writeUserSession(email, { isAdmin });
+      if (!isAdmin) await storeBrowserPasswordCredential(email, pw);
       await syncSubscriptionFromServer();
       await afterAuthSuccess(isAdmin);
     } catch (e) {
@@ -236,7 +247,20 @@ async function init() {
         showSigninError('Invalid admin credentials.');
         return;
       }
-      await writeUserSession(email, { isAdmin });
+      if (!isAdmin) {
+        const hasVault = await hasStoredPasswordForEmail(email);
+        if (hasVault) {
+          const ok = await verifyPasswordForEmail(email, pw);
+          if (ok === false) {
+            showSigninError(t('en', 'signup.errWrongPassword'));
+            return;
+          }
+        } else {
+          await registerPasswordForEmail(email, pw);
+        }
+      }
+      await writeUserSession(email, { isAdmin, isSignIn: true });
+      if (!isAdmin) await storeBrowserPasswordCredential(email, pw);
       await syncSubscriptionFromServer();
       await afterAuthSuccess(isAdmin);
     } catch (e) {
@@ -245,6 +269,9 @@ async function init() {
   });
 
   $('lfSignupOpenDashboard').addEventListener('click', () => void openDashboardTab());
+
+  wireBrowserPasswordAutofillOnFocus('lfSigninPassword', 'lfSigninEmail');
+  wireBrowserPasswordAutofillOnFocus('lfSignupPassword', 'lfSignupEmail');
 }
 
 void init();

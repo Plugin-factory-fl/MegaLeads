@@ -28,7 +28,7 @@ var LF_LOG = {
       'Extension context invalidated (extension reloaded during run). Start extraction again.',
     word_fail: 'fail',
     http_error_generic: 'error',
-    nav_list_reload: 'Opening the list page. Click Start extraction again once you see the followers.',
+    nav_list_reload: 'Opening the followers/following list — extraction will continue automatically.',
     resume_run: 'Resuming extraction — saved leads are kept; new profiles will merge in.',
     start_run: 'Starting extraction…',
     source_cached_drain: 'Source transition: cached intercept drain complete (+{n}).',

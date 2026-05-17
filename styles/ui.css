@@ -2008,6 +2008,25 @@ html.lf-extension-doc body.lf-ui.lf-dashboard .lf-bio-cell {
   width: 100%;
 }
 
+.lf-popup-signed-in {
+  margin: 0.2rem 0 0.35rem;
+  font-size: calc(var(--lf-min-font) * 0.92);
+  color: var(--lf-muted);
+  text-align: center;
+}
+
+.lf-popup-signed-in[hidden] {
+  display: none !important;
+}
+
+/* Let Chrome show the native password / autofill affordances in auth modals */
+.lf-auth-form input[name='username'],
+.lf-auth-form input[name='email'],
+.lf-auth-form input[name='password'],
+.lf-auth-form input[name='password-confirm'] {
+  -webkit-text-security: none;
+}
+
 .lf-popup-gate-banner .lf-popup-gate-cta + .lf-popup-gate-cta {
   margin-top: 0.4rem;
 }

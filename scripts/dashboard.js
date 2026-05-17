@@ -350,6 +350,14 @@ function setSessionRunToggleButton(which) {
 }
 
 /** @param {Record<string, unknown> | undefined} rs */
+function extractionUiActive(rs) {
+  if (!rs || typeof rs !== 'object') return false;
+  if (rs.running === true) return true;
+  if (rs.stopReason === 'navigation_required') return true;
+  return false;
+}
+
+/** @param {Record<string, unknown> | undefined} rs */
 function syncSessionBar(rs) {
   lastSessionRs = rs;
   const L = uiLocale;
@@ -361,7 +369,7 @@ function syncSessionBar(rs) {
 
   els.sessionBar.hidden = false;
 
-  if (rs?.running) {
+  if (extractionUiActive(rs)) {
     if (els.sessionTarget) els.sessionTarget.textContent = (rs.sessionTarget && String(rs.sessionTarget)) || '—';
     if (els.sessionMode) {
       const raw = (rs.sessionModeLabel && String(rs.sessionModeLabel)) || '';
@@ -444,7 +452,7 @@ function syncSessionBar(rs) {
 
 async function startExtractionFromDashboardPipeline() {
   const { [STORAGE_KEYS.RUN_STATE]: rs } = await chrome.storage.local.get(STORAGE_KEYS.RUN_STATE);
-  if (rs?.running) {
+  if (extractionUiActive(rs)) {
     appendStatusLine(t(uiLocale, 'dashboard.alreadyRunning'));
     return;
   }
@@ -496,7 +504,7 @@ async function startExtractionFromDashboardPipeline() {
 
 async function onDashboardRunToggleClick() {
   const { [STORAGE_KEYS.RUN_STATE]: rs } = await chrome.storage.local.get(STORAGE_KEYS.RUN_STATE);
-  if (rs?.running) {
+  if (extractionUiActive(rs)) {
     await stopExtractionFromDashboard();
     return;
   }
@@ -2166,7 +2174,10 @@ function onRuntimeMessage(msg) {
     void loadLeads().then(() => void runPostExtractionAiEnrich());
   }
   if (msg.type === MSG.ERROR) {
-    setRunningUi(false);
+    void chrome.storage.local.get(STORAGE_KEYS.RUN_STATE).then((bag) => {
+      const rs = bag[STORAGE_KEYS.RUN_STATE];
+      if (!extractionUiActive(rs)) setRunningUi(false);
+    });
     appendStatusLine(
       `${t(uiLocale, 'dashboard.errorPrefix')} ${msg.message || 'Unknown'}`,
     );
@@ -2789,7 +2800,7 @@ function wireEvents() {
     }
     if (changes[STORAGE_KEYS.RUN_STATE]) {
       const rs = changes[STORAGE_KEYS.RUN_STATE].newValue;
-      if (rs?.running) {
+      if (extractionUiActive(rs)) {
         setRunningUi(true);
         const g = rs.sessionMaxProfiles != null ? Number(rs.sessionMaxProfiles) : NaN;
         if (Number.isFinite(g) && g > 0) {
@@ -2899,7 +2910,7 @@ async function init() {
 
   const { [STORAGE_KEYS.RUN_STATE]: rs } = await chrome.storage.local.get(STORAGE_KEYS.RUN_STATE);
   syncSessionBar(rs);
-  if (rs?.running) {
+  if (extractionUiActive(rs)) {
     setRunningUi(true);
     const g = rs.sessionMaxProfiles != null ? Number(rs.sessionMaxProfiles) : NaN;
     if (Number.isFinite(g) && g > 0) {

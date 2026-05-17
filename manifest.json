@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MegaLeads AI - IG Email Extractor Lead Finder",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Extract and organize Instagram leads directly from Instagram pages with popup controls and a dedicated dashboard.",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "scripting", "tabs", "activeTab", "declarativeNetRequest"],

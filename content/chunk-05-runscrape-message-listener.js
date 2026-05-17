@@ -57,6 +57,7 @@ async function runScrape(payload) {
 
   stopRequested = false;
   isRunning = true;
+  lfResumePendingLock = false;
   graphHints = new Map();
   let finalSessionStatus = 'completed';
   let finalStopReason = '';
@@ -99,31 +100,30 @@ async function runScrape(payload) {
   const listUser = normalizeQuery(query);
   const opened = await ensureListModalOpen(doc, mode, listUser);
   if (!opened) {
-    await appendLog(lfLog('nav_list_reload', {}));
-    broadcast({
-      type: MSG.ERROR,
-      message: lfLog('nav_list_reload', {}),
-    });
+    const navLine = lfLog('nav_list_reload', {});
+    await appendLog(navLine);
+    broadcast({ type: MSG.LOG, line: navLine });
     isRunning = false;
-    finalSessionStatus = 'stopped';
     const rsNav = await chrome.storage.local.get(STORAGE_KEYS.RUN_STATE);
+    const prev = rsNav[STORAGE_KEYS.RUN_STATE] || {};
     await chrome.storage.local.set({
       [STORAGE_KEYS.RUN_STATE]: {
-        ...(rsNav[STORAGE_KEYS.RUN_STATE] || {}),
-        running: false,
+        ...prev,
+        running: true,
         mode,
-        sessionTarget: '',
-        sessionModeLabel: '',
-        sessionPageUrl: '',
-        sessionMaxProfiles: null,
-        sessionMinFollowers: null,
+        startedFromPopup: prev.startedFromPopup === true,
+        sessionTarget: formatSessionTargetForUi(mode, query),
+        sessionModeLabel: sessionModeLabel(mode),
+        sessionPageUrl: doc.location.href,
+        sessionMaxProfiles: hasProfileCap(maxProfiles) ? maxProfiles : prev.sessionMaxProfiles ?? null,
+        sessionMinFollowers: sessionMinFollowers,
         stopReason: 'navigation_required',
-        lastExportSlug: listUser || (rsNav[STORAGE_KEYS.RUN_STATE] || {}).lastExportSlug || '',
+        currentPhase: 'navigate',
+        lastExportSlug: listUser || prev.lastExportSlug || '',
         lastExportMode: mode,
       },
+      [STORAGE_KEYS.PENDING_SCRAPE_RESUME]: { payload, at: Date.now() },
     });
-    await chrome.storage.local.remove(STORAGE_KEYS.SCRAPE_SOURCE_TAB);
-    await finalizeSessionHistoryRecord(finalSessionStatus, 'navigation_required');
     return;
   }
 
@@ -651,7 +651,11 @@ async function runScrape(payload) {
         lastExportMode: mode,
       },
     });
-    await chrome.storage.local.remove(STORAGE_KEYS.SCRAPE_SOURCE_TAB);
+    await chrome.storage.local.remove([
+      STORAGE_KEYS.SCRAPE_SOURCE_TAB,
+      STORAGE_KEYS.PENDING_SCRAPE_RESUME,
+      STORAGE_KEYS.POPUP_ARMED_EXTRACT,
+    ]);
     await finalizeSessionHistoryRecord(finalSessionStatus, finalStopReason || 'completed');
   }
 }
@@ -941,6 +945,57 @@ function lfStartOverlaySparkles() {
   }, 160);
 }
 
+let lfResumePendingLock = false;
+
+async function lfTryResumePendingScrape() {
+  if (lfResumePendingLock || isRunning) return;
+  try {
+    if (!chrome.runtime?.id) return;
+    const bag = await chrome.storage.local.get([
+      STORAGE_KEYS.PENDING_SCRAPE_RESUME,
+      STORAGE_KEYS.RUN_STATE,
+    ]);
+    const pending = bag[STORAGE_KEYS.PENDING_SCRAPE_RESUME];
+    if (!pending?.payload || typeof pending.payload !== 'object') return;
+    if (Date.now() - (Number(pending.at) || 0) > 180000) {
+      await chrome.storage.local.remove(STORAGE_KEYS.PENDING_SCRAPE_RESUME);
+      return;
+    }
+    const rs = bag[STORAGE_KEYS.RUN_STATE] || {};
+    if (!rs.running) return;
+
+    const payload = pending.payload;
+    const mode = String(payload.mode || '');
+    const listUser = normalizeQuery(payload.query || '');
+    const v = validatePage(document, mode, listUser);
+    if (!v.ok) return;
+
+    const info = detectPageMode(document.location);
+    if (mode === 'followers') {
+      if (info.mode !== 'followers' || info.user.toLowerCase() !== listUser) return;
+    } else if (mode === 'following') {
+      if (info.mode !== 'following' || info.user.toLowerCase() !== listUser) return;
+    } else {
+      return;
+    }
+
+    lfResumePendingLock = true;
+    await chrome.storage.local.remove(STORAGE_KEYS.PENDING_SCRAPE_RESUME);
+    await patchRunState({ stopReason: '', currentPhase: 'gather' });
+    void runScrape(payload).catch(async (e) => {
+      lfError('runScrape resume: unhandled rejection', e?.message || e, e?.stack);
+      try {
+        await appendLog(lfLog('run_fatal', { msg: e?.message || e }));
+      } catch {
+        /* ignore */
+      }
+      broadcast({ type: MSG.ERROR, message: e?.message || String(e) });
+    });
+  } catch {
+    lfResumePendingLock = false;
+  }
+}
+
 async function lfTryConsumeOverlayPending() {
   try {
     if (!chrome.runtime?.id) return;
@@ -964,12 +1019,14 @@ async function lfTryConsumeOverlayPending() {
 function lfInitOverlayButton() {
   lfRefreshOverlayButton();
   lfStartOverlaySparkles();
+  void lfTryResumePendingScrape();
   void lfTryConsumeOverlayPending();
   setInterval(() => {
     const key = `${document.location.pathname}|${document.location.search}`;
     if (key !== lfOverlayLastPath) {
       lfOverlayLastPath = key;
       lfRefreshOverlayButton();
+      void lfTryResumePendingScrape();
       void lfTryConsumeOverlayPending();
     }
   }, 700);

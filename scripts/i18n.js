@@ -76,6 +76,8 @@ export const I18N = {
       unlimitedIgEmailExtraction: 'Unlimited IG Email Extraction',
       headerProgressAria: 'Emails remaining on free tier',
       loggedInToast: 'You are logged in.',
+      signedInAs: 'Signed in as {email}',
+      rememberMe: 'Remember me on this device',
       loginToastDismissAria: 'Dismiss',
       authModalLogInBtn: 'Log In',
       authModalCreateAccountBtn: 'Create free account',
@@ -92,8 +94,10 @@ export const I18N = {
       confirmPassword: 'Confirm password',
       createSubmit: 'Create free account',
       signinTitle: 'Already registered?',
-      signinDesc: 'Sign in with the same email and password. (Password is checked locally until server auth is connected.)',
+      signinDesc:
+        'Sign in with your email and password. Tap the email or password field to use a login saved in Chrome.',
       signinSubmit: 'Sign in',
+      errWrongPassword: 'Incorrect password for this email.',
       openDashboard: 'Open dashboard',
       success: 'You are signed in. You can open the dashboard to run extractions.',
       successNoReturn:
@@ -110,7 +114,7 @@ export const I18N = {
     dashboard: {
       langSwitch: 'English',
       title: 'MegaLeadsAI - Dashboard',
-      version: 'v1.0 · Dashboard',
+      version: 'v1.0.3 · Dashboard',
       themeLight: 'Light mode',
       themeDark: 'Dark mode',
       ariaThemeToLight: 'Switch to light mode',

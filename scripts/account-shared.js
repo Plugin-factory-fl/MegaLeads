@@ -18,11 +18,25 @@ export async function readUserSession() {
   if (!raw || typeof raw !== 'object') return null;
   const email = String(raw.email || '').trim();
   if (!email) return null;
-  const registeredAt = Number(raw.registeredAt) || 0;
-  if (!registeredAt) return null;
+  let registeredAt = Number(raw.registeredAt) || 0;
+  if (!registeredAt) {
+    registeredAt = Number(raw.loggedInAt) || Date.now();
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.USER_SESSION]: {
+          ...raw,
+          email,
+          registeredAt,
+          loggedInAt: Number(raw.loggedInAt) || registeredAt,
+        },
+      });
+    } catch {
+      /* quota */
+    }
+  }
   return {
     email,
-    loggedInAt: Number(raw.loggedInAt) || 0,
+    loggedInAt: Number(raw.loggedInAt) || registeredAt,
     registeredAt,
     isAdmin: raw.isAdmin === true,
   };
@@ -155,14 +169,28 @@ export async function notifyServerAccountRegistered(email, opts) {
 /**
  * Create or update the signed-in MegaLeads account (signup or sign-in on signup.html).
  * @param {string} email
+ * @param {{ isAdmin?: boolean, isSignIn?: boolean }} [options]
  */
 export async function writeUserSession(email, options) {
   const trimmed = String(email || '').trim();
   if (!trimmed) return;
   const now = Date.now();
   const isAdmin = Boolean(options && typeof options === 'object' && options.isAdmin === true);
+  const emKey = trimmed.toLowerCase();
+  const prevBag = await chrome.storage.local.get(STORAGE_KEYS.USER_SESSION);
+  const prev = prevBag[STORAGE_KEYS.USER_SESSION];
+  const prevRegistered = Number(prev?.registeredAt) || 0;
+  const prevEmail = String(prev?.email || '')
+    .trim()
+    .toLowerCase();
+  const registeredAt = prevEmail === emKey && prevRegistered > 0 ? prevRegistered : now;
   await chrome.storage.local.set({
-    [STORAGE_KEYS.USER_SESSION]: { email: trimmed, loggedInAt: now, registeredAt: now, isAdmin },
+    [STORAGE_KEYS.USER_SESSION]: {
+      email: trimmed,
+      loggedInAt: now,
+      registeredAt,
+      isAdmin,
+    },
   });
   await notifyServerAccountRegistered(trimmed);
 }

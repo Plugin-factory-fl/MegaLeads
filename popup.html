@@ -93,6 +93,7 @@
         <button type="button" class="lf-btn lf-btn-primary lf-popup-gate-cta" id="lfPopupAuthCta"></button>
         <button type="button" class="lf-btn lf-btn-login lf-popup-gate-cta" id="lfPopupAuthLoginCta">Log In</button>
       </div>
+      <p class="lf-popup-signed-in" id="lfPopupSignedInAs" hidden></p>
       <div class="lf-popup-gate-banner lf-popup-gate-banner-warn" id="lfPopupCapBanner" hidden role="region">
         <p class="lf-popup-gate-title" id="lfPopupCapTitle"></p>
         <p class="lf-popup-gate-body" id="lfPopupCapBody"></p>
@@ -274,16 +275,31 @@
       >
         <h3 class="lf-modal-title" id="lfPopupAuthSignupTitle"></h3>
         <p class="lf-account-modal-desc" id="lfPopupAuthSignupLead"></p>
-        <form id="lfPopupAuthSignupForm">
+        <form
+          id="lfPopupAuthSignupForm"
+          class="lf-auth-form"
+          method="post"
+          action="popup.html"
+          autocomplete="on"
+        >
           <div class="lf-account-field">
             <label for="lfPopupAuthSignupEmail" id="lfPopupAuthSignupEmailLabel"></label>
-            <input type="email" id="lfPopupAuthSignupEmail" autocomplete="email" required />
+            <input
+              type="email"
+              id="lfPopupAuthSignupEmail"
+              name="email"
+              autocomplete="email"
+              autocapitalize="none"
+              spellcheck="false"
+              required
+            />
           </div>
           <div class="lf-account-field">
             <label for="lfPopupAuthSignupPassword" id="lfPopupAuthSignupPasswordLabel"></label>
             <input
               type="password"
               id="lfPopupAuthSignupPassword"
+              name="password"
               autocomplete="new-password"
               required
               minlength="8"
@@ -294,6 +310,7 @@
             <input
               type="password"
               id="lfPopupAuthSignupConfirm"
+              name="password-confirm"
               autocomplete="new-password"
               required
               minlength="8"
@@ -318,16 +335,32 @@
       >
         <h3 class="lf-modal-title" id="lfPopupAuthLoginTitle"></h3>
         <p class="lf-account-modal-desc" id="lfPopupAuthLoginLead"></p>
-        <form id="lfPopupAuthLoginForm">
+        <form
+          id="lfPopupAuthLoginForm"
+          class="lf-auth-form lf-auth-form-login"
+          method="post"
+          action="popup.html"
+          autocomplete="on"
+        >
           <div class="lf-account-field">
             <label for="lfPopupAuthLoginEmail" id="lfPopupAuthLoginEmailLabel"></label>
-            <input type="email" id="lfPopupAuthLoginEmail" autocomplete="email" required />
+            <input
+              type="email"
+              id="lfPopupAuthLoginEmail"
+              name="username"
+              autocomplete="username"
+              inputmode="email"
+              autocapitalize="none"
+              spellcheck="false"
+              required
+            />
           </div>
           <div class="lf-account-field">
             <label for="lfPopupAuthLoginPassword" id="lfPopupAuthLoginPasswordLabel"></label>
             <input
               type="password"
               id="lfPopupAuthLoginPassword"
+              name="password"
               autocomplete="current-password"
               required
               minlength="8"

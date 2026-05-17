@@ -49,6 +49,8 @@ const STORAGE_KEYS = {
   SCRAPE_SOURCE_TAB: 'leadflow_scrape_source_tab',
   SESSION_HISTORY: 'leadflow_session_history',
   OVERLAY_PENDING_START: 'leadflow_overlay_pending_start',
+  POPUP_ARMED_EXTRACT: 'leadflow_popup_armed_extract',
+  PENDING_SCRAPE_RESUME: 'leadflow_pending_scrape_resume',
 };
 
 /** Set to `false` to silence DevTools `[MegaLeads]` logs. */

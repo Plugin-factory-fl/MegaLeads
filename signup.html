@@ -29,18 +29,46 @@
           <section class="lf-signup-card" aria-labelledby="lfSignupCreateTitle">
             <h2 class="lf-signup-card-title" id="lfSignupCreateTitle"></h2>
             <p class="lf-signup-card-desc" id="lfSignupCreateDesc"></p>
-            <form class="lf-signup-form" id="lfSignupCreateForm" autocomplete="on">
+            <form
+              class="lf-signup-form lf-auth-form"
+              id="lfSignupCreateForm"
+              method="post"
+              action="signup.html"
+              autocomplete="on"
+            >
               <label class="lf-signup-label">
                 <span id="lfSignupEmailLabel"></span>
-                <input type="email" id="lfSignupEmail" name="email" required autocomplete="email" />
+                <input
+                  type="email"
+                  id="lfSignupEmail"
+                  name="email"
+                  required
+                  autocomplete="email"
+                  autocapitalize="none"
+                  spellcheck="false"
+                />
               </label>
               <label class="lf-signup-label">
                 <span id="lfSignupPasswordLabel"></span>
-                <input type="password" id="lfSignupPassword" required minlength="8" autocomplete="new-password" />
+                <input
+                  type="password"
+                  id="lfSignupPassword"
+                  name="password"
+                  required
+                  minlength="8"
+                  autocomplete="new-password"
+                />
               </label>
               <label class="lf-signup-label">
                 <span id="lfSignupConfirmLabel"></span>
-                <input type="password" id="lfSignupConfirm" required minlength="8" autocomplete="new-password" />
+                <input
+                  type="password"
+                  id="lfSignupConfirm"
+                  name="password-confirm"
+                  required
+                  minlength="8"
+                  autocomplete="new-password"
+                />
               </label>
               <p class="lf-signup-error" id="lfSignupCreateError" hidden role="alert"></p>
               <button type="submit" class="lf-btn lf-btn-primary lf-signup-submit" id="lfSignupCreateSubmit"></button>
@@ -50,14 +78,36 @@
           <section class="lf-signup-card lf-signup-card-secondary" aria-labelledby="lfSigninTitle">
             <h2 class="lf-signup-card-title" id="lfSigninTitle"></h2>
             <p class="lf-signup-card-desc" id="lfSigninDesc"></p>
-            <form class="lf-signup-form" id="lfSigninForm" autocomplete="on">
+            <form
+              class="lf-signup-form lf-auth-form lf-auth-form-login"
+              id="lfSigninForm"
+              method="post"
+              action="signup.html"
+              autocomplete="on"
+            >
               <label class="lf-signup-label">
                 <span id="lfSigninEmailLabel"></span>
-                <input type="email" id="lfSigninEmail" required autocomplete="email" />
+                <input
+                  type="email"
+                  id="lfSigninEmail"
+                  name="username"
+                  required
+                  autocomplete="username"
+                  inputmode="email"
+                  autocapitalize="none"
+                  spellcheck="false"
+                />
               </label>
               <label class="lf-signup-label">
                 <span id="lfSigninPasswordLabel"></span>
-                <input type="password" id="lfSigninPassword" required minlength="8" autocomplete="current-password" />
+                <input
+                  type="password"
+                  id="lfSigninPassword"
+                  name="password"
+                  required
+                  minlength="8"
+                  autocomplete="current-password"
+                />
               </label>
               <p class="lf-signup-error" id="lfSigninError" hidden role="alert"></p>
               <button type="submit" class="lf-btn lf-btn-ghost lf-signup-submit" id="lfSigninSubmit"></button>

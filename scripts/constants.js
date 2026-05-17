@@ -36,8 +36,12 @@ export const STORAGE_KEYS = {
   DASHBOARD_TAB_ID: 'leadflow_dashboard_tab_id',
   /** Instagram tab that received Start (so Stop works while dashboard is focused). */
   SCRAPE_SOURCE_TAB: 'leadflow_scrape_source_tab',
-  /** After overlay click on /followers|/following: land on profile then auto-start. */
+  /** After overlay click on /followers|/following: land on profile then open popup. */
   OVERLAY_PENDING_START: 'leadflow_overlay_pending_start',
+  /** Popup Start succeeded — dashboard should show running without a second click. */
+  POPUP_ARMED_EXTRACT: 'leadflow_popup_armed_extract',
+  /** Auto-resume runScrape after IG navigates to followers/following list. */
+  PENDING_SCRAPE_RESUME: 'leadflow_pending_scrape_resume',
   /** Popup: delay-slider risk toast dismissed until this timestamp (ms). */
   DELAY_RISK_SNOOZE_UNTIL: 'leadflow_delay_risk_snooze_until',
   /** Stored extraction sessions with lead snapshots (newest first). */
@@ -47,6 +51,10 @@ export const STORAGE_KEYS = {
    * `registeredAt` is required for the app to treat the account as active.
    */
   USER_SESSION: 'leadflow_user_session',
+  /** PBKDF2 password hashes per email (device-local sign-in). */
+  AUTH_VAULT: 'leadflow_auth_vault',
+  /** Last login email for popup form prefill (`{ email, remember: true }`). */
+  AUTH_REMEMBER_EMAIL: 'leadflow_auth_remember_email',
   /** `{ unlimited: true }` when the user has an active paid plan (set by app / future server sync). */
   SUBSCRIPTION: 'leadflow_subscription',
   /** `{ used, cap, remaining, atCap, checkedAt, source }` from server account-level free-tier status. */

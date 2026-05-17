@@ -34,6 +34,15 @@ import {
   ADMIN_EMAIL,
   isAdminCredentials,
 } from './account-shared.js';
+import {
+  registerPasswordForEmail,
+  verifyPasswordForEmail,
+  hasStoredPasswordForEmail,
+} from './auth-vault.js';
+import {
+  storeBrowserPasswordCredential,
+  wireBrowserPasswordAutofillOnFocus,
+} from './browser-credentials.js';
 
 /** @typedef {'en'} Locale */
 
@@ -584,6 +593,18 @@ function syncPopupAuthModalLocale() {
   if (loginQuick) loginQuick.textContent = t(L, 'popup.authModalLogInBtn');
 }
 
+function syncPopupSignedInIndicator(session) {
+  const el = document.getElementById('lfPopupSignedInAs');
+  if (!el) return;
+  if (session?.email) {
+    el.textContent = tf(uiLocale, 'popup.signedInAs', { email: session.email });
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+    el.textContent = '';
+  }
+}
+
 function setPopupAuthSignupError(msg) {
   const el = document.getElementById('lfPopupAuthSignupError');
   if (!el) return;
@@ -611,12 +632,19 @@ function openPopupLoginModal() {
   syncPopupAuthModalLocale();
   const su = document.getElementById('lfPopupAuthSignupWrap');
   const li = document.getElementById('lfPopupAuthLoginWrap');
+  const signupForm = document.getElementById('lfPopupAuthSignupForm');
+  const loginForm = document.getElementById('lfPopupAuthLoginForm');
   if (su) su.hidden = true;
   if (li) li.hidden = false;
+  if (signupForm instanceof HTMLFormElement) signupForm.setAttribute('autocomplete', 'off');
+  if (loginForm instanceof HTMLFormElement) loginForm.setAttribute('autocomplete', 'on');
   setPopupAuthSignupError('');
   setPopupAuthLoginError('');
+  wireBrowserPasswordAutofillOnFocus('lfPopupAuthLoginPassword', 'lfPopupAuthLoginEmail');
   const em = document.getElementById('lfPopupAuthLoginEmail');
-  window.setTimeout(() => em?.focus(), 0);
+  window.requestAnimationFrame(() => {
+    em?.focus();
+  });
 }
 
 function openPopupSignupModal() {
@@ -627,15 +655,24 @@ function openPopupSignupModal() {
   if (su) su.hidden = false;
   setPopupAuthSignupError('');
   setPopupAuthLoginError('');
-  const f = document.getElementById('lfPopupAuthSignupForm');
-  if (f instanceof HTMLFormElement) f.reset();
-  const lf = document.getElementById('lfPopupAuthLoginForm');
-  if (lf instanceof HTMLFormElement) lf.reset();
+  const signupForm = document.getElementById('lfPopupAuthSignupForm');
+  const loginForm = document.getElementById('lfPopupAuthLoginForm');
+  if (loginForm instanceof HTMLFormElement) loginForm.setAttribute('autocomplete', 'off');
+  if (signupForm instanceof HTMLFormElement) {
+    signupForm.setAttribute('autocomplete', 'on');
+    signupForm.reset();
+  }
+  wireBrowserPasswordAutofillOnFocus('lfPopupAuthSignupPassword', 'lfPopupAuthSignupEmail');
   const em = document.getElementById('lfPopupAuthSignupEmail');
   window.setTimeout(() => em?.focus(), 0);
 }
 
-async function completePopupAuthSuccess(email, password) {
+/**
+ * @param {string} email
+ * @param {string} password
+ * @param {'signup' | 'login'} intent
+ */
+async function completePopupAuthSuccess(email, password, intent = 'signup') {
   const trimmed = String(email || '').trim();
   if (!trimmed || !trimmed.includes('@')) {
     return t(uiLocale, 'signup.errSignin');
@@ -644,11 +681,25 @@ async function completePopupAuthSuccess(email, password) {
   if (isAdmin && !isAdminCredentials(trimmed, password)) {
     return 'Invalid admin credentials.';
   }
+  if (!isAdmin) {
+    if (intent === 'login') {
+      const hasVault = await hasStoredPasswordForEmail(trimmed);
+      if (hasVault) {
+        const ok = await verifyPasswordForEmail(trimmed, password);
+        if (ok === false) return t(uiLocale, 'signup.errWrongPassword');
+      } else {
+        await registerPasswordForEmail(trimmed, password);
+      }
+    } else {
+      await registerPasswordForEmail(trimmed, password);
+    }
+  }
   try {
-    await writeUserSession(trimmed, { isAdmin });
+    await writeUserSession(trimmed, { isAdmin, isSignIn: intent === 'login' });
   } catch (e) {
     return String(e?.message || e || 'Error');
   }
+  if (!isAdmin) await storeBrowserPasswordCredential(trimmed, password);
   closePopupAuthModals();
   await chrome.storage.local.set({
     [STORAGE_KEYS.LOGIN_TOAST]: {
@@ -844,7 +895,7 @@ function wirePopupAuthModals() {
         setPopupAuthSignupError(t(L, 'signup.errPasswordShort'));
         return;
       }
-      const err = await completePopupAuthSuccess(email, pw);
+      const err = await completePopupAuthSuccess(email, pw, 'signup');
       if (err) setPopupAuthSignupError(err);
     });
   }
@@ -863,7 +914,7 @@ function wirePopupAuthModals() {
         setPopupAuthLoginError(t(L, 'signup.errSignin'));
         return;
       }
-      const err = await completePopupAuthSuccess(email, pw);
+      const err = await completePopupAuthSuccess(email, pw, 'login');
       if (err) setPopupAuthLoginError(err);
     });
   }
@@ -1041,6 +1092,7 @@ async function refreshPopupGates() {
     if (auth) auth.hidden = true;
     if (cap) cap.hidden = true;
   }
+  syncPopupSignedInIndicator(session);
   syncRunButtons();
   void refreshPopupHeaderProgress();
 }
@@ -1081,8 +1133,10 @@ async function startExtractionPipeline() {
   const maxP = payload.maxProfiles != null ? Number(payload.maxProfiles) : NaN;
   await chrome.storage.local.set({
     [STORAGE_KEYS.SCRAPE_SOURCE_TAB]: tab.id,
+    [STORAGE_KEYS.POPUP_ARMED_EXTRACT]: { at: Date.now() },
     [STORAGE_KEYS.RUN_STATE]: {
       running: true,
+      startedFromPopup: true,
       mode: payload.mode,
       startedAt: Date.now(),
       sessionTarget,
@@ -1113,7 +1167,11 @@ async function startExtractionPipeline() {
       payload,
     });
     if (resp && resp.ok === false) {
-      void chrome.storage.local.remove(STORAGE_KEYS.SCRAPE_SOURCE_TAB);
+      void chrome.storage.local.remove([
+        STORAGE_KEYS.SCRAPE_SOURCE_TAB,
+        STORAGE_KEYS.POPUP_ARMED_EXTRACT,
+        STORAGE_KEYS.PENDING_SCRAPE_RESUME,
+      ]);
       await chrome.storage.local.set({
         [STORAGE_KEYS.RUN_STATE]: { running: false, stopReason: 'validation_error' },
       });
@@ -1123,7 +1181,11 @@ async function startExtractionPipeline() {
     running = true;
     syncRunButtons();
   } catch {
-    void chrome.storage.local.remove(STORAGE_KEYS.SCRAPE_SOURCE_TAB);
+    void chrome.storage.local.remove([
+      STORAGE_KEYS.SCRAPE_SOURCE_TAB,
+      STORAGE_KEYS.POPUP_ARMED_EXTRACT,
+      STORAGE_KEYS.PENDING_SCRAPE_RESUME,
+    ]);
     await chrome.storage.local.set({
       [STORAGE_KEYS.RUN_STATE]: { running: false, stopReason: 'validation_error' },
     });
@@ -1229,7 +1291,7 @@ function wireEvents() {
   const authCta = document.getElementById('lfPopupAuthCta');
   if (authCta) authCta.addEventListener('click', () => openPopupSignupModal());
   const authLoginCta = document.getElementById('lfPopupAuthLoginCta');
-  if (authLoginCta) authLoginCta.addEventListener('click', () => openPopupLoginModal());
+  if (authLoginCta) authLoginCta.addEventListener('click', () => void openPopupLoginModal());
   const capUp = document.getElementById('lfPopupCapUpgrade');
   if (capUp) {
     capUp.addEventListener('click', () => {
@@ -1328,7 +1390,7 @@ async function init() {
   await refreshSubscriptionForSession();
   await refreshPopupGates();
   await refreshPopupHeaderProgress();
-  await maybeShowLoginToast();
+  void maybeShowLoginToast();
 }
 
 void init();
